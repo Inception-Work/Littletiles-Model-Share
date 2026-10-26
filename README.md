@@ -107,3 +107,47 @@ run/                    # 开发客户端数据目录（生成的，别提交）
 2. **上传**（按你说的后续再开发）。
 3. 密码框是明文输入（只是画面上打了 ●），要更安全可以改成"网页登录拿一次性 code，游戏内粘贴"。
 4. 令牌过期没做自动续期（`refreshToken` 已经存下来了，续期接口 `/api/account/auth/refresh` 还没接）。
+
+---
+
+## IDEA / 运行客户端常见问题
+
+### 一堆 `HTTP response code: 400`（或 `Error downloading asset`）
+
+**症状**：启动客户端时刷几千条 `Error downloading asset (try 1..5)`、`Server returned HTTP response code: 400`，游戏启动很慢。
+
+**原因**（实测确认，和模组无关）：
+
+1. Minecraft 1.12.2 判断"缺资源"时用的是 **`http://`**resources.download.minecraft.net；
+2. Mojang 的 CDN 现在**对 http 直接回 400**（同一路径走 https 是 404 = 域名活着）；
+3. 而 ForgeGradle 的 `makeStart` 把 `GradleStart` 的默认资源目录写成了
+   `~/.gradle/caches/minecraft/assets`，可资源实际下在 `~/.gradle/caches/forge_gradle/assets`
+   —— 客户端看到的是**空目录**，于是把 1305 个资源全当成缺失，逐个去 http 拉 → 400 刷屏。
+
+**修法**（已经做进 `build.gradle`，`runClient` / `runServer` 会自动带上）：
+
+```powershell
+.\gradlew.bat fixAssetsDir   # 在两个 cache 目录之间建 junction（Windows 目录软链）
+```
+
+它等价于手动执行：
+
+```powershell
+$h = "$env:USERPROFILE\.gradle\caches"
+cmd /c mklink /J "$h\minecraft\assets" "$h\forge_gradle\assets"
+```
+
+修完再启动，400 归零（实测 6484 → 0）。
+
+### 在 IDEA 里跑
+
+两种都行：
+
+1. **推荐**：直接用 Gradle 面板里的 `runClient` 任务（这样会走 `fixAssetsDir` + `--assetsDir` 参数）；
+2. 或者 `.\gradlew.bat genIntellijRuns` 生成 IDEA 运行配置（`run/client`），再在 IDEA 里跑那个配置。
+   注意 IDEA 里自己手建的 Application 配置**不会**带 FG 生成的启动参数（资源目录、natives、tweakClass），十有八九起不来。
+
+### 中文日志变成 `???`
+
+1.12.2 的控制台用系统默认编码（GBK），log4j 按 UTF-8 写，所以中文会显示成问号。
+不影响游戏，只是难看；要看中文日志就去 `run/logs/latest.log`。

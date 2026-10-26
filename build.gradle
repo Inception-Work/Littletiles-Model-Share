@@ -34,12 +34,34 @@ minecraft {
     mappings = 'stable_39'
 
     /*
-     * 开发客户端自己也会联网。Gradle 的代理（gradle.properties 的 systemProp.*）
-     * 只作用于 Gradle 进程，传不到游戏 JVM，所以这里再给一份。不用代理就删掉这两行。
+     * 游戏 JVM **默认不走代理**：Minecraft 的资源 CDN 直连没问题，
+     * 强塞代理反而会让 Realms/资源下载拿到 HTTP 400（Clash 对某些域名直接拒）。
+     * 真需要代理时显式给：.\gradlew.bat runClient -PltsProxy=127.0.0.1:7890
      */
-    clientJvmArgs += ['-Dhttp.proxyHost=127.0.0.1', '-Dhttp.proxyPort=7890',
-                      '-Dhttps.proxyHost=127.0.0.1', '-Dhttps.proxyPort=7890',
-                      '-Dhttp.nonProxyHosts=localhost|127.0.0.1']
+    /*
+     * 关键：显式指定资源目录。
+     *
+     * Minecraft 1.12.2 的"缺资源就下载"走的是 **http://**resources.download.minecraft.net，
+     * 而 Mojang 的 CDN 现在对 http 直接回 400（https 正常）—— 一旦客户端没拿到
+     * forge_gradle 缓存里的资源目录，就会把一千多个资源当成缺失，然后刷出几千条
+     * "HTTP response code: 400"，进游戏也慢一大截。
+     *
+     * ForgeGradle 的 getAssets 已经把 1.12 的 1305 个资源下到
+     * ~/.gradle/caches/forge_gradle/assets（含 indexes/1.12.json），这里直接指过去。
+     */
+    clientRunArgs += [
+            '--assetsDir', new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets').absolutePath,
+            '--assetIndex', '1.12'
+    ]
+
+    if (project.hasProperty('ltsProxy')) {
+        def proxy = project.property('ltsProxy').toString().split(':')
+        clientJvmArgs += [
+                "-Dhttp.proxyHost=${proxy[0]}", "-Dhttp.proxyPort=${proxy[1]}",
+                "-Dhttps.proxyHost=${proxy[0]}", "-Dhttps.proxyPort=${proxy[1]}",
+                '-Dhttp.nonProxyHosts=localhost|127.0.0.1'
+        ]
+    }
 }
 
 dependencies {
@@ -72,3 +94,47 @@ jar {
         ])
     }
 }
+
+/**
+ * 修「1.12.2 客户端刷一堆 HTTP 400」。
+ *
+ * 背景：ForgeGradle 的 makeStart 会把 GradleStart 的默认 assetsDir 写成
+ * <gradle home>/caches/minecraft/assets，但资源其实下在 caches/forge_gradle/assets，
+ * 于是客户端以为 1305 个资源全缺 → 去 http://resources.download.minecraft.net 拉
+ * → Mojang 的 CDN 现在对 http 直接回 400（https 才正常）→ 几千条 400，进游戏还慢。
+ *
+ * 做法：在 Windows 上给两个目录建 junction（目录软链），让客户端那条默认路径能看到资源。
+ * 非 Windows 直接提示手动处理（Linux/macOS 用 ln -s）。
+ */
+task fixAssetsDir {
+    group = 'ltsmodelshare'
+    description = '把 forge_gradle 的资源目录链到 GradleStart 默认找的位置（修 1.12.2 资源 400 刷屏）'
+    doLast {
+        def real = new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets')
+        def link = new File(gradle.gradleUserHomeDir, 'caches/minecraft/assets')
+        if (!real.isDirectory()) {
+            println "[fixAssetsDir] 跳过：$real 不存在（先跑一次 getAssets）"
+            return
+        }
+        if (new File(link, 'indexes/1.12.json').isFile()) {
+            println "[fixAssetsDir] 已经指好了：$link"
+            return
+        }
+        if (!System.getProperty('os.name').toLowerCase().contains('windows')) {
+            println "[fixAssetsDir] 非 Windows：请手动 ln -s \"$real\" \"$link\""
+            return
+        }
+        if (link.exists()) {
+            // 半成品/空壳目录：用 rmdir 删（避免误跟符号链接把真实资源删掉）
+            "cmd /c rmdir /s /q \"${link.absolutePath}\"".execute().waitFor()
+        }
+        link.parentFile.mkdirs()
+        def proc = "cmd /c mklink /J \"${link.absolutePath}\" \"${real.absolutePath}\"".execute()
+        proc.waitFor()
+        println "[fixAssetsDir] 已建立链接：$link -> $real"
+    }
+}
+
+// 跑客户端前自动保证资源目录可用
+tasks.getByName('runClient').dependsOn fixAssetsDir
+tasks.getByName('runServer').dependsOn fixAssetsDir
