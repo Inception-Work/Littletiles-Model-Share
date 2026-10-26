@@ -59,5 +59,6 @@ public class LtsModelShare {
                     new work.inception.ltsmodelshare.command.CommandLts());
         }
         LOG.info("{} {} 初始化完成（M 键或 /ltsmodels 打开面板）", NAME, VERSION);
+
     }
 }

@@ -1,11 +1,15 @@
 package work.inception.ltsmodelshare.gui;
 
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextFormatting;
 import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
+import work.inception.ltsmodelshare.client.ImageCache;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,10 +17,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 作品详情：拉 /api/public/work/detail，列出这条作品里的模型，点「下载」落盘。
+ * 作品详情：上面是封面 + 作者信息 + 下载/浏览数据，下面逐条列出模型并「下载」。
  *
- * <p>下载走两步：先 POST /api/work/download-snbt 拿地址（需要登录），再 GET 那个地址。
- * 文件存到 {@code ltsmodels/} 目录，路径会显示在界面上。</p>
+ * <p>排版改成"分段算 y"（每段画完累加），不再用一个固定 listTop，
+ * 这样不同 GUI 缩放 / 不同文字长度都不会互相压住。</p>
  */
 public class GuiWorkDetail extends GuiScreen {
 
@@ -28,8 +32,13 @@ public class GuiWorkDetail extends GuiScreen {
     private String status = "";
     private boolean loading;
 
-    private int listTop = 84;
+    /** 本次会话里下过的条目（显示「已下载」） */
+    private final List<Long> downloaded = new ArrayList<>();
+
+    private static final int COVER_W = 120;
+    private static final int COVER_H = 68;   // 16:9
     private static final int ROW_H = 30;
+    private static final int TOP = 30;
 
     public GuiWorkDetail(Dtos.WorkCard card, GuiScreen parent) {
         this.card = card;
@@ -40,8 +49,8 @@ public class GuiWorkDetail extends GuiScreen {
     public void initGui() {
         buttonList.clear();
         int cx = width / 2;
-        buttonList.add(new GuiButton(1, cx - 100, height - 30, 80, 20, "返回"));
-        buttonList.add(new GuiButton(2, cx + 20, height - 30, 80, 20, "刷新"));
+        buttonList.add(new GuiButton(1, cx - 100, height - 26, 70, 20, "返回"));
+        buttonList.add(new GuiButton(2, cx + 20, height - 26, 70, 20, "刷新"));
         load();
     }
 
@@ -75,10 +84,17 @@ public class GuiWorkDetail extends GuiScreen {
         });
     }
 
+    // ==================== 交互 ====================
+
+    /** 条目区起点（绘制与点击判定共用） */
+    private int listTop() {
+        return TOP + COVER_H + 30;
+    }
+
     private int[] downloadButtonBounds(int index) {
         int cx = width / 2;
-        int y = listTop + index * ROW_H;
-        return new int[]{cx + 90, y + 4, 60, 18};
+        int y = listTop() + index * ROW_H;
+        return new int[]{cx + 92, y + 5, 58, 18};
     }
 
     @Override
@@ -111,7 +127,6 @@ public class GuiWorkDetail extends GuiScreen {
             return;
         }
         status = TextFormatting.YELLOW + "取下载地址…";
-        // 1.12 客户端优先要 1.12 那一代（站点的模型多半是 1.12 上传的；转换由服务端做）
         ApiClient.downloadInfo(item.itemId, "1.12", new ApiClient.Callback<Dtos.DownloadInfo>() {
             @Override
             public void ok(Dtos.DownloadInfo info) {
@@ -120,6 +135,7 @@ public class GuiWorkDetail extends GuiScreen {
                     @Override
                     public void ok(File value) {
                         setStatus(TextFormatting.GREEN + "已保存：" + value.getName());
+                        downloaded.add(item.itemId);
                         work.inception.ltsmodelshare.LtsModelShare.LOG.info("模型已保存到 {}", value.getAbsolutePath());
                     }
 
@@ -141,66 +157,133 @@ public class GuiWorkDetail extends GuiScreen {
         ApiClient.post(() -> status = text);
     }
 
+    // ==================== 绘制 ====================
+
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
         int cx = width / 2;
+        int x = cx - 150;
+
+        // ---------- 头部：封面 ----------
+        String cover = detail != null && detail.images != null && !detail.images.isEmpty()
+                ? detail.images.get(0) : card.cover;
+        drawImage(cover, x, TOP, COVER_W, COVER_H);
+
+        // ---------- 右上：标题 / 作者 / 数据 / 标签 ----------
+        int textX = x + COVER_W + 8;
+        int textW = 300 - COVER_W - 8;
+        int textY = TOP;
 
         String title = detail != null && detail.title != null ? detail.title
-                : (card.title != null ? card.title : "(无标题)");
-        drawCenteredString(fontRenderer, title, cx, 16, 0xFFFFFF);
+                : (card.title == null ? "(无标题)" : card.title);
+        drawString(fontRenderer, trim(title, textW), textX, textY, 0xFFFFFF);
 
-        String author = "";
-        Dtos.Author a = detail != null ? detail.author : card.author;
-        if (a != null) {
-            author = a.displayName != null ? a.displayName : a.username;
+        Dtos.Author author = detail != null ? detail.author : card.author;
+        if (author != null) {
+            drawImage(author.avatarUrl, textX, textY + 12, 12, 12);
+            String name = author.displayName != null && !author.displayName.isEmpty()
+                    ? author.displayName : (author.username == null ? "" : author.username);
+            drawString(fontRenderer, trim(name, textW - 16), textX + 15, textY + 14, 0xCCCCCC);
         }
-        drawCenteredString(fontRenderer, TextFormatting.GRAY + "作者 " + author
-                + "   下载 " + (detail != null ? detail.downloadCount : card.downloadCount)
-                + "   浏览 " + (detail != null ? detail.viewCount : card.viewCount), cx, 30, 0xAAAAAA);
 
+        long dl = detail != null ? detail.downloadCount : card.downloadCount;
+        long view = detail != null ? detail.viewCount : card.viewCount;
+        drawString(fontRenderer, TextFormatting.GRAY + "↓ 下载 " + dl + "    ◉ 浏览 " + view,
+                textX, textY + 28, 0xAAAAAA);
+
+        if (detail != null && detail.tags != null && !detail.tags.isEmpty()) {
+            StringBuilder tags = new StringBuilder();
+            int shown = 0;
+            for (Dtos.Tag tag : detail.tags) {
+                if (tag == null || tag.name == null) {
+                    continue;
+                }
+                if (shown > 0) {
+                    tags.append(" · ");
+                }
+                tags.append('#').append(tag.name);
+                if (++shown >= 3) {
+                    break;
+                }
+            }
+            drawString(fontRenderer, TextFormatting.DARK_AQUA + trim(tags.toString(), textW),
+                    textX, textY + 40, 0x55AAAA);
+        }
+
+        // ---------- 简介：自动换行，最多 2 行（不再挤到条目区） ----------
         String summary = detail != null ? detail.summary : card.summary;
+        int summaryY = TOP + COVER_H + 4;
         if (summary != null && !summary.isEmpty()) {
-            drawCenteredString(fontRenderer, TextFormatting.DARK_GRAY + trim(summary, width - 60), cx, 44, 0x999999);
+            List<String> lines = fontRenderer.listFormattedStringToWidth(summary, 300);
+            for (int i = 0; i < Math.min(2, lines.size()); i++) {
+                drawString(fontRenderer, TextFormatting.GRAY + lines.get(i), x, summaryY + i * 10, 0x999999);
+            }
         }
 
-        drawString(fontRenderer, TextFormatting.GRAY + "模型（点击右侧「下载」）", cx - 150, listTop - 14, 0xAAAAAA);
+        // ---------- 模型条目 ----------
+        int top = listTop();
+        drawString(fontRenderer, TextFormatting.GRAY + "模型（点右侧「下载」）", x, top - 12, 0xAAAAAA);
 
         for (int i = 0; i < items.size(); i++) {
             Dtos.Item item = items.get(i);
-            int y = listTop + i * ROW_H;
-            int left = cx - 150;
-            int right = cx + 150;
-            drawRect(left, y, right, y + ROW_H - 4, 0x20000000);
+            int y = top + i * ROW_H;
 
-            drawString(fontRenderer, item.title == null ? ("#" + item.itemId) : item.title, left + 4, y + 3, 0xFFFFFF);
-            StringBuilder metaSb = new StringBuilder();
-            metaSb.append(TextFormatting.DARK_GRAY).append('#').append(item.itemId);
-            if (item.mcVersion != null) metaSb.append("   ").append(item.mcVersion);
-            if (item.boxCount != null) metaSb.append("   ").append(item.boxCount).append(" box");
-            if (item.grid != null) metaSb.append("   grid ").append(item.grid);
-            if (item.preview != null && item.preview.sizeBytes != null) {
-                metaSb.append("   ").append(item.preview.sizeBytes / 1024).append(" KB");
+            Gui.drawRect(x, y, x + 300, y + ROW_H - 4, 0x28000000);
+
+            drawString(fontRenderer, trim(item.title == null ? ("#" + item.itemId) : item.title, 220),
+                    x + 4, y + 4, 0xFFFFFF);
+
+            StringBuilder meta = new StringBuilder();
+            meta.append(TextFormatting.DARK_GRAY).append('#').append(item.itemId);
+            if (item.mcVersion != null) {
+                meta.append("  ").append(item.mcVersion);
             }
-            String meta = metaSb.toString();
-            drawString(fontRenderer, meta, left + 4, y + 14, 0xAAAAAA);
+            if (item.boxCount != null) {
+                meta.append("  ").append(item.boxCount).append(" box");
+            }
+            if (item.grid != null) {
+                meta.append("  grid ").append(item.grid);
+            }
+            drawString(fontRenderer, meta.toString(), x + 4, y + 15, 0xAAAAAA);
 
             int[] b = downloadButtonBounds(i);
+            boolean done = downloaded.contains(item.itemId);
             boolean hover = mouseX >= b[0] && mouseX <= b[0] + b[2] && mouseY >= b[1] && mouseY <= b[1] + b[3];
-            drawRect(b[0], b[1], b[0] + b[2], b[1] + b[3], hover ? 0xFF3A6B2A : 0xFF2C4A22);
-            drawCenteredString(fontRenderer, "下载", b[0] + b[2] / 2, b[1] + 5, 0xFFFFFF);
+            Gui.drawRect(b[0], b[1], b[0] + b[2], b[1] + b[3],
+                    done ? 0xFF2B4A20 : (hover ? 0xFF3E7A2C : 0xFF2F5424));
+            drawCenteredString(fontRenderer, done ? "已下载" : "下载",
+                    b[0] + b[2] / 2, b[1] + 5, 0xFFFFFF);
         }
 
+        // ---------- 底部 ----------
         if (!status.isEmpty()) {
-            drawCenteredString(fontRenderer, status, cx, height - 46, 0xFFFFFF);
+            drawCenteredString(fontRenderer, status, cx, height - 40, 0xFFFFFF);
         }
-        drawCenteredString(fontRenderer, TextFormatting.DARK_GRAY
-                + "下载目录：" + ModConfig.get().downloadFolder().getAbsolutePath(), cx, height - 58, 0x888888);
+        drawCenteredString(fontRenderer, TextFormatting.DARK_GRAY + "保存到：" + ModConfig.get().downloadFolder().getAbsolutePath(),
+                cx, height - 52, 0x888888);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
+    private void drawImage(String url, int x, int y, int w, int h) {
+        ResourceLocation tex = ImageCache.get(url);
+        if (tex == null) {
+            Gui.drawRect(x, y, x + w, y + h, 0x40FFFFFF);
+            return;
+        }
+        GlStateManager.color(1f, 1f, 1f, 1f);
+        GlStateManager.enableTexture2D();
+        GlStateManager.enableBlend();
+        mc.getTextureManager().bindTexture(tex);
+        Gui.drawModalRectWithCustomSizedTexture(x, y, 0, 0, w, h, w, h);
+        GlStateManager.disableBlend();
+    }
+
     private String trim(String text, int maxWidth) {
+        if (text == null) {
+            return "";
+        }
         if (fontRenderer.getStringWidth(text) <= maxWidth) {
             return text;
         }

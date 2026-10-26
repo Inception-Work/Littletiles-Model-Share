@@ -62,6 +62,9 @@ public final class Dtos {
         public Author author;
         public long viewCount;
         public long downloadCount;
+        /** 封面/详情图（第一张当大图用） */
+        public List<String> images;
+        /** 这条作品里的模型条目 */
         public List<Item> items;
     }
 
