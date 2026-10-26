@@ -1,0 +1,15 @@
+[
+  {
+    "modid": "ltsmodelshare",
+    "name": "Littletiles Model Share",
+    "description": "在游戏内登录、浏览并下载站点的 LittleTiles 模型。",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "https://www.inception.work",
+    "authorList": ["Inception Work"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]

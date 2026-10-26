@@ -1,0 +1,31 @@
+# ---- Gradle / 构建产物 ----
+.gradle/
+build/
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+out/
+
+# ---- 开发客户端/服务端数据（runClient 生成，含存档、日志、资源缓存）----
+run/
+runs/
+logs/
+crash-reports/
+
+# ---- 本地参考物（CleanroomGradle 源码包、构建日志、测试下载的模型）----
+.ref/
+
+# ---- 系统 ----
+Thumbs.db
+desktop.ini
+*.log
+
+# 注意：gradle/wrapper/gradle-wrapper.jar 要提交（换台机器 gradlew 才能跑）

@@ -1,0 +1,74 @@
+/*
+ * Littletiles Model Share —— Forge 1.12.2 客户端模组（Java 8）
+ *
+ * 工具链：ForgeGradle 2.3 + Gradle 4.10.3 + JDK 8 + MCP stable_39
+ * （ForgeGradle 3 在这台机器上 runClient 会在 FML 注册网络通道时 NPE，原版 MDK 也一样，故回退到 2.3。）
+ *
+ * 常用命令：
+ *   .\gradlew.bat setupDecompWorkspace   # 首次：反编译 + 建 workspace（几分钟）
+ *   .\gradlew.bat build                  # 产出 build/libs/LittletilesModelShare-<version>.jar（已 reobf）
+ *   .\gradlew.bat runClient              # 起开发客户端
+ */
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+
+version = '0.1.0'
+group = 'work.inception'
+archivesBaseName = 'LittletilesModelShare'
+
+sourceCompatibility = targetCompatibility = '1.8'
+
+minecraft {
+    version = '1.12.2-14.23.5.2847'
+    runDir = 'run'
+    // 1.12.2 的主流稳定映射
+    mappings = 'stable_39'
+
+    /*
+     * 开发客户端自己也会联网。Gradle 的代理（gradle.properties 的 systemProp.*）
+     * 只作用于 Gradle 进程，传不到游戏 JVM，所以这里再给一份。不用代理就删掉这两行。
+     */
+    clientJvmArgs += ['-Dhttp.proxyHost=127.0.0.1', '-Dhttp.proxyPort=7890',
+                      '-Dhttps.proxyHost=127.0.0.1', '-Dhttps.proxyPort=7890',
+                      '-Dhttp.nonProxyHosts=localhost|127.0.0.1']
+}
+
+dependencies {
+    // 之后要读写 LittleTiles 结构时从这里加（或把 jar 丢进 libs/）：
+    // provided 'curse.maven:littletiles-<project>:<file>'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'mcversion', project.minecraft.version
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': '1.12.2'
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': 'ltsmodelshare',
+            'Specification-Vendor': 'inception.work',
+            'Specification-Version': '1',
+            'Implementation-Title': project.name,
+            'Implementation-Version': "${version}",
+            'Implementation-Vendor': 'inception.work',
+            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}

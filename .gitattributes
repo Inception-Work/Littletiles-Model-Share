@@ -1,0 +1,19 @@
+# 统一换行：源码用 LF，Windows 脚本用 CRLF（否则 gradlew 在 Linux/CI 上会因 CR 报错）
+* text=auto
+*.java text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.md text eol=lf
+*.lang text eol=lf
+*.json text eol=lf
+*.info text eol=lf
+*.mcmeta text eol=lf
+*.xml text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
+*.zip binary
+
+# GitHub 语言统计：把源码以外的东西标成文档
+*.md linguist-documented
