@@ -468,9 +468,19 @@ public class GuiUpload extends GuiScreen {
         });
     }
 
+    /**
+     * 关掉结果弹窗。
+     *
+     * <p>**上传成功**就直接退出上传页回浏览页（内容已经提交完了，留在原页只会让人
+     * 再点一次提交，容易重复建作品）；失败则留在原地，方便改完重试。</p>
+     */
     private void dismissResult() {
         busy = false;
+        boolean ok = resultOk;
         resultText = null;
+        if (ok) {
+            mc.displayGuiScreen(parent);
+        }
     }
 
     @Override
