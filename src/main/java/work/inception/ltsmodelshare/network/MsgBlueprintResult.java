@@ -45,6 +45,21 @@ public class MsgBlueprintResult implements IMessage {
         buf.writeBytes(data);
     }
 
+    /**
+     * 服务端注册用的空处理器。
+     *
+     * <p>为什么服务端也要注册：Forge 的 SimpleNetworkWrapper **编码**一个包时，
+     * 需要本地有它的 discriminator，否则抛
+     * {@code Undefined discriminator for message type …}，而且是直接把连接打死
+     * （客户端被踢："A fatal error has occurred"）。服务端只发不收，所以挂个空实现即可。</p>
+     */
+    public static class NoopHandler implements IMessageHandler<MsgBlueprintResult, IMessage> {
+        @Override
+        public IMessage onMessage(MsgBlueprintResult msg, MessageContext ctx) {
+            return null;
+        }
+    }
+
     @SideOnly(Side.CLIENT)
     public static class Handler implements IMessageHandler<MsgBlueprintResult, IMessage> {
 

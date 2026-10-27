@@ -63,8 +63,13 @@ public final class BlueprintServer {
     }
 
     private static void reply(EntityPlayerMP player, boolean ok, String text) {
-        if (PacketHandler.NET != null) {
-            PacketHandler.NET.sendTo(new MsgBlueprintResult(ok, text), player);
+        // 网络层出任何问题都不能让服务端把玩家踢掉（Forge 在 handler 里抛异常会直接断连）
+        try {
+            if (PacketHandler.NET != null) {
+                PacketHandler.NET.sendTo(new MsgBlueprintResult(ok, text), player);
+            }
+        } catch (Throwable e) {
+            LtsModelShare.LOG.warn("回执发送失败（不影响道具发放）：{}", e.toString());
         }
         // 聊天栏只在开发环境打：发布版不要往玩家聊天框里刷屏（界面里仍有状态文字）
         if (work.inception.ltsmodelshare.DevEnv.isDev()) {

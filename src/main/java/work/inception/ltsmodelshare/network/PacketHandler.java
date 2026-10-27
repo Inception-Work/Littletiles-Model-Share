@@ -2,6 +2,7 @@ package work.inception.ltsmodelshare.network;
 
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.network.simpleimpl.SimpleNetworkWrapper;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.relauncher.Side;
 import work.inception.ltsmodelshare.LtsModelShare;
 
@@ -27,27 +28,21 @@ public final class PacketHandler {
             return;
         }
         NET = NetworkRegistry.INSTANCE.newSimpleChannel(CHANNEL);
-        // 0 = 客户端 → 服务端：请求生成蓝图
         // 0 = 客户端 → 服务端：结构分片（gzip 后切开，单包不超过 30KB）
         NET.registerMessage(MsgBlueprintChunk.Handler.class, MsgBlueprintChunk.class, 0, Side.SERVER);
-        // 1 = 服务端 → 客户端：结果回执（只在客户端注册处理器；服务端只负责发）
-        tryRegisterClientResult();
-        LtsModelShare.LOG.debug("通道 {} 注册完成", CHANNEL);
-    }
 
-    /** 反射式注册，避免服务端加载客户端类（专用服务端没有 Minecraft 类） */
-    private static void tryRegisterClientResult() {
-        if (!net.minecraftforge.fml.common.FMLCommonHandler.instance().getSide().isClient()) {
-            return;
+        /*
+         * 1 = 服务端 → 客户端：结果回执。
+         * **两端都必须注册**：SimpleNetworkWrapper 编码时要在本地查 discriminator，
+         * 服务端只注册了「收」用的 0 号包，发回执时就抛 Undefined discriminator，
+         * 而且是直接把连接打死（客户端被踢：A fatal error has occurred）。
+         * 服务端不需要处理这个包，所以挂空处理器，避免加载客户端类。
+         */
+        if (FMLCommonHandler.instance().getSide().isClient()) {
+            NET.registerMessage(MsgBlueprintResult.Handler.class, MsgBlueprintResult.class, 1, Side.CLIENT);
+        } else {
+            NET.registerMessage(MsgBlueprintResult.NoopHandler.class, MsgBlueprintResult.class, 1, Side.CLIENT);
         }
-        registerClientResult();
     }
 
-    /**
-     * 拆分到单独方法，并用 SideOnly 标注：服务端不会加载这个方法体里的客户端消息处理器。
-     */
-    @net.minecraftforge.fml.relauncher.SideOnly(net.minecraftforge.fml.relauncher.Side.CLIENT)
-    private static void registerClientResult() {
-        NET.registerMessage(MsgBlueprintResult.Handler.class, MsgBlueprintResult.class, 1, Side.CLIENT);
-    }
 }
