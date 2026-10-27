@@ -21,18 +21,32 @@ import java.util.concurrent.Executors;
 /**
  * 封面 / 头像的图片缓存。
  *
- * <p>界面上要显示封面和作者头像，但两张东西都可能是远程 URL（站点的 /uploads 或 CDN），
- * 而 Minecraft 的渲染线程不能做网络 / 磁盘 IO。所以：</p>
+ * <p>远程图片（站点的 /uploads 或 CDN）不能在渲染线程里拉，也不能在渲染线程里做 IO。
+ * 流程：</p>
  * <ol>
- *   <li>界面每帧调 {@link #get(String)}：**有就返回**贴图，正在下就返回 null（界面画占位块）；</li>
- *   <li>后台线程用 ImageIO 把图片读成 BufferedImage；</li>
- *   <li>再用 {@code Minecraft.addScheduledTask} 切回渲染线程，建 DynamicTexture 上传给 GL。</li>
+ *   <li>界面每帧调 {@link #img(String)}：有就返回贴图（含原始宽高，供等比裁剪算 UV），
+ *       正在下返回 null（界面画占位块）；</li>
+ *   <li>后台线程 ImageIO 读成 BufferedImage；</li>
+ *   <li>用 {@code Minecraft.addScheduledTask} 切回渲染线程建 DynamicTexture 上传 GL。</li>
  * </ol>
- * <p>失败（404 / 不是图片）就在本地记住，不重复请求。</p>
+ * <p>失败（404 / 不是图片）记下来，不重复请求。</p>
  */
 public final class ImageCache {
 
-    private static final Map<String, ResourceLocation> READY = new HashMap<>();
+    /** 已上传的贴图 + 原始像素尺寸（等比裁剪要靠它算源矩形） */
+    public static final class Img {
+        public final ResourceLocation tex;
+        public final int width;
+        public final int height;
+
+        Img(ResourceLocation tex, int width, int height) {
+            this.tex = tex;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    private static final Map<String, Img> READY = new HashMap<>();
     private static final Set<String> LOADING = new HashSet<>();
     private static final Set<String> FAILED = new HashSet<>();
 
@@ -48,7 +62,7 @@ public final class ImageCache {
     }
 
     /** 取贴图；还没加载好返回 null（调用方画占位） */
-    public static ResourceLocation get(String url) {
+    public static Img img(String url) {
         if (url == null || url.isEmpty()) {
             return null;
         }
@@ -56,9 +70,9 @@ public final class ImageCache {
         if (key == null) {
             return null;
         }
-        ResourceLocation rl = READY.get(key);
-        if (rl != null) {
-            return rl;
+        Img ready = READY.get(key);
+        if (ready != null) {
+            return ready;
         }
         if (FAILED.contains(key) || !LOADING.add(key)) {
             return null;
@@ -92,11 +106,10 @@ public final class ImageCache {
             Minecraft.getMinecraft().addScheduledTask(() -> {
                 try {
                     DynamicTexture tex = new DynamicTexture(finalImage);
-                    String name = "img/" + (counter++);
-                    ResourceLocation loc = new ResourceLocation(LtsModelShare.MODID, name);
-                    // loadTexture 内部会调 tex.loadTexture(...)，即把 BufferedImage 传到 GL
+                    ResourceLocation loc = new ResourceLocation(LtsModelShare.MODID, "img/" + (counter++));
+                    // loadTexture 内部会调 tex.loadTexture(...)，把 BufferedImage 传到 GL
                     Minecraft.getMinecraft().getTextureManager().loadTexture(loc, tex);
-                    READY.put(key, loc);
+                    READY.put(key, new Img(loc, finalImage.getWidth(), finalImage.getHeight()));
                 } catch (Exception e) {
                     FAILED.add(key);
                     LtsModelShare.LOG.debug("图片上传失败 {}：{}", key, e.toString());
@@ -106,12 +119,6 @@ public final class ImageCache {
             });
         });
         return null;
-    }
-
-    /** 清空（换账号 / 调试用） */
-    public static void clear() {
-        READY.clear();
-        FAILED.clear();
     }
 
     private static String absolute(String url) {

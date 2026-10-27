@@ -11,6 +11,7 @@ import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.ImageCache;
+import work.inception.ltsmodelshare.client.ImageDraw;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -306,18 +307,12 @@ public class GuiModels extends GuiScreen {
      * 画一张远程图片；没加载好就画占位块。
      * 用 drawModalRectWithCustomSizedTexture 让图片缩放到目标尺寸（保持 16:9 由调用方算好）。
      */
+    /** 等比裁剪绘制（不拉伸）；卡片封面按 16:9 的框裁 */
     private void drawImage(String url, int x, int y, int w, int h, int placeholderColor) {
-        ResourceLocation tex = ImageCache.get(url);
-        if (tex == null) {
+        if (ImageCache.img(url) == null) {
             Gui.drawRect(x, y, x + w, y + h, placeholderColor);
-            return;
         }
-        GlStateManager.color(1f, 1f, 1f, 1f);
-        GlStateManager.enableTexture2D();
-        GlStateManager.enableBlend();
-        mc.getTextureManager().bindTexture(tex);
-        Gui.drawModalRectWithCustomSizedTexture(x, y, 0, 0, w, h, w, h);
-        GlStateManager.disableBlend();
+        ImageDraw.drawCropped(url, x, y, w, h);
     }
 
     private String trim(String text, int maxWidth) {

@@ -60,5 +60,6 @@ public class LtsModelShare {
         }
         LOG.info("{} {} 初始化完成（M 键或 /ltsmodels 打开面板）", NAME, VERSION);
 
+
     }
 }

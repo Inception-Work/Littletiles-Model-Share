@@ -62,10 +62,23 @@ public final class Dtos {
         public Author author;
         public long viewCount;
         public long downloadCount;
+        /** 收藏数 */
+        public Long favoriteCount;
+        /** 评论数 */
+        public Long commentCount;
         /** 封面/详情图（第一张当大图用） */
         public List<String> images;
+        /** 合集统一声明的模组/材质（单个作品为空，依赖在 items[] 里） */
+        public List<Dependency> dependencies;
         /** 这条作品里的模型条目 */
         public List<Item> items;
+    }
+
+    /** 依赖（合集声明用） */
+    public static class Dependency {
+        public String type;
+        public String name;
+        public String url;
     }
 
     /**
@@ -84,7 +97,16 @@ public final class Dtos {
         public Integer grid;
         /** box 总数 */
         public Integer boxCount;
+        public Integer boxOffsetCount;
+        public Integer boxPlainCount;
         public List<String> images;
+        /** 这份结构真实用到的模组命名空间（上传时解析出来的） */
+        public List<String> modNamespaces;
+        /** 是否用了 LittleTiles 之外的其他方块 */
+        public boolean hasModBlocks;
+        /** 是否用了别的材质 */
+        public boolean usesOtherTextures;
+        public List<Dependency> dependencies;
         /** 在线预览（白模 OBJ）；有 sizeBytes 时能当文件大小的参考 */
         public Preview preview;
     }
