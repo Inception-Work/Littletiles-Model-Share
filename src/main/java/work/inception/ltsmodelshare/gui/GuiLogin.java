@@ -22,6 +22,8 @@ public class GuiLogin extends GuiScreen {
     private GuiTextField fieldUser;
     private GuiTextField fieldPass;
     private String status = "";
+    /** true = 正在用「访问令牌」登录（这时输入框里是 lts_… 而不是用户名） */
+    private boolean tokenMode;
     private boolean busy;
 
     public GuiLogin(GuiScreen after) {
@@ -44,6 +46,7 @@ public class GuiLogin extends GuiScreen {
 
         buttonList.add(new GuiButton(1, cx - 100, cy + 10, 96, 20, "登录"));
         buttonList.add(new GuiButton(2, cx + 4, cy + 10, 96, 20, "取消"));
+        buttonList.add(new GuiButton(3, cx - 100, cy + 36, 200, 20, "使用访问令牌（lts_…）"));
     }
 
     @Override
@@ -52,7 +55,32 @@ public class GuiLogin extends GuiScreen {
             mc.displayGuiScreen(null);
             return;
         }
+        if (button.id == 3) {
+            // 令牌模式：直接在输入框里粘贴 lts_ 开头的令牌，回车即登录
+            tokenMode = !tokenMode;
+            buttonList.get(2).displayString = tokenMode
+                    ? "返回账号密码登录" : "使用访问令牌（lts_…）";
+            status = tokenMode
+                    ? TextFormatting.GRAY + "把站点「访问令牌」里复制的一整串粘贴到上面的输入框"
+                    : "";
+            return;
+        }
         if (button.id != 1 || busy) {
+            return;
+        }
+        if (tokenMode) {
+            String pat = fieldUser.getText().trim();
+            if (!pat.startsWith("lts_")) {
+                status = TextFormatting.RED + "访问令牌应该以 lts_ 开头";
+                return;
+            }
+            ModConfig cfg = ModConfig.get();
+            cfg.token = pat;
+            cfg.refreshToken = "";
+            cfg.username = "访问令牌";
+            cfg.save();
+            status = TextFormatting.GREEN + "已保存访问令牌，过期时间由站点控制";
+            mc.displayGuiScreen(after != null ? after : new GuiModels());
             return;
         }
         String user = fieldUser.getText().trim();
@@ -109,8 +137,10 @@ public class GuiLogin extends GuiScreen {
         drawCenteredString(fontRenderer, TextFormatting.GRAY + ModConfig.get().baseUrl,
                 cx, cy - 82, 0xAAAAAA);
 
-        drawString(fontRenderer, "账号", cx - 100, cy - 68, 0xCCCCCC);
-        drawString(fontRenderer, "密码", cx - 100, cy - 38, 0xCCCCCC);
+        drawString(fontRenderer, tokenMode ? "访问令牌" : "账号", cx - 100, cy - 68, 0xCCCCCC);
+        if (!tokenMode) {
+            drawString(fontRenderer, "密码", cx - 100, cy - 38, 0xCCCCCC);
+        }
 
         fieldUser.drawTextBox();
         // 密码框：不解字，只回显长度，避免明文
