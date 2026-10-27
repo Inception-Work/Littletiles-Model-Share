@@ -36,23 +36,55 @@ public class GuiLogin extends GuiScreen {
         int cx = width / 2;
         int cy = height / 2;
 
-        fieldUser = new GuiTextField(0, fontRenderer, cx - 100, cy - 55, 200, 20);
+        /*
+         * 间距按 MC 常见节奏来：标签 10px + 输入框 18px + 间隔 12px。
+         * 之前账号框 cy-55、密码框 cy-25、"密码"标签画在 cy-38 —— 正好落在账号框里，
+         * 看起来像"密码被账号输入框盖住"。
+         */
+        fieldUser = new GuiTextField(0, fontRenderer, cx - 100, cy - 62, 200, 18);
         fieldUser.setMaxStringLength(64);
         fieldUser.setFocused(true);
         fieldUser.setText(ModConfig.get().username);
 
-        fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 25, 200, 20);
+        fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 32, 200, 18);
         fieldPass.setMaxStringLength(128);
 
-        buttonList.add(new GuiButton(1, cx - 100, cy + 10, 96, 20, "登录"));
-        buttonList.add(new GuiButton(2, cx + 4, cy + 10, 96, 20, "取消"));
-        buttonList.add(new GuiButton(3, cx - 100, cy + 36, 200, 20, "使用访问令牌（lts_…）"));
+        buttonList.add(new GuiButton(1, cx - 100, cy + 4, 96, 20, "登录"));
+        buttonList.add(new GuiButton(2, cx + 4, cy + 4, 96, 20, "取消"));
+        buttonList.add(new GuiButton(3, cx - 100, cy + 30, 200, 20, "使用访问令牌（lts_…）"));
+        buttonList.add(new GuiButton(4, cx - 100, cy + 56, 200, 20, "没有账号？去注册 →"));
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 2) {
             mc.displayGuiScreen(null);
+            return;
+        }
+        if (button.id == 4) {
+            // 打开注册页；打不开浏览器就把地址复制到剪贴板并提示
+            String url = ModConfig.get().url("/register");
+            boolean opened = false;
+            try {
+                if (java.awt.Desktop.isDesktopSupported()
+                        && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.BROWSE)) {
+                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(url));
+                    opened = true;
+                }
+            } catch (Throwable ignored) {
+                // 落到下面的复制逻辑
+            }
+            if (!opened) {
+                try {
+                    java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(url);
+                    java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+                    status = TextFormatting.YELLOW + "打不开浏览器，注册地址已复制：" + url;
+                } catch (Throwable t) {
+                    status = TextFormatting.RED + "注册地址：" + url;
+                }
+            } else {
+                status = TextFormatting.GRAY + "已在浏览器打开：" + url;
+            }
             return;
         }
         if (button.id == 3) {
@@ -137,9 +169,9 @@ public class GuiLogin extends GuiScreen {
         drawCenteredString(fontRenderer, TextFormatting.GRAY + ModConfig.get().baseUrl,
                 cx, cy - 82, 0xAAAAAA);
 
-        drawString(fontRenderer, tokenMode ? "访问令牌" : "账号", cx - 100, cy - 68, 0xCCCCCC);
+        drawString(fontRenderer, tokenMode ? "访问令牌" : "账号", cx - 100, cy - 73, 0xCCCCCC);
         if (!tokenMode) {
-            drawString(fontRenderer, "密码", cx - 100, cy - 38, 0xCCCCCC);
+            drawString(fontRenderer, "密码", cx - 100, cy - 43, 0xCCCCCC);
         }
 
         fieldUser.drawTextBox();
