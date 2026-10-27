@@ -17,6 +17,7 @@ import net.minecraft.server.integrated.IntegratedServer;
 import net.minecraft.item.ItemStack;
 import com.creativemd.littletiles.common.util.converation.StructureStringUtils;
 import net.minecraft.client.entity.EntityPlayerSP;
+import work.inception.ltsmodelshare.client.GridLimits;
 import work.inception.ltsmodelshare.client.ImageCache;
 import work.inception.ltsmodelshare.client.ImageDraw;
 import work.inception.ltsmodelshare.client.TextUtil;
@@ -479,6 +480,16 @@ public class GuiWorkDetail extends GuiScreen {
             status = TextFormatting.RED + "请先进入一个世界，再获取蓝图";
             return;
         }
+        /*
+         * grid 兼容性：站点上的结构可能用 grid 48/64，而客户端默认只支持到 32。
+         * 这种结构即使解析出来也放不下（LittleTiles 会报 grid 不兼容），提前拦住并告诉玩家怎么改配置。
+         */
+        if (GridLimits.exceeds(item.grid)) {
+            status = TextFormatting.RED + "不兼容：这个结构用 grid " + item.grid
+                    + "，客户端上限是 " + GridLimits.maxGrid() + "。"
+                    + GridLimits.fixHint(item.grid);
+            return;
+        }
         status = TextFormatting.YELLOW + "取结构…";
         ApiClient.downloadInfo(item.itemId, "1.12", new ApiClient.Callback<Dtos.DownloadInfo>() {
             @Override
@@ -748,8 +759,13 @@ public class GuiWorkDetail extends GuiScreen {
             if (item.boxCount != null) {
                 meta.append("  ").append(item.boxCount).append(" box");
             }
+            boolean gridTooBig = GridLimits.exceeds(item.grid);
             if (item.grid != null) {
-                meta.append("  grid ").append(item.grid);
+                meta.append("  ").append(gridTooBig ? TextFormatting.RED : TextFormatting.DARK_GRAY)
+                        .append("grid ").append(item.grid);
+                if (gridTooBig) {
+                    meta.append("（超上限 ").append(GridLimits.maxGrid()).append("）");
+                }
             }
             if (item.modNamespaces != null && !item.modNamespaces.isEmpty()) {
                 meta.append("   需要模组: ").append(join(item.modNamespaces));
