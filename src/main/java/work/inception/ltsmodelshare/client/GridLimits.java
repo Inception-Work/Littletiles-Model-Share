@@ -55,4 +55,19 @@ public final class GridLimits {
         return "把 config/littletiles.json 里 core.scale 改成 " + scale
                 + "（上限 " + target + "），然后重启游戏";
     }
+    /** 要支持 grid=needed，建议把 core.scale 改成几（默认 6 → 上限 32，每 +1 翻倍） */
+    public static int suggestScale(int needed) {
+        int max = maxGrid() > 0 ? maxGrid() : 32;
+        int scale = 6;
+        while (max < needed && scale < 12) {
+            scale++;
+            max *= 2;
+        }
+        return scale;
+    }
+
+    /** 按建议的 scale 算上限，用来在提示里告诉玩家改完能到多少 */
+    public static int maxForScale(int scale) {
+        return (int) Math.pow(2, scale - 1);
+    }
 }
