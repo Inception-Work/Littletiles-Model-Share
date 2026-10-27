@@ -80,19 +80,30 @@ public final class ImageCache {
         POOL.execute(() -> {
             BufferedImage image = null;
             try {
-                HttpURLConnection conn = (HttpURLConnection) new URL(key).openConnection();
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(12000);
-                conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-                if (conn.getResponseCode() / 100 != 2) {
-                    FAILED.add(key);
-                    LOADING.remove(key);
-                    return;
-                }
-                try (InputStream in = conn.getInputStream()) {
-                    image = ImageIO.read(in);
-                } finally {
-                    conn.disconnect();
+                /*
+                 * 本地文件（游戏截图）不能当 HttpURLConnection 用 ——
+                 * file: 协议拿到的是 FileURLConnection，强转会 ClassCastException，
+                 * 之前截图的缩略图一直不显示就是这个原因（异常被吞掉了）。
+                 */
+                if (key.startsWith("file:")) {
+                    try (InputStream in = new URL(key).openStream()) {
+                        image = ImageIO.read(in);
+                    }
+                } else {
+                    HttpURLConnection conn = (HttpURLConnection) new URL(key).openConnection();
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(12000);
+                    conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
+                    if (conn.getResponseCode() / 100 != 2) {
+                        FAILED.add(key);
+                        LOADING.remove(key);
+                        return;
+                    }
+                    try (InputStream in = conn.getInputStream()) {
+                        image = ImageIO.read(in);
+                    } finally {
+                        conn.disconnect();
+                    }
                 }
             } catch (Exception e) {
                 LtsModelShare.LOG.debug("图片加载失败 {}：{}", key, e.toString());
