@@ -69,7 +69,15 @@ public class GuiWorkDetail extends GuiScreen {
     // 滚动
     private int scroll;
 
-    private static final int ITEM_ROW_H = 34;
+    /** 条目行高（左侧放 4:3 缩略图） */
+    private static final int ITEM_ROW_H = 56;
+    private static final int THUMB_W = 64;
+    private static final int THUMB_H = 48;
+    private static final int ARROW_W = 12;
+    private static final int ARROW_H = 12;
+
+    /** 每个条目当前显示第几张图（itemId → 索引）。合集里每个作品有自己的图，要各自切换 */
+    private final java.util.Map<Long, Integer> itemImageIndex = new java.util.HashMap<>();
     private static final int DL_W = 58;
     private static final int DL_H = 18;
 
@@ -311,7 +319,50 @@ public class GuiWorkDetail extends GuiScreen {
     }
 
     private int[] downloadBounds(int rowY) {
-        return new int[]{left + colW - DL_W - 2, rowY + 6, DL_W, DL_H};
+        return new int[]{left + colW - DL_W - 4, rowY + (ITEM_ROW_H - DL_H) / 2, DL_W, DL_H};
+    }
+
+    /** 条目缩略图位置（内容坐标转屏幕坐标由调用方加 -scroll） */
+    private int[] itemThumbBounds(int rowY) {
+        return new int[]{left + 4, rowY + (ITEM_ROW_H - THUMB_H) / 2, THUMB_W, THUMB_H};
+    }
+
+    /** 缩略图上的左右切换按钮 */
+    private int[] arrowBounds(int rowY, boolean leftArrow) {
+        int[] th = itemThumbBounds(rowY);
+        int y = th[1] + th[3] - ARROW_H - 1;
+        int x = leftArrow ? th[0] + 1 : th[0] + th[2] - ARROW_W - 1;
+        return new int[]{x, y, ARROW_W, ARROW_H};
+    }
+
+    /** 条目自己的图片列表（合集里每个作品各自一套） */
+    private java.util.List<String> itemImages(Dtos.Item item) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (item != null && item.images != null) {
+            for (String img : item.images) {
+                if (img != null && !img.isEmpty()) {
+                    out.add(img);
+                }
+            }
+        }
+        return out;
+    }
+
+    private int itemImagePos(Dtos.Item item) {
+        Integer idx = itemImageIndex.get(item.itemId);
+        int size = itemImages(item).size();
+        if (idx == null || size == 0) {
+            return 0;
+        }
+        return Math.floorMod(idx, size);
+    }
+
+    private void cycleItemImage(Dtos.Item item, int delta) {
+        int size = itemImages(item).size();
+        if (size <= 1) {
+            return;
+        }
+        itemImageIndex.put(item.itemId, Math.floorMod(itemImagePos(item) + delta, size));
     }
 
     @Override
@@ -328,10 +379,29 @@ public class GuiWorkDetail extends GuiScreen {
         }
         int cy = mouseY + scroll;
         for (int i = 0; i < items.size(); i++) {
-            int[] b = downloadBounds(itemRowTop() + i * ITEM_ROW_H);
+            Dtos.Item item = items.get(i);
+            int rowY = itemRowTop() + i * ITEM_ROW_H;
+
+            // 缩略图上的左右切换（只有多图时才响应）
+            if (itemImages(item).size() > 1) {
+                int[] l = arrowBounds(rowY, true);
+                int[] r = arrowBounds(rowY, false);
+                if (mouseX >= l[0] && mouseX <= l[0] + l[2] && cy >= l[1] && cy <= l[1] + l[3]
+                        && mouseY >= bodyTop && mouseY <= bodyBottom) {
+                    cycleItemImage(item, -1);
+                    return;
+                }
+                if (mouseX >= r[0] && mouseX <= r[0] + r[2] && cy >= r[1] && cy <= r[1] + r[3]
+                        && mouseY >= bodyTop && mouseY <= bodyBottom) {
+                    cycleItemImage(item, 1);
+                    return;
+                }
+            }
+
+            int[] b = downloadBounds(rowY);
             if (mouseX >= b[0] && mouseX <= b[0] + b[2] && cy >= b[1] && cy <= b[1] + b[3]
                     && mouseY >= bodyTop && mouseY <= bodyBottom) {
-                startDownload(items.get(i));
+                startDownload(item);
                 return;
             }
         }
@@ -468,8 +538,38 @@ public class GuiWorkDetail extends GuiScreen {
             int ry = cy + i * ITEM_ROW_H;
             Gui.drawRect(left, ry, left + colW, ry + ITEM_ROW_H - 4, 0x28000000);
 
+            // ---------- 左：条目自己的缩略图（合集里每个作品一套图） ----------
+            int[] th = itemThumbBounds(ry);
+            java.util.List<String> imgs = itemImages(item);
+            if (imgs.isEmpty()) {
+                Gui.drawRect(th[0], th[1], th[0] + th[2], th[1] + th[3], 0x30FFFFFF);
+                drawCenteredString(fontRenderer, "#" + item.itemId,
+                        th[0] + th[2] / 2, th[1] + th[3] / 2 - 4, 0x777777);
+            } else {
+                int pos = itemImagePos(item);
+                ImageDraw.drawCropped(imgs.get(pos), th[0], th[1], th[2], th[3]);
+                if (imgs.size() > 1) {
+                    // 左右切换按钮（半透明黑底 + < >，MC 默认字体没有 ◀ ▶ 字形）
+                    int[] la = arrowBounds(ry, true);
+                    int[] ra = arrowBounds(ry, false);
+                    boolean hoverL = hit(mouseX, mouseY, la);
+                    boolean hoverR = hit(mouseX, mouseY, ra);
+                    Gui.drawRect(la[0], la[1], la[0] + la[2], la[1] + la[3], hoverL ? 0xB0000000 : 0x80000000);
+                    Gui.drawRect(ra[0], ra[1], ra[0] + ra[2], ra[1] + ra[3], hoverR ? 0xB0000000 : 0x80000000);
+                    drawCenteredString(fontRenderer, "<", la[0] + la[2] / 2 + 1, la[1] + 2, 0xFFFFFF);
+                    drawCenteredString(fontRenderer, ">", ra[0] + ra[2] / 2 - 1, ra[1] + 2, 0xFFFFFF);
+                    // 第几张 / 共几张
+                    String counter = (pos + 1) + "/" + imgs.size();
+                    drawCenteredString(fontRenderer, counter,
+                            th[0] + th[2] / 2, th[1] + th[3] - 9, 0xFFFFFF);
+                }
+            }
+
+            // ---------- 中：标题 / 元信息 ----------
+            int textX = th[0] + th[2] + 6;
+            int textW = left + colW - DL_W - 8 - textX;
             drawString(fontRenderer, trim(item.title == null ? ("#" + item.itemId) : item.title,
-                    colW - DL_W - 12), left + 4, ry + 3, 0xFFFFFF);
+                    textW), textX, ry + 6, 0xFFFFFF);
 
             StringBuilder meta = new StringBuilder();
             meta.append(TextFormatting.DARK_GRAY).append('#').append(item.itemId);
@@ -485,7 +585,7 @@ public class GuiWorkDetail extends GuiScreen {
             if (item.modNamespaces != null && !item.modNamespaces.isEmpty()) {
                 meta.append("   需要模组: ").append(join(item.modNamespaces));
             }
-            drawString(fontRenderer, trim(meta.toString(), colW - DL_W - 10), left + 4, ry + 14, 0xAAAAAA);
+            drawString(fontRenderer, trim(meta.toString(), textW), textX, ry + 18, 0xAAAAAA);
 
             int[] b = downloadBounds(ry);
             boolean done = downloaded.contains(item.itemId);
