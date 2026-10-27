@@ -401,6 +401,10 @@ public class GuiUpload extends GuiScreen {
         setProgress("保存作品…");
         final Dtos.WorkSaveRequest req = new Dtos.WorkSaveRequest();
         req.kind = "single";
+        // 站点保存时不带 visibility 会默认存成 private —— 那样审核通过也不会出现在
+        // /models（市场只列 visibility=public 的），所以模组上传默认公开。
+        // 草稿（status=draft）仍然不会对外显示，只是把可见性先定好。
+        req.visibility = "public";
         req.title = title;
         req.summary = summaryText.isEmpty() ? null : summaryText;
         req.tagCodes = new ArrayList<>(tagCodes);

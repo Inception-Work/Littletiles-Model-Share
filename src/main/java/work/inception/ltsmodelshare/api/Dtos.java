@@ -230,6 +230,13 @@ public final class Dtos {
     public static class WorkSaveRequest {
         /** single / collection */
         public String kind = "single";
+        /**
+         * 可见性：public / private / unlisted。
+         *
+         * <p>站点保存时**必须**带这个字段，不带就默认 private —— 那样审核通过也不会
+         * 出现在 /models（市场列表要求 visibility=public）。所以模组上传默认给 public。</p>
+         */
+        public String visibility = "public";
         public String title;
         public String summary;
         /** 受控标签 code */
