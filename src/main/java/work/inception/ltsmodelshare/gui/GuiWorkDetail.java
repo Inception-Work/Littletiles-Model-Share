@@ -568,6 +568,9 @@ public class GuiWorkDetail extends GuiScreen {
                         setStatus(TextFormatting.RED + "解析失败：结构为空或版本不兼容");
                         return;
                     }
+                    if (item.title != null && !item.title.trim().isEmpty()) {
+                        stack.setStackDisplayName(item.title.trim());
+                    }
                     boolean added = mp.inventory.addItemStackToInventory(stack);
                     if (!added) {
                         // 背包满了就掉在脚下

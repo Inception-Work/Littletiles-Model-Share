@@ -45,6 +45,12 @@ public final class BlueprintServer {
                 reply(player, false, "解析失败：结构为空或版本不兼容");
                 return;
             }
+            // 名字统一用站点标题：LittleTiles 从 SNBT 里取的名字在某些结构上会变成乱码
+            // （结构里没有 name 字段时更明显），这里用 UTF-16 的标题覆盖掉，中文一定正常。
+            String cleanTitle = title == null ? "" : title.trim();
+            if (!cleanTitle.isEmpty()) {
+                stack.setStackDisplayName(cleanTitle);
+            }
             boolean added = player.inventory.addItemStackToInventory(stack);
             if (!added) {
                 player.dropItem(stack, false);

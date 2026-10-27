@@ -204,9 +204,12 @@ public class GuiModels extends GuiScreen {
                     ModConfig cfg = ModConfig.get();
                     cfg.token = "";
                     cfg.refreshToken = "";
+                    cfg.username = "";
                     cfg.save();
                     button.displayString = "登录";
                     status = TextFormatting.YELLOW + "已退出登录";
+                    // 退出后直接回登录界面（登录成功会自动回到浏览页）
+                    mc.displayGuiScreen(new GuiLogin(this));
                 } else {
                     mc.displayGuiScreen(new GuiLogin(this));
                 }
