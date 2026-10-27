@@ -171,6 +171,50 @@ public final class ApiClient {
         });
     }
 
+    /** 标签列表：POST /api/public/work/tags */
+    public static void listTags(final Callback<java.util.List<Dtos.Tag>> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                Dtos.TagsResp resp = post(cfg.url("/api/public/work/tags"), "{}", cfg.token,
+                        Dtos.TagsResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("取标签失败：" + e.getMessage());
+            }
+        });
+    }
+
+    /** 搜作者：POST /api/public/work/authors?q=（返回最多若干个候选） */
+    public static void searchAuthors(final String keyword, final Callback<java.util.List<Dtos.Author>> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String q = keyword == null ? "" : keyword.trim();
+                String url = cfg.url("/api/public/work/authors?q=" + encode(q) + "&exact=false");
+                Dtos.AuthorsResp resp = post(url, "{}", cfg.token, Dtos.AuthorsResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("搜作者失败：" + e.getMessage());
+            }
+        });
+    }
+
+    private static String encode(String s) {
+        try {
+            return java.net.URLEncoder.encode(s, "UTF-8");
+        } catch (Exception e) {
+            return s;
+        }
+    }
     /** 作品详情：POST /api/public/work/detail?workId= */
     public static void detail(final long workId, final Callback<Dtos.WorkDetail> cb) {
         io(() -> {

@@ -82,6 +82,8 @@ public class GuiModels extends GuiScreen {
     private boolean loading;
 
     private GuiTextField searchField;
+    /** 高级搜索的条件（作者 / 标签 / 排序） */
+    private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
     private int gridLeft;
     private int gridTop;
 
@@ -90,15 +92,17 @@ public class GuiModels extends GuiScreen {
         buttonList.clear();
         int cx = width / 2;
 
-        int topW = Math.min(300, width - 16);
-        int searchW = Math.max(80, topW - 92);
+        int topW = Math.min(360, width - 16);
+        int searchW = Math.max(70, topW - 152);
         int topX = cx - topW / 2;
         searchField = new GuiTextField(0, fontRenderer, topX, 24, searchW, 18);
         searchField.setMaxStringLength(64);
+        searchField.setText(filter.q == null ? "" : filter.q);
         searchField.setFocused(true);
 
         buttonList.add(new GuiButton(1, topX + searchW + 4, 23, 44, 20, "搜索"));
         buttonList.add(new GuiButton(2, topX + searchW + 52, 23, 40, 20, "刷新"));
+        buttonList.add(new GuiButton(8, topX + searchW + 96, 23, 56, 20, "高级搜索"));
         int by = height - 26;
         buttonList.add(new GuiButton(3, cx - 150, by, 56, 20, "上一页"));
         buttonList.add(new GuiButton(4, cx - 90, by, 56, 20, "下一页"));
@@ -118,8 +122,12 @@ public class GuiModels extends GuiScreen {
         }
         loading = true;
         status = TextFormatting.GRAY + "加载中…";
-        Dtos.CardQuery query = new Dtos.CardQuery(searchField.getText().trim(), "latest", page, perPage,
-                languageTag());
+        Dtos.CardQuery query = new Dtos.CardQuery(searchField.getText().trim(),
+                filter.sort == null ? "latest" : filter.sort, page, perPage, languageTag());
+        query.authorId = filter.authorId;
+        if (!filter.tagCodes.isEmpty()) {
+            query.tagCodes = new java.util.ArrayList<>(filter.tagCodes);
+        }
         ApiClient.listCards(query, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {
             @Override
             public void ok(Dtos.Page<Dtos.WorkCard> value) {
@@ -142,6 +150,17 @@ public class GuiModels extends GuiScreen {
                 });
             }
         });
+    }
+
+    /** 高级搜索点「应用」时回传条件：记住并重新查第一页 */
+    public void applyFilter(GuiAdvancedSearch.Filter next) {
+        this.filter = next;
+        if (searchField != null) {
+            // 关键词以搜索框为准，高级搜索只管作者/标签/排序
+            filter.q = searchField.getText().trim();
+        }
+        page = 1;
+        reload();
     }
 
     private int maxPage() {
@@ -194,6 +213,9 @@ public class GuiModels extends GuiScreen {
                 break;
             case 7:
                 mc.displayGuiScreen(new GuiUpload(this));
+                break;
+            case 8:
+                mc.displayGuiScreen(new GuiAdvancedSearch(this, filter));
                 break;
             case 6:
                 mc.displayGuiScreen(null);
@@ -275,7 +297,9 @@ public class GuiModels extends GuiScreen {
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, height - 54, 0xFFFFFF);
         }
+        String filterLine = filter == null || filter.isEmpty() ? "" : "  [" + filter.summary() + "]";
         String foot = TextFormatting.GRAY + String.format("第 %d / %d 页 · 共 %d 个", page, maxPage(), total)
+                + TextFormatting.YELLOW + filterLine
                 + (ModConfig.get().loggedIn() ? " · 已登录 " + ModConfig.get().username : " · 未登录（只能浏览）");
         drawCenteredString(fontRenderer, foot, cx, height - 40, 0xAAAAAA);
 

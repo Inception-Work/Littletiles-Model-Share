@@ -255,4 +255,12 @@ public final class Dtos {
     /** save 返回作品 ID */
     public static class WorkSaveResp extends Resp<Long> {
     }
+
+    // ==================== 高级搜索用 ====================
+
+    public static class TagsResp extends Resp<List<Tag>> {
+    }
+
+    public static class AuthorsResp extends Resp<List<Author>> {
+    }
 }
