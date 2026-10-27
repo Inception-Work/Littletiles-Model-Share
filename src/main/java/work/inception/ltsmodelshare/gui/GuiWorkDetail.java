@@ -11,6 +11,8 @@ import org.lwjgl.opengl.GL11;
 import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.EntityPlayerSP;
 import work.inception.ltsmodelshare.client.ImageCache;
 import work.inception.ltsmodelshare.client.ImageDraw;
 import work.inception.ltsmodelshare.client.TextUtil;
@@ -52,7 +54,8 @@ public class GuiWorkDetail extends GuiScreen {
 
     private String status = "";
     private boolean loading;
-    private final List<Long> downloaded = new ArrayList<>();
+    /** 已经生成过蓝图的条目 */
+    private final List<Long> madeBlueprint = new ArrayList<>();
 
     // 布局
     private int colW;
@@ -97,7 +100,7 @@ public class GuiWorkDetail extends GuiScreen {
     private int summaryBoxY;
     private int summaryBoxW;
     private int summaryBoxH;
-    private static final int DL_W = 58;
+    private static final int DL_W = 72;   // 「获取蓝图」= 4 个汉字，比原来的「下载」宽
     private static final int DL_H = 18;
 
     public GuiWorkDetail(Dtos.WorkCard card, GuiScreen parent) {
@@ -442,7 +445,7 @@ public class GuiWorkDetail extends GuiScreen {
             int[] b = downloadBounds(rowY);
             if (mouseX >= b[0] && mouseX <= b[0] + b[2] && cy >= b[1] && cy <= b[1] + b[3]
                     && mouseY >= bodyTop && mouseY <= bodyBottom) {
-                startDownload(item);
+                fetchBlueprint(item);
                 return;
             }
         }
@@ -452,21 +455,32 @@ public class GuiWorkDetail extends GuiScreen {
         return mx >= b[0] && mx <= b[0] + b[2] && my >= b[1] && my <= b[1] + b[3];
     }
 
-    private void startDownload(final Dtos.Item item) {
+    /**
+     * 「获取蓝图」：拿结构文本 → 交给 LittleTiles 解析成蓝图道具。
+     *
+     * <p>两步：</p>
+     * <ol>
+     *   <li>{@code POST /api/work/download-snbt?itemId=&version=1.12} ——
+     *       **版本不是 1.12 的结构由服务端先转成 1.12 再给我们**（返回 converted=true）；</li>
+     *   <li>{@code StructureStringUtils.importStructure(snbt)} ——
+     *       LittleTiles 自带的解析器，把 SNBT 文本变成蓝图道具，直接放进背包。</li>
+     * </ol>
+     */
+    private void fetchBlueprint(final Dtos.Item item) {
         if (!ModConfig.get().loggedIn()) {
             mc.displayGuiScreen(new GuiLogin(this));
             return;
         }
-        status = TextFormatting.YELLOW + "取下载地址…";
+        status = TextFormatting.YELLOW + "取结构…";
         ApiClient.downloadInfo(item.itemId, "1.12", new ApiClient.Callback<Dtos.DownloadInfo>() {
             @Override
             public void ok(Dtos.DownloadInfo info) {
-                setStatus(TextFormatting.YELLOW + "下载中：" + info.fileName);
-                ApiClient.downloadFile(info, new ApiClient.Callback<File>() {
+                setStatus(TextFormatting.YELLOW + "解析结构…"
+                        + (info.converted ? "（服务端已转成 1.12）" : ""));
+                ApiClient.fetchText(info, new ApiClient.Callback<String>() {
                     @Override
-                    public void ok(File value) {
-                        setStatus(TextFormatting.GREEN + "已保存：" + value.getName());
-                        downloaded.add(item.itemId);
+                    public void ok(String text) {
+                        ApiClient.post(() -> handToLittleTiles(item, text));
                     }
 
                     @Override
@@ -483,6 +497,42 @@ public class GuiWorkDetail extends GuiScreen {
         });
     }
 
+    /**
+     * 把 SNBT 交给 **LittleTiles 自带的导入器**（`/lt-import` 打开的界面）。
+     *
+     * <p>为什么不自己在客户端造道具：客户端只有 {@code EntityPlayerSP}，
+     * 往它背包里塞东西会被服务端同步覆盖（联机完全不生效，单人也不可靠）。
+     * LittleTiles 的导入界面是**服务端容器**里生成蓝图道具的，走那条路才正确。</p>
+     *
+     * <p>流程：结构文本 → 系统剪贴板 → 执行 `/lt-import` → 弹出导入框，
+     * 点一下「Paste」再点「Import」就生成蓝图（我们替他把最容易出错的一步做了）。</p>
+     */
+    private void handToLittleTiles(Dtos.Item item, String snbt) {
+        boolean copied = false;
+        try {
+            java.awt.datatransfer.StringSelection sel =
+                    new java.awt.datatransfer.StringSelection(snbt);
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
+            copied = true;
+        } catch (Throwable t) {
+            work.inception.ltsmodelshare.LtsModelShare.LOG.warn("写剪贴板失败：{}", t.toString());
+        }
+
+        if (!copied) {
+            status = TextFormatting.RED + "写剪贴板失败，结构没法交给导入器";
+            return;
+        }
+
+        madeBlueprint.add(item.itemId);
+        EntityPlayerSP player = Minecraft.getMinecraft().player;
+        if (player != null) {
+            // 打开 LittleTiles 的导入界面（服务端命令）
+            player.sendChatMessage("/lt-import");
+        }
+        status = TextFormatting.GREEN + "已复制结构（" + snbt.length() + " 字符）→ 在弹框点 Paste 再 Import";
+        work.inception.ltsmodelshare.LtsModelShare.LOG.info(
+                "已把结构交给 LittleTiles 导入器：itemId={} 字符数={}", item.itemId, snbt.length());
+    }
     private void setStatus(String text) {
         ApiClient.post(() -> status = text);
     }
@@ -661,11 +711,11 @@ public class GuiWorkDetail extends GuiScreen {
             drawString(fontRenderer, trim(meta.toString(), textW), textX, ry + 18, 0xAAAAAA);
 
             int[] b = downloadBounds(ry);
-            boolean done = downloaded.contains(item.itemId);
+            boolean done = madeBlueprint.contains(item.itemId);
             boolean hover = hit(mouseX, mouseY, b);
             Gui.drawRect(b[0], b[1], b[0] + b[2], b[1] + b[3],
                     done ? 0xFF2B4A20 : (hover ? 0xFF3E7A2C : 0xFF2F5424));
-            drawCenteredString(fontRenderer, done ? "已下载" : "下载", b[0] + b[2] / 2, b[1] + 5, 0xFFFFFF);
+            drawCenteredString(fontRenderer, done ? "已生成" : "获取蓝图", b[0] + b[2] / 2, b[1] + 5, 0xFFFFFF);
         }
 
         disableScissor();
@@ -677,7 +727,7 @@ public class GuiWorkDetail extends GuiScreen {
         }
         String hint = maxScroll() > 0 ? "（滚轮可滚动）" : "";
         drawCenteredString(fontRenderer, TextFormatting.DARK_GRAY
-                + "保存到 .minecraft/" + ModConfig.get().downloadFolder().getName() + hint,
+                + "「获取蓝图」= 下载结构文本 → 直接生成 LittleTiles 蓝图（不写文件）" + hint,
                 cx, height - 52, 0x888888);
 
         super.drawScreen(mouseX, mouseY, partialTicks);

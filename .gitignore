@@ -29,3 +29,6 @@ desktop.ini
 *.log
 
 # 注意：gradle/wrapper/gradle-wrapper.jar 要提交（换台机器 gradlew 才能跑）
+
+# ---- 第三方依赖 jar（LittleTiles / CreativeCore，需要自己放进 deps/）----
+deps/*.jar

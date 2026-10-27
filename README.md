@@ -151,3 +151,36 @@ cmd /c mklink /J "$h\minecraft\assets" "$h\forge_gradle\assets"
 
 1.12.2 的控制台用系统默认编码（GBK），log4j 按 UTF-8 写，所以中文会显示成问号。
 不影响游戏，只是难看；要看中文日志就去 `run/logs/latest.log`。
+
+---
+
+## LittleTiles 依赖（1.12.2）
+
+模组的「获取蓝图」要用 LittleTiles 自己的导入器，所以**开发和运行都需要**：
+
+| 放哪 | 用途 | 说明 |
+|---|---|---|
+| `deps/` | 只给编译（`compileOnly`） | `LittleTiles_v1.5.66_mc1.12.2.jar` |
+| `run/mods/` | 开发客户端加载 | LittleTiles + **CreativeCore**（LittleTiles 的前置） |
+| 玩家的 `mods/` | 运行时 | 玩家自己的整合包本来就带这两个 |
+
+**两个坑（都踩过）：**
+
+1. **不要放 `libs/`** —— ForgeGradle 2.3 会把 `libs/` 整个加到开发运行期 classpath，
+   于是同一个 jar 既在 classpath 又在 `run/mods` → `DuplicateModsFoundException`。
+2. **不要用 `provided`** —— 它同样会进运行期 classpath，结果一样。
+
+另外注意：当 `libs/` 里有重复且都声明了 coremod 时，LittleTiles 的 transformer
+会对同一批类**处理两次**，报 `VarInsnNode cannot be cast to LabelNode`（看起来像 ASM 版本问题，
+其实是重复加载）。挪到 `deps/` 后原版 jar 在开发环境正常：`Forge Mod Loader has successfully loaded 9 mods`。
+
+## 「获取蓝图」的流程
+
+1. `POST /api/work/download-snbt?itemId=&version=1.12`
+   —— 结构不是 1.12 的话**由服务端先转成 1.12**（响应里 `converted=true`）；
+2. `GET assetUrl` 取 SNBT 文本（不落盘）；
+3. 文本写进**系统剪贴板**，然后执行 `/lt-import` 打开 LittleTiles 的导入框；
+4. 在弹框里点 **Paste** → **Import**，LittleTiles 生成蓝图道具（在服务端容器里创建，联机也有效）。
+
+> 为什么不在客户端直接造道具：客户端只有 `EntityPlayerSP`，往里塞东西会被服务端同步覆盖，
+> 联机无效、单人也不可靠。LittleTiles 的导入界面是服务端容器，走它才正确。

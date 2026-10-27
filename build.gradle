@@ -65,8 +65,28 @@ minecraft {
 }
 
 dependencies {
-    // 之后要读写 LittleTiles 结构时从这里加（或把 jar 丢进 libs/）：
-    // provided 'curse.maven:littletiles-<project>:<file>'
+    /*
+     * LittleTiles 1.12.2（本地 jar，放在 libs/）。
+     *
+     * 为什么用 provided：它只是**编译期**依赖 —— mod 运行时由玩家自己的 LittleTiles 提供，
+     * 不能打进我们的 jar（会重复类/版本冲突）。
+     *
+     * 用到的 API 只有 com.creativemd.littletiles.common.util.converation.StructureStringUtils：
+     *   ItemStack importStructure(String snbt)  —— 把 SNBT 文本解析成蓝图道具
+     *
+     * 注意：mod jar 里的**成员名**是 SRG（func_xxx），但类名和我们调用的
+     * StructureStringUtils 自己的方法名不是混淆的，所以直接 provided 就能编译。
+     */
+    /*
+     * 编译期依赖（LittleTiles 1.12.2）。
+     *
+     * 两个坑都踩过：
+     *  1. 不能用 provided —— FG2.3 会把 provided 同时放进开发运行期 classpath；
+     *  2. 也不能把 jar 放在 libs/ —— FG2.3 默认把 libs/ 整个加到运行期 classpath。
+     * 两件都做的话，run/mods 里的同名 jar 会撞出 DuplicateModsFoundException。
+     * 所以：jar 放 deps/（只给编译），运行时靠 run/mods（玩家环境靠他们自己的 mods 目录）。
+     */
+    compileOnly files('deps/LittleTiles_v1.5.66_mc1.12.2.jar')
 }
 
 processResources {

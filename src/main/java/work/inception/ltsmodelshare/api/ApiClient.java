@@ -144,8 +144,13 @@ public final class ApiClient {
         });
     }
 
-    /** 把下载地址的文件存到本地（返回落盘文件） */
-    public static void downloadFile(final Dtos.DownloadInfo info, final Callback<File> cb) {
+    /**
+     * 把下载地址的内容读成**字符串**（SNBT 文本），不落盘。
+     *
+     * <p>蓝图是直接在内存里生成的（{@code StructureStringUtils.importStructure}），
+     * 所以不需要写文件 —— 界面上也不再有「保存到」。</p>
+     */
+    public static void fetchText(final Dtos.DownloadInfo info, final Callback<String> cb) {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
@@ -157,50 +162,28 @@ public final class ApiClient {
                 if (url.startsWith("/")) {
                     url = cfg.baseUrl + url;
                 }
-                String name = info.fileName == null || info.fileName.isEmpty()
-                        ? "model-" + System.currentTimeMillis() + ".snbt"
-                        : sanitize(info.fileName);
-                File target = new File(cfg.downloadFolder(), name);
-                File parent = target.getParentFile();
-                if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-                    cb.fail("建不了目录：" + parent);
-                    return;
-                }
-
                 HttpURLConnection conn = open(url, "GET", null, null);
                 int code = conn.getResponseCode();
                 if (code / 100 != 2) {
-                    cb.fail("下载失败：HTTP " + code);
+                    cb.fail("取结构失败：HTTP " + code);
                     return;
                 }
-                long total = conn.getContentLengthLong();
-                long done = 0;
-                int lastPct = -1;
-                try (InputStream in = conn.getInputStream();
-                     OutputStream out = new FileOutputStream(target)) {
-                    byte[] buf = new byte[16 * 1024];
-                    int n;
-                    while ((n = in.read(buf)) > 0) {
-                        out.write(buf, 0, n);
-                        done += n;
-                        if (total > 0) {
-                            int pct = (int) (done * 100 / total);
-                            if (pct != lastPct && pct % 25 == 0) {
-                                lastPct = pct;
-                                LtsModelShare.LOG.info("下载中 {}%（{}/{} 字节）", pct, done, total);
-                            }
-                        }
-                    }
+                String text;
+                try (InputStream in = conn.getInputStream()) {
+                    text = readAll(in);
                 } finally {
                     conn.disconnect();
                 }
-                cb.ok(target);
+                if (text == null || text.trim().isEmpty()) {
+                    cb.fail("服务器返回了空内容");
+                    return;
+                }
+                cb.ok(text);
             } catch (Exception e) {
-                cb.fail("下载文件失败：" + e.getMessage());
+                cb.fail("取结构失败：" + e.getMessage());
             }
         });
     }
-
     // ==================== 底层 ====================
 
     private static <T> T post(String url, String body, String token, Class<T> type) throws IOException {
