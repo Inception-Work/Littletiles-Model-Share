@@ -331,6 +331,16 @@ public class GuiWorkDetail extends GuiScreen {
         }
     }
 
+    /** ESC：退出整个页面（详情页也直接用 ESC 关掉，不再往上一级退） */
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (keyCode == 1) {
+            mc.displayGuiScreen(null);
+            return;
+        }
+        super.keyTyped(typedChar, keyCode);
+    }
+
     @Override
     public void handleMouseInput() throws IOException {
         super.handleMouseInput();

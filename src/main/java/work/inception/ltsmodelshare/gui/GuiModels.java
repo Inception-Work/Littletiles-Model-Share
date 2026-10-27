@@ -201,6 +201,14 @@ public class GuiModels extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        /*
+         * ESC 必须先处理：搜索框聚焦时下面会 return，
+         * 不先拦的话 ESC 会被当成搜索框输入（什么也不发生），面板就关不掉。
+         */
+        if (keyCode == 1) {
+            mc.displayGuiScreen(null);
+            return;
+        }
         if (searchField.isFocused()) {
             searchField.textboxKeyTyped(typedChar, keyCode);
             if (keyCode == 28) {
