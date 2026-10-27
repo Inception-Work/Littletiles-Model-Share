@@ -44,9 +44,10 @@ public class GuiLogin extends GuiScreen {
         fieldUser = new GuiTextField(0, fontRenderer, cx - 100, cy - 62, 200, 18);
         fieldUser.setMaxStringLength(64);
         fieldUser.setFocused(true);
-        // 账号密码模式才回填上次的用户名；令牌模式要干净的空框
-        // （令牌模式下 cfg.username 存的是「访问令牌」这种占位，填进去只会碍事）
-        fieldUser.setText(tokenMode ? "" : ModConfig.get().username);
+        // 不预填用户名：每次打开都是空框。
+        // （之前会回填 config 里上次登录的用户名，看起来像"总是默认填了 xxx"，
+        //  而且令牌模式下那个值还是「访问令牌」占位，容易误导。）
+        fieldUser.setText("");
 
         fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
         fieldPass.setMaxStringLength(128);
