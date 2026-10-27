@@ -46,12 +46,12 @@ public class GuiLogin extends GuiScreen {
         fieldUser.setFocused(true);
         fieldUser.setText(ModConfig.get().username);
 
-        fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 32, 200, 18);
+        fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
         fieldPass.setMaxStringLength(128);
 
         buttonList.add(new GuiButton(1, cx - 100, cy + 4, 96, 20, "登录"));
         buttonList.add(new GuiButton(2, cx + 4, cy + 4, 96, 20, "取消"));
-        buttonList.add(new GuiButton(3, cx - 100, cy + 30, 200, 20, "使用访问令牌（lts_…）"));
+        buttonList.add(new GuiButton(3, cx - 100, cy + 30, 200, 20, "使用访问令牌"));
         buttonList.add(new GuiButton(4, cx - 100, cy + 56, 200, 20, "没有账号？去注册 →"));
     }
 
@@ -91,9 +91,9 @@ public class GuiLogin extends GuiScreen {
             // 令牌模式：直接在输入框里粘贴 lts_ 开头的令牌，回车即登录
             tokenMode = !tokenMode;
             buttonList.get(2).displayString = tokenMode
-                    ? "返回账号密码登录" : "使用访问令牌（lts_…）";
+                    ? "返回账号密码登录" : "使用访问令牌";
             status = tokenMode
-                    ? TextFormatting.GRAY + "把站点「访问令牌」里复制的一整串粘贴到上面的输入框"
+                    ? TextFormatting.GRAY + "把站点「访问令牌」里复制的令牌粘贴到上面的输入框"
                     : "";
             return;
         }
@@ -103,7 +103,7 @@ public class GuiLogin extends GuiScreen {
         if (tokenMode) {
             String pat = fieldUser.getText().trim();
             if (!pat.startsWith("lts_")) {
-                status = TextFormatting.RED + "访问令牌应该以 lts_ 开头";
+                status = TextFormatting.RED + "这串文本不像访问令牌，请回到站点整串复制";
                 return;
             }
             ModConfig cfg = ModConfig.get();
@@ -171,7 +171,7 @@ public class GuiLogin extends GuiScreen {
 
         drawString(fontRenderer, tokenMode ? "访问令牌" : "账号", cx - 100, cy - 73, 0xCCCCCC);
         if (!tokenMode) {
-            drawString(fontRenderer, "密码", cx - 100, cy - 43, 0xCCCCCC);
+            drawString(fontRenderer, "密码", cx - 100, cy - 34, 0xCCCCCC);
         }
 
         fieldUser.drawTextBox();
@@ -183,15 +183,13 @@ public class GuiLogin extends GuiScreen {
         }
         fieldPass.drawTextBox();
         if (!fieldPass.getText().isEmpty()) {
-            drawRect(cx - 99, cy - 24, cx + 99, cy - 6, 0xFF000000);
-            drawString(fontRenderer, sb.toString(), cx - 96, cy - 20, 0xFFFFFF);
+            drawRect(cx - 99, cy - 15, cx + 99, cy + 3, 0xFF000000);
+            drawString(fontRenderer, sb.toString(), cx - 96, cy - 11, 0xFFFFFF);
         }
 
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, cy + 40, 0xFFFFFF);
         }
-        drawCenteredString(fontRenderer, TextFormatting.DARK_GRAY + "没有账号就去站点注册（游戏里暂不支持注册）",
-                cx, height - 30, 0x888888);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
