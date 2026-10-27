@@ -44,7 +44,9 @@ public class GuiLogin extends GuiScreen {
         fieldUser = new GuiTextField(0, fontRenderer, cx - 100, cy - 62, 200, 18);
         fieldUser.setMaxStringLength(64);
         fieldUser.setFocused(true);
-        fieldUser.setText(ModConfig.get().username);
+        // 账号密码模式才回填上次的用户名；令牌模式要干净的空框
+        // （令牌模式下 cfg.username 存的是「访问令牌」这种占位，填进去只会碍事）
+        fieldUser.setText(tokenMode ? "" : ModConfig.get().username);
 
         fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
         fieldPass.setMaxStringLength(128);
@@ -92,9 +94,11 @@ public class GuiLogin extends GuiScreen {
             tokenMode = !tokenMode;
             buttonList.get(2).displayString = tokenMode
                     ? "返回账号密码登录" : "使用访问令牌";
-            status = tokenMode
-                    ? TextFormatting.GRAY + "把站点「访问令牌」里复制的令牌粘贴到上面的输入框"
-                    : "";
+            // 切换模式时清空输入框：免得把账号名当令牌提交，或者令牌残留在账号框里
+            fieldUser.setText("");
+            fieldPass.setText("");
+            status = "";
+            fieldUser.setFocused(true);
             return;
         }
         if (button.id != 1 || busy) {
@@ -146,7 +150,9 @@ public class GuiLogin extends GuiScreen {
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
         super.keyTyped(typedChar, keyCode);
         fieldUser.textboxKeyTyped(typedChar, keyCode);
-        fieldPass.textboxKeyTyped(typedChar, keyCode);
+        if (!tokenMode) {
+            fieldPass.textboxKeyTyped(typedChar, keyCode);
+        }
         if (keyCode == 28) { // Enter
             actionPerformed(buttonList.get(0));
         }
@@ -156,7 +162,9 @@ public class GuiLogin extends GuiScreen {
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
         super.mouseClicked(mouseX, mouseY, mouseButton);
         fieldUser.mouseClicked(mouseX, mouseY, mouseButton);
-        fieldPass.mouseClicked(mouseX, mouseY, mouseButton);
+        if (!tokenMode) {
+            fieldPass.mouseClicked(mouseX, mouseY, mouseButton);
+        }
     }
 
     @Override
@@ -175,16 +183,18 @@ public class GuiLogin extends GuiScreen {
         }
 
         fieldUser.drawTextBox();
-        // 密码框：不解字，只回显长度，避免明文
-        int dots = fieldPass.getText().length();
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < dots; i++) {
-            sb.append('●');
-        }
-        fieldPass.drawTextBox();
-        if (!fieldPass.getText().isEmpty()) {
-            drawRect(cx - 99, cy - 15, cx + 99, cy + 3, 0xFF000000);
-            drawString(fontRenderer, sb.toString(), cx - 96, cy - 11, 0xFFFFFF);
+        // 令牌模式只有一个输入框，密码框整个不画
+        if (!tokenMode) {
+            // 密码框：不解字，只回显长度，避免明文
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < fieldPass.getText().length(); i++) {
+                sb.append('●');
+            }
+            fieldPass.drawTextBox();
+            if (!fieldPass.getText().isEmpty()) {
+                drawRect(cx - 99, cy - 15, cx + 99, cy + 3, 0xFF000000);
+                drawString(fontRenderer, sb.toString(), cx - 96, cy - 11, 0xFFFFFF);
+            }
         }
 
         if (!status.isEmpty()) {
