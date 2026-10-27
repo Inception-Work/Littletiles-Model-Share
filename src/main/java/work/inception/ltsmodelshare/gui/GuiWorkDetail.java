@@ -78,6 +78,15 @@ public class GuiWorkDetail extends GuiScreen {
 
     /** 每个条目当前显示第几张图（itemId → 索引）。合集里每个作品有自己的图，要各自切换 */
     private final java.util.Map<Long, Integer> itemImageIndex = new java.util.HashMap<>();
+
+    /** 描述区最多显示 7 行，超出用描述区自己的滚动 */
+    private static final int SUMMARY_WINDOW = 7;
+    private int summaryScroll;
+    /** 描述区在屏幕上的矩形（滚轮落在这里就滚描述，否则滚整页） */
+    private int summaryBoxX;
+    private int summaryBoxY;
+    private int summaryBoxW;
+    private int summaryBoxH;
     private static final int DL_W = 58;
     private static final int DL_H = 18;
 
@@ -114,7 +123,6 @@ public class GuiWorkDetail extends GuiScreen {
         rightW = Math.max(60, colW - coverW - 8);
         thumbSize = Math.max(14, Math.min(24, coverW / 5));
         headerH = computeHeaderHeight();
-
 
         buttonList.add(new GuiButton(1, cx - 76, height - 24, 70, 20, "返回"));
         buttonList.add(new GuiButton(2, cx + 6, height - 24, 70, 20, "刷新"));
@@ -234,8 +242,17 @@ public class GuiWorkDetail extends GuiScreen {
     private int rightColumnHeight() {
         int h = titleLines().size() * 10 + 2;
         h += tagRows().size() * 10 + 2;
-        h += 18;
-        h += statPairs().length * 10;
+        h += 4;                                   // 标签 → 作者 之间的间隔
+        h += 18;                                  // 作者行（头像 + 名字 + @账号）
+        h += 6;                                   // 作者 → 作品数据 的间隔（原来贴着）
+        h += statPairs().length * 10;             // 浏览/下载/收藏/评论
+        if (hasCollectionDeps()) {
+            h += 6 + detail.dependencies.size() * 10;
+        }
+        int sLines = summaryLineCount();
+        if (sLines > 0) {
+            h += 6 + Math.min(sLines, SUMMARY_WINDOW) * 10 + 2;
+        }
         return h;
     }
 
@@ -244,14 +261,24 @@ public class GuiWorkDetail extends GuiScreen {
         return Math.max(coverH + thumbs, rightColumnHeight()) + 6;
     }
 
+    /** 描述在右栏折行（放在「作品数据」下面） */
     private List<String> summaryLines() {
         String summary = detail != null ? detail.summary : card.summary;
         List<String> out = new ArrayList<>();
         if (summary == null || summary.trim().isEmpty()) {
             return out;
         }
-        out.addAll(TextUtil.wrap(fontRenderer, summary, colW - 4));
+        out.addAll(TextUtil.wrap(fontRenderer, summary, rightW - 6));
         return out;
+    }
+
+    private int summaryLineCount() {
+        return summaryLines().size();
+    }
+
+    /** 超过 7 行时，描述区自己滚动 */
+    private int summaryMaxScroll() {
+        return Math.max(0, summaryLineCount() - SUMMARY_WINDOW);
     }
 
     private boolean hasCollectionDeps() {
@@ -260,14 +287,7 @@ public class GuiWorkDetail extends GuiScreen {
 
     private int computeContentHeight() {
         int h = headerH;
-        if (hasCollectionDeps()) {
-            h += detail.dependencies.size() * 12;
-        }
-        List<String> s = summaryLines();
-        if (!s.isEmpty()) {
-            h += s.size() * 10 + 6;
-        }
-        h += 14;
+        h += 14;                                  // "模型（n）"
         h += items.size() * ITEM_ROW_H;
         h += 8;
         return h;
@@ -277,17 +297,9 @@ public class GuiWorkDetail extends GuiScreen {
         return Math.max(0, computeContentHeight() - (bodyBottom - bodyTop));
     }
 
-    /** 条目区在内容坐标里的起点 */
+    /** 条目区在内容坐标里的起点（依赖/描述都已包含在 header 高度里） */
     private int itemRowTop() {
-        int h = headerH;
-        if (hasCollectionDeps()) {
-            h += detail.dependencies.size() * 12;
-        }
-        List<String> s = summaryLines();
-        if (!s.isEmpty()) {
-            h += s.size() * 10 + 6;
-        }
-        return h + 14;
+        return headerH + 14;
     }
 
     // ==================== 交互 ====================
@@ -305,7 +317,18 @@ public class GuiWorkDetail extends GuiScreen {
     public void handleMouseInput() throws IOException {
         super.handleMouseInput();
         int wheel = Mouse.getEventDWheel();
-        if (wheel != 0) {
+        if (wheel == 0) {
+            return;
+        }
+        int mx = Mouse.getEventX() * width / Math.max(1, mc.displayWidth);
+        int my = height - Mouse.getEventY() * height / Math.max(1, mc.displayHeight) - 1;
+        boolean overSummary = summaryBoxH > 0
+                && mx >= summaryBoxX && mx <= summaryBoxX + summaryBoxW
+                && my >= summaryBoxY && my <= summaryBoxY + summaryBoxH;
+        if (overSummary && summaryMaxScroll() > 0) {
+            // 描述自己滚（这样长描述不会把整页顶走）
+            summaryScroll = Math.max(0, Math.min(summaryScroll - Integer.signum(wheel), summaryMaxScroll()));
+        } else {
             scroll = Math.max(0, Math.min(scroll - Integer.signum(wheel) * 18, maxScroll()));
         }
     }
@@ -500,36 +523,68 @@ public class GuiWorkDetail extends GuiScreen {
                 drawString(fontRenderer, TextFormatting.GRAY + "@" + trim(author.username, rightW - 22),
                         rightX + 20, y + 10, 0x888888);
             }
-            y += 18;
+            y += 18 + 2;
         }
 
+        // 作者 → 作品数据 之间留 6px（原来贴着）
+        y += 6;
         for (String line : statPairs()) {
             drawString(fontRenderer, TextFormatting.GRAY + line, rightX, y, 0xAAAAAA);
             y += 10;
         }
 
-        // ---------- 全宽：依赖 / 简介 / 模型 ----------
-        int cy = bodyTop - scroll + headerH;
-
+        // 依赖（合集）接在数据下面
         if (hasCollectionDeps()) {
+            y += 6;
             for (Dtos.Dependency dep : detail.dependencies) {
                 String type = dep != null && dep.type != null ? dep.type : "依赖";
                 String name = dep != null && dep.name != null ? dep.name : "?";
                 drawString(fontRenderer, TextFormatting.DARK_PURPLE + "[" + type + "] "
-                        + trim(name, colW - 44), left, cy, 0xAA88CC);
-                cy += 12;
+                        + trim(name, rightW - 4), rightX, y, 0xAA88CC);
+                y += 10;
             }
         }
 
+        // ---------- 描述：放在「作品数据」下面，超过 7 行时它自己滚动 ----------
         List<String> lines = summaryLines();
+        summaryBoxX = rightX;
+        summaryBoxY = y;
+        summaryBoxW = rightW;
+        summaryBoxH = 0;
         if (!lines.isEmpty()) {
-            for (String line : lines) {
-                drawString(fontRenderer, TextFormatting.GRAY + line, left, cy, 0x999999);
-                cy += 10;
+            y += 6;
+            int window = Math.min(lines.size(), SUMMARY_WINDOW);
+            summaryBoxY = y;
+            summaryBoxH = window * 10;
+            summaryScroll = Math.max(0, Math.min(summaryScroll, summaryMaxScroll()));
+
+            boolean scrollable = lines.size() > SUMMARY_WINDOW;
+            if (scrollable) {
+                // 描述区单独裁剪，滚动只影响这块
+                enableScissor(rightX - 1, y - 1, rightW + 2, window * 10 + 2);
             }
-            cy += 6;
+            int sy = y;
+            for (int i = summaryScroll; i < Math.min(lines.size(), summaryScroll + SUMMARY_WINDOW); i++) {
+                drawString(fontRenderer, TextFormatting.GRAY + trim(lines.get(i), rightW - 6), rightX, sy, 0x999999);
+                sy += 10;
+            }
+            if (scrollable) {
+                // GL 只有一个 scissor 矩形，内层用完要**恢复外层**，否则后面的条目就跑到按钮上去了
+                disableScissor();
+                enableScissor(left - 4, bodyTop, colW + 12, bodyBottom - bodyTop);
+                // 右侧小滚动条 + 提示
+                int barX = rightX + rightW - 2;
+                Gui.drawRect(barX, y, barX + 2, y + window * 10, 0x30FFFFFF);
+                int barH = window * 10;
+                int thumbH = Math.max(8, (int) ((long) barH * window / lines.size()));
+                int thumbY = y + (int) ((long) (barH - thumbH) * summaryScroll / summaryMaxScroll());
+                Gui.drawRect(barX, thumbY, barX + 2, thumbY + thumbH, 0x90FFFFFF);
+            }
+            y += window * 10 + 2;
         }
 
+        // ---------- 全宽：模型列表 ----------
+        int cy = bodyTop - scroll + headerH;
         drawString(fontRenderer, TextFormatting.GRAY + "模型（" + items.size() + "）", left, cy, 0xAAAAAA);
         cy += 14;
 
