@@ -33,6 +33,9 @@ public class GuiModels extends GuiScreen {
     private int rows = 2;
     private int cardW = 100;
     private int cardH = 74;
+    /** 卡片背景遮罩比内容高 0.5 行字（约 5px），内容位置不变 */
+    private static final int CARD_BG_EXTRA = 5;
+    private int cardBgH = 79;
     private int imgH = 50;
     private static final int GAP_X = 6;
     private static final int GAP_Y = 6;
@@ -54,6 +57,7 @@ public class GuiModels extends GuiScreen {
         cardW = width >= 300 ? 78 : (width >= 210 ? 66 : Math.max(44, width - margin * 2));
         imgH = Math.max(24, cardW * 9 / 16);
         cardH = imgH + 24;
+        cardBgH = cardH + CARD_BG_EXTRA;
 
         cols = Math.max(1, (width - margin * 2 + GAP_X) / (cardW + GAP_X));
         // 最多 3 列：再多作者名就挤没了
@@ -62,11 +66,11 @@ public class GuiModels extends GuiScreen {
         // 底部留 44px 给按钮组，顶部留 50px 给标题+搜索
         int top = 50;
         int bottom = height - 44;
-        rows = Math.max(1, Math.min(3, (bottom - top + GAP_Y) / (cardH + GAP_Y)));
+        rows = Math.max(1, Math.min(3, (bottom - top + GAP_Y) / (cardBgH + GAP_Y)));
         perPage = cols * rows;
 
         int gridW = cols * cardW + (cols - 1) * GAP_X;
-        int gridH = rows * cardH + (rows - 1) * GAP_Y;
+        int gridH = rows * cardBgH + (rows - 1) * GAP_Y;
         gridLeft = Math.max(margin, (width - gridW) / 2);
         gridTop = top + Math.max(0, (bottom - top - gridH) / 2);
     }
@@ -227,8 +231,8 @@ public class GuiModels extends GuiScreen {
             int col = i % cols;
             int row = i / cols;
             int x = gridLeft + col * (cardW + GAP_X);
-            int y = gridTop + row * (cardH + GAP_Y);
-            if (mouseX >= x && mouseX <= x + cardW && mouseY >= y && mouseY <= y + cardH) {
+            int y = gridTop + row * (cardBgH + GAP_Y);
+            if (mouseX >= x && mouseX <= x + cardW && mouseY >= y && mouseY <= y + cardBgH) {
                 return i;
             }
         }
@@ -254,7 +258,7 @@ public class GuiModels extends GuiScreen {
         }
 
         if (cards.isEmpty() && !loading) {
-            drawCenteredString(fontRenderer, TextFormatting.GRAY + "这里没有作品", cx, gridTop + cardH / 2, 0xAAAAAA);
+            drawCenteredString(fontRenderer, TextFormatting.GRAY + "这里没有作品", cx, gridTop + cardBgH / 2, 0xAAAAAA);
         }
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, height - 54, 0xFFFFFF);
@@ -270,10 +274,10 @@ public class GuiModels extends GuiScreen {
         int col = index % cols;
         int row = index / cols;
         int x = gridLeft + col * (cardW + GAP_X);
-        int y = gridTop + row * (cardH + GAP_Y);
+        int y = gridTop + row * (cardBgH + GAP_Y);
 
-        // 卡片底
-        Gui.drawRect(x, y, x + cardW, y + cardH, hovered ? 0x50FFFFFF : 0x30000000);
+        // 卡片底（比内容高 0.5 行字，视觉上更透气）
+        Gui.drawRect(x, y, x + cardW, y + cardBgH, hovered ? 0x50FFFFFF : 0x30000000);
         Gui.drawRect(x, y, x + cardW, y + 1, hovered ? 0xFFFFFFFF : 0x55FFFFFF);
 
         // 封面（16:9，内缩 3px）
