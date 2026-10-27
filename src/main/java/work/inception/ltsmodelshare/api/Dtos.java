@@ -272,8 +272,17 @@ public final class Dtos {
 
     // ==================== 提交审核 ====================
 
-    /** 同意「上传授权」协议后返回的 consentId */
-    public static class ConsentResp extends Resp<Long> {
+    /**
+     * 同意「上传授权」协议后返回的 payload。
+     *
+     * <p>注意：站点返回的是对象 {@code {"consentId": 79}}，不是裸数字 ——
+     * 之前按 {@code Resp<Long>} 解析会得到 null，表现为"申请上传授权失败"。</p>
+     */
+    public static class ConsentPayload {
+        public Long consentId;
+    }
+
+    public static class ConsentResp extends Resp<ConsentPayload> {
     }
 
     /** submit-review 的结果 */

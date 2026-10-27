@@ -446,11 +446,12 @@ public final class ApiClient {
                 String body = "{\"consentType\":\"upload_rights\",\"agreed\":true}";
                 Dtos.ConsentResp resp = postAuthed(cfg.url("/api/account/notification/consent/agree"),
                         body, Dtos.ConsentResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
+                if (resp == null || !resp.success || resp.payload == null
+                        || resp.payload.consentId == null) {
                     cb.fail(describe(resp));
                     return;
                 }
-                cb.ok(resp.payload);
+                cb.ok(resp.payload.consentId);
             } catch (Exception e) {
                 cb.fail("授权失败：" + e.getMessage());
             }
