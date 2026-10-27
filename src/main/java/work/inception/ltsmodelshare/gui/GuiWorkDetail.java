@@ -351,11 +351,18 @@ public class GuiWorkDetail extends GuiScreen {
     }
 
     /** 缩略图上的左右切换按钮 */
+    /** 箭头画的位置 */
     private int[] arrowBounds(int rowY, boolean leftArrow) {
         int[] th = itemThumbBounds(rowY);
         int y = th[1] + th[3] - ARROW_H - 1;
         int x = leftArrow ? th[0] + 1 : th[0] + th[2] - ARROW_W - 1;
         return new int[]{x, y, ARROW_W, ARROW_H};
+    }
+
+    /** 箭头的**可点**区域：比画出来的每边大 2px，12x12 实在太小 */
+    private int[] arrowHitBounds(int rowY, boolean leftArrow) {
+        int[] b = arrowBounds(rowY, leftArrow);
+        return new int[]{b[0] - 2, b[1] - 2, b[2] + 4, b[3] + 4};
     }
 
     /** 条目自己的图片列表（合集里每个作品各自一套） */
@@ -400,15 +407,16 @@ public class GuiWorkDetail extends GuiScreen {
                 return;
             }
         }
-        int cy = mouseY + scroll;
+        // 绘制用的是 screen = bodyTop - scroll + content，所以反算要求回 bodyTop
+        int cy = mouseY - bodyTop + scroll;
         for (int i = 0; i < items.size(); i++) {
             Dtos.Item item = items.get(i);
             int rowY = itemRowTop() + i * ITEM_ROW_H;
 
             // 缩略图上的左右切换（只有多图时才响应）
             if (itemImages(item).size() > 1) {
-                int[] l = arrowBounds(rowY, true);
-                int[] r = arrowBounds(rowY, false);
+                int[] l = arrowHitBounds(rowY, true);
+                int[] r = arrowHitBounds(rowY, false);
                 if (mouseX >= l[0] && mouseX <= l[0] + l[2] && cy >= l[1] && cy <= l[1] + l[3]
                         && mouseY >= bodyTop && mouseY <= bodyBottom) {
                     cycleItemImage(item, -1);
