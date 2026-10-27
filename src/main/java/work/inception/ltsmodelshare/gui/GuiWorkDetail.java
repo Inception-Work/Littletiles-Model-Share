@@ -471,6 +471,10 @@ public class GuiWorkDetail extends GuiScreen {
             mc.displayGuiScreen(new GuiLogin(this));
             return;
         }
+        if (Minecraft.getMinecraft().player == null) {
+            status = TextFormatting.RED + "请先进入一个世界，再获取蓝图";
+            return;
+        }
         status = TextFormatting.YELLOW + "取结构…";
         ApiClient.downloadInfo(item.itemId, "1.12", new ApiClient.Callback<Dtos.DownloadInfo>() {
             @Override

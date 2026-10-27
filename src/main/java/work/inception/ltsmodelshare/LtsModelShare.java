@@ -37,7 +37,12 @@ public class LtsModelShare {
 
     public static final Logger LOG = LogManager.getLogger(MODID);
 
-    /** 默认按键：M */
+    /**
+     * 默认按键：<b>I</b>。
+     *
+     * <p>原来用 M，但 LittleTiles 的 `little.mark`（标记）默认也是 M，两个绑定撞在一起
+     * 时按键会被 LittleTiles 先吃掉，表现为"按 M 没反应"。所以换成 I。</p>
+     */
     @SideOnly(Side.CLIENT)
     public static KeyBinding keyOpen;
 
@@ -45,9 +50,11 @@ public class LtsModelShare {
     public void preInit(FMLPreInitializationEvent event) {
         ModConfig.get();
         if (event.getSide().isClient()) {
-            keyOpen = new KeyBinding("key.ltsmodelshare.open", Keyboard.KEY_M, "key.categories.ltsmodelshare");
+            keyOpen = new KeyBinding("key.ltsmodelshare.open", Keyboard.KEY_I, "key.categories.ltsmodelshare");
             ClientRegistry.registerKeyBinding(keyOpen);
             MinecraftForge.EVENT_BUS.register(new InputHandler());
+            // 和 LittleTiles 的 little.mark 抢 M 键 → 启动时自动挪到空闲键
+            MinecraftForge.EVENT_BUS.register(new work.inception.ltsmodelshare.client.KeyConflictFixer());
         }
         LOG.info("{} {} 预初始化完成", NAME, VERSION);
     }

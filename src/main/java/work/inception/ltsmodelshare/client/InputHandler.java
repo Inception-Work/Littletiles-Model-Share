@@ -18,9 +18,8 @@ public class InputHandler {
         if (LtsModelShare.keyOpen == null || !LtsModelShare.keyOpen.isPressed()) {
             return;
         }
-        if (Minecraft.getMinecraft().world == null) {
-            return; // 只在游戏里（有世界）响应，主菜单不弹
-        }
+        // 主菜单也允许打开（浏览/登录不需要世界，只有「获取蓝图」需要）
+        LtsModelShare.LOG.info("[key] M 键被按下 → 打开面板");
         openPanel();
     }
 
