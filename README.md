@@ -58,55 +58,60 @@ run/                    # 开发客户端数据目录（生成的，别提交）
 3. **代理**：Gradle 用 `gradle.properties` 的 `systemProp.*`（7890）；**游戏 JVM 另给一份**（`build.gradle` 的 `clientJvmArgs`），否则客户端联网/资源会卡。
 4. 中文日志在 PowerShell 控制台显示成 `?????`（编码问题，不影响游戏），要好看可以在 `clientJvmArgs` 里加 `-Dfile.encoding=UTF-8`。
 
-## 下一步（待定）
 
-1. 加 **LittleTiles** 依赖（`provided 'curse.maven:littletiles-…'` 或丢 jar 进 `libs/`），摸清它的结构 API（`.ltmodel` / LTStructure 导入导出）。
-2. 站内接口：`/api/work/public/*`（列表/详情/下载）。登录用 `/api/account/login/password-login`。
-3. GUI：一个 `GuiScreen` 列表 + 搜索 + 下载按钮，下载到 `.minecraft/ltsmodels/`。
-4. 下载后"导入成 LittleTiles 结构"（放置/粘贴到世界）。
-
----
-
-## 模组现在有什么（v0.1.0）
+## 模组现在有什么
 
 | 功能 | 说明 |
 |---|---|
-| 打开面板 | 游戏内按 **M**，或聊天栏 `/ltsmodels`（只在有世界的客户端里响应） |
-| 登录 | 面板里输站点账号密码 → `POST /api/account/login/password-login`，令牌存本地配置（**不存密码**） |
-| 浏览 | `POST /api/public/work/cards`，搜索框 + 分页（8 条/页），游客也能看 |
-| 详情 | `POST /api/public/work/detail?workId=`，列出这条作品里的模型（MC 版本 / box 数 / grid） |
-| 下载 | `POST /api/work/download-snbt?itemId=&version=1.12` 拿地址 → GET 落盘到 `ltsmodels/`；1.19 的模型由**服务端现场转成 1.12** |
+| 打开面板 | 游戏内按 **I**（和 LittleTiles 的 M 冲突，所以不用 M），或 `/ltsmodels`；主菜单也能开 |
+| 登录 | 账号密码登录，或点「使用访问令牌」粘贴站点 PAT（长期有效、可吊销）；令牌存本地，**不存密码** |
+| 保持登录 | 打开面板时静默续期（站点是 2 小时滑动窗口），请求失败自动续期重试一次 |
+| 浏览 | 卡片流：封面（等比裁剪）+ 标题 + 作者头像 + 下载/浏览数；3 列 × 最多 3 行，按窗口自适应 |
+| 高级搜索 | 搜索框旁「高级搜索」：**左侧作者候选**（带头像、可滚动）、**右侧标签**（可多选、可滚动）、最新/最热排序 |
+| 详情 | 左封面 4:3 + 多图缩略图；右栏标题/标签/作者/浏览·下载·收藏·评论/合集依赖；描述窗口多图 7 行、单图 4 行 |
+| 获取蓝图 | 服务端直接把结构生成 **Little Blueprint 放进背包**（满了掉脚下），不写文件；grid 超出客户端上限时弹窗告诉你怎么改 `config/littletiles.json` |
+| 上传 | 手持蓝图 → 填标题/多行简介/选标签/选截图（游戏 `screenshots/` 目录，一行三张、绿框选中、懒加载）→ **提交草稿** 或 **提交审核**；过程有阻塞式进度弹窗 |
+| 上传审核 | 提交审核会自动 `consent/agree(upload_rights)` 拿新的 consentId 再 `submit-review`，失败会保留已存的草稿 |
+| 退出 | 任意界面按 **ESC** 关闭 |
 
 配置文件：`run/config/ltsmodelshare.json`（发布后是 `.minecraft/config/ltsmodelshare.json`）
 
 ```json
 {
   "baseUrl": "https://www.inception.work",   // 换测试服就改这里
-  "token": "",                                // 登录后自动写入
-  "refreshToken": "",
-  "username": "",                             // 只回显，不存密码
-  "downloadDir": ""                           // 空 = .minecraft/ltsmodels
+  "token": "",                                // 登录后自动写入（或粘贴 lts_ 开头的访问令牌）
+  "refreshToken": "",                         // 滑动续期用；PAT 模式下为空
+  "username": "",
+  "downloadDir": ""                           // 目前下载不落盘，保留字段
 }
 ```
 
-下载目录：`.minecraft/ltsmodels/`（界面上会显示完整路径）。
-
-### 接口契约（已用真实站点验证过一轮）
+## 接口契约（都用真实站点验证过）
 
 | 步骤 | 请求 | 返回关键字段 |
 |---|---|---|
-| 登录 | `POST /api/account/login/password-login` `{username,password}` | `payload.token` |
-| 列表 | `POST /api/public/work/cards` `{q,sort,locale,current,size}` | `payload.records[].{kind,workId,title,author,itemId}` / `payload.total` |
-| 详情 | `POST /api/public/work/detail?workId=N` | `payload.items[].{itemId,title,mcVersion,grid,boxCount,preview.sizeBytes}` |
-| 下载 | `POST /api/work/download-snbt?itemId=N&version=1.12`（Bearer） | `payload.{assetUrl,fileName,sizeBytes,converted}` |
-| 取文件 | `GET <assetUrl>` | SNBT 文本（`version=1.12` 时服务端会把 1.19 的结构转过来，`converted=true`） |
+| 登录 | `POST /api/account/login/password-login` `{username,password}` | `payload.{token,refreshToken}` |
+| 续期 | `POST /api/account/auth/refresh` `{refreshToken}` | `payload.{token,refreshToken}`（滑动轮换） |
+| 访问令牌 | `POST /api/account/token/{create,list,revoke}` | create 返回明文 `lts_…`（只此一次） |
+| 列表 | `POST /api/public/work/cards` `{q,sort,tagCodes[],authorId,locale,current,size}` | `payload.records[]` / `payload.total` |
+| 标签 | `POST /api/public/work/tags` | `[{code,name}]` |
+| 作者 | `POST /api/public/work/authors?q=` | `[{userId,username,displayName,avatarUrl}]` |
+| 详情 | `POST /api/public/work/detail?workId=N` | `payload.items[].{itemId,title,mcVersion,grid,boxCount,modNamespaces}` |
+| 取结构 | `POST /api/work/download-snbt?itemId=N&version=1.12`（Bearer） | `payload.{assetUrl,fileName,sizeBytes,converted}` |
+| 取文本 | `GET <assetUrl>` | SNBT 文本（服务端把 1.19 转成 1.12，`converted=true`） |
+| 上传结构 | `POST /api/studio/work/upload-snbt`（multipart，`file`） | `payload.{blobId,grid,boxCount,dedup}` |
+| 上传截图 | `POST /api/studio/work/upload-image`（multipart，`file`） | `payload` = 图片地址 |
+| 保存作品 | `POST /api/studio/work/save` | `payload` = workId（草稿：visibility=private, status=draft） |
+| 上传授权 | `POST /api/account/notification/consent/agree` `{consentType:"upload_rights",agreed:true}` | `payload.consentId`（**注意是对象**，不是裸数字） |
+| 提交审核 | `POST /api/studio/work/submit-review?workId=&keepOnline=&consentId=` | `payload.{submitted,reviewId,round}` |
 
-### 还没做
+## 还没做 / 已知限制
 
-1. **导入 LittleTiles**：现在只是把 SNBT 存到本地，还没解析成 LTStructure 贴到世界里（要加 LittleTiles 依赖 + 摸它的结构 API）。
-2. **上传**（按你说的后续再开发）。
-3. 密码框是明文输入（只是画面上打了 ●），要更安全可以改成"网页登录拿一次性 code，游戏内粘贴"。
-4. 令牌过期没做自动续期（`refreshToken` 已经存下来了，续期接口 `/api/account/auth/refresh` 还没接）。
+1. **联机一键获取蓝图**：目前单人/局域网主机在服务端生成道具；专用服务端没有我们的服务端代码，会退回"剪贴板 + `/lt-import`"。
+2. **PAT 需要部署**：站点侧代码已完成，但要建表 + 重启后端 + 发布前端才能用。
+3. **上传只支持单个作品**（`kind=single`），合集/多条目还没做。
+4. 密码框是明文输入（画面上打了 ●），要更安全就只用访问令牌。
+5. 截图只从 `<gameDir>/screenshots` 读，不支持从剪贴板/外部路径选。
 
 ---
 
@@ -190,3 +195,16 @@ cmd /c mklink /J "$h\minecraft\assets" "$h\forge_gradle\assets"
 >
 > **联机（专用服务端）限制**：我们没有服务端代码，此时自动退回 LittleTiles 的导入界面
 > ——结构写入剪贴板并执行 `/lt-import`，在弹框里 Paste + Import 即可。
+
+## 上传流程
+
+1. 手里拿着一张 LittleTiles 蓝图打开「上传蓝图」；
+2. 用 `StructureStringUtils.exportStructure(stack)` 导出 SNBT；
+3. `POST /api/studio/work/upload-snbt` → `blobId`（服务端算哈希、去重、生成白模）；
+4. 选中的截图逐张 `POST /api/studio/work/upload-image` → 图片地址；
+5. `POST /api/studio/work/save`（`kind=single` + `items=[{snbtBlobId}]` + `images` + `tagCodes`）→ `workId`；
+6. 若要提交审核：`POST /api/account/notification/consent/agree`（`upload_rights`）拿 **consentId**
+   → `POST /api/studio/work/submit-review?workId=&consentId=`。
+
+> 坑：`consent/agree` 返回的是对象 `{consentId: 79}`，按 `Resp<Long>` 解析会得到 null，
+> 表现为"申请上传授权失败"，但其实是解析问题（不是权限/协议）。
