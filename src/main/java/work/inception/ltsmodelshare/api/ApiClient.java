@@ -215,12 +215,29 @@ public final class ApiClient {
             return s;
         }
     }
-    /** 作品详情：POST /api/public/work/detail?workId= */
+    /**
+     * 作品详情：POST /api/public/work/detail?workId=
+     *
+     * <p>不带访问码的版本（列表里点进来的公开作品）。unlisted 作品走
+     * {@link #detail(long, String, Callback)}，凭邀请入口用。</p>
+     */
     public static void detail(final long workId, final Callback<Dtos.WorkDetail> cb) {
+        detail(workId, null, cb);
+    }
+
+    /**
+     * 作品详情（带访问码）：POST /api/public/work/detail?workId=&code=
+     *
+     * <p>unlisted（凭链接）作品的访问码。服务端缺码回 M05-030、错码回 M05-031；
+     * 公开作品带上也不影响（它不校验）。</p>
+     */
+    public static void detail(final long workId, final String code,
+                              final Callback<Dtos.WorkDetail> cb) {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                Dtos.DetailResp resp = post(cfg.url("/api/public/work/detail?workId=" + workId),
+                String tail = code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim());
+                Dtos.DetailResp resp = post(cfg.url("/api/public/work/detail?workId=" + workId + tail),
                         "{}", cfg.token, Dtos.DetailResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
@@ -233,8 +250,55 @@ public final class ApiClient {
         });
     }
 
+    /**
+     * 凭邀请访问：先按 workId + code 取详情，成功后再拼一张 {@link Dtos.WorkCard}。
+     *
+     * <p>为什么要有这个：详情页 {@code GuiWorkDetail} 的构造参数是卡片（列表点进来那份），
+     * 而详情接口给的是 {@link Dtos.WorkDetail} —— 这里补一层转换，不动详情页现有构造。</p>
+     */
+    public static void detailCard(final long workId, final String code,
+                                  final Callback<Dtos.WorkCard> cb) {
+        detail(workId, code, new Callback<Dtos.WorkDetail>() {
+            @Override
+            public void ok(Dtos.WorkDetail value) {
+                cb.ok(cardOf(value));
+            }
+
+            @Override
+            public void fail(String message) {
+                cb.fail(message);
+            }
+        });
+    }
+
+    /** 详情 → 卡片：只填详情页显示要用的字段（ID / 标题 / 封面 / 作者 / 标签 / 数据） */
+    private static Dtos.WorkCard cardOf(Dtos.WorkDetail d) {
+        Dtos.WorkCard card = new Dtos.WorkCard();
+        card.kind = d.kind;
+        card.workId = d.workId;
+        card.title = d.title;
+        card.summary = d.summary;
+        card.cover = d.images == null || d.images.isEmpty() ? null : d.images.get(0);
+        card.tags = d.tags;
+        card.author = d.author;
+        card.viewCount = d.viewCount;
+        card.downloadCount = d.downloadCount;
+        return card;
+    }
+
     /** 取下载地址（需要登录）：POST /api/work/download-snbt?itemId=&version= */
     public static void downloadInfo(final long itemId, final String version,
+                                    final Callback<Dtos.DownloadInfo> cb) {
+        downloadInfo(itemId, version, null, cb);
+    }
+
+    /**
+     * 取下载地址（带访问码）：POST /api/work/download-snbt?itemId=&version=&code=
+     *
+     * <p>unlisted 作品设了访问码时，下载接口也要校验（M05-030 缺码 / M05-031 错码）。
+     * 公开作品传 null 即可，行为与以前一样。</p>
+     */
+    public static void downloadInfo(final long itemId, final String version, final String code,
                                     final Callback<Dtos.DownloadInfo> cb) {
         io(() -> {
             try {
@@ -244,7 +308,8 @@ public final class ApiClient {
                     return;
                 }
                 String url = cfg.url("/api/work/download-snbt?itemId=" + itemId
-                        + (version == null || version.isEmpty() ? "" : "&version=" + version));
+                        + (version == null || version.isEmpty() ? "" : "&version=" + version)
+                        + (code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim())));
                 Dtos.DownloadResp resp = postAuthed(url, "{}", Dtos.DownloadResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));

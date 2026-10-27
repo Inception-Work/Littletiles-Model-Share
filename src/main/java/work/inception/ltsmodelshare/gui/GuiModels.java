@@ -103,12 +103,34 @@ public class GuiModels extends GuiScreen {
         buttonList.add(new GuiButton(1, topX + searchW + 4, 23, 44, 20, "搜索"));
         buttonList.add(new GuiButton(2, topX + searchW + 52, 23, 40, 20, "刷新"));
         buttonList.add(new GuiButton(8, topX + searchW + 96, 23, 56, 20, "高级搜索"));
+        /*
+         * 底部按钮行：上一页 / 下一页 / 登录 / 上传蓝图 / 凭邀请访问 / 关闭。
+         *
+         * 多了一个按钮之后，原来那串写死的左边距会往右溢出去（最窄 320 宽的 GUI 会压到屏幕外），
+         * 所以改成**按总宽居中排**：宽度写小一点、间距固定，整行宽度 ≤ 304，
+         * 320 宽也放得下，按钮之间不会重叠。
+         */
         int by = height - 26;
-        buttonList.add(new GuiButton(3, cx - 150, by, 56, 20, "上一页"));
-        buttonList.add(new GuiButton(4, cx - 90, by, 56, 20, "下一页"));
-        buttonList.add(new GuiButton(5, cx - 20, by, 66, 20, ModConfig.get().loggedIn() ? "退出登录" : "登录"));
-        buttonList.add(new GuiButton(7, cx + 50, by, 78, 20, "上传蓝图"));
-        buttonList.add(new GuiButton(6, cx + 132, by, 46, 20, "关闭"));
+        final int gap = 4;
+        final int[] buttonWidths = {42, 42, 46, 58, 62, 34};
+        int rowWidth = gap * (buttonWidths.length - 1);
+        for (int w : buttonWidths) {
+            rowWidth += w;
+        }
+        int bx = Math.max(4, (width - rowWidth) / 2);
+        buttonList.add(new GuiButton(3, bx, by, buttonWidths[0], 20, "上一页"));
+        bx += buttonWidths[0] + gap;
+        buttonList.add(new GuiButton(4, bx, by, buttonWidths[1], 20, "下一页"));
+        bx += buttonWidths[1] + gap;
+        buttonList.add(new GuiButton(5, bx, by, buttonWidths[2], 20,
+                ModConfig.get().loggedIn() ? "退出登录" : "登录"));
+        bx += buttonWidths[2] + gap;
+        buttonList.add(new GuiButton(7, bx, by, buttonWidths[3], 20, "上传蓝图"));
+        bx += buttonWidths[3] + gap;
+        // 凭邀请访问：unlisted 作品不进列表，只能靠作品 ID + 访问码进来
+        buttonList.add(new GuiButton(9, bx, by, buttonWidths[4], 20, "凭邀请访问"));
+        bx += buttonWidths[4] + gap;
+        buttonList.add(new GuiButton(6, bx, by, buttonWidths[5], 20, "关闭"));
 
         computeLayout();
         reload();
@@ -219,6 +241,9 @@ public class GuiModels extends GuiScreen {
                 break;
             case 8:
                 mc.displayGuiScreen(new GuiAdvancedSearch(this, filter));
+                break;
+            case 9:
+                mc.displayGuiScreen(new GuiInviteAccess(this));
                 break;
             case 6:
                 mc.displayGuiScreen(null);

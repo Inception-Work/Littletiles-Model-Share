@@ -51,6 +51,11 @@ public class GuiWorkDetail extends GuiScreen {
 
     private final Dtos.WorkCard card;
     private final GuiScreen parent;
+    /**
+     * 凭邀请（unlisted）作品的访问码：进详情页要带给详情接口，取蓝图时也要带给下载接口。
+     * 从列表点进来的公开作品是 null（和以前完全一样）。
+     */
+    private final String accessCode;
 
     private Dtos.WorkDetail detail;
     private final List<Dtos.Item> items = new ArrayList<>();
@@ -109,7 +114,16 @@ public class GuiWorkDetail extends GuiScreen {
     private static final int DL_H = 18;
 
     public GuiWorkDetail(Dtos.WorkCard card, GuiScreen parent) {
+        this(card, null, parent);
+    }
+
+    /**
+     * 凭邀请进来的详情页：带上访问码，详情 / 取蓝图两条请求都会附上它。
+     * unlisted 作品没有码时服务端会拒（M05-030），所以这里必须记住。
+     */
+    public GuiWorkDetail(Dtos.WorkCard card, String accessCode, GuiScreen parent) {
         this.card = card;
+        this.accessCode = accessCode;
         this.parent = parent;
     }
 
@@ -157,7 +171,7 @@ public class GuiWorkDetail extends GuiScreen {
         }
         loading = true;
         status = TextFormatting.GRAY + "加载中…";
-        ApiClient.detail(card.workId, new ApiClient.Callback<Dtos.WorkDetail>() {
+        ApiClient.detail(card.workId, accessCode, new ApiClient.Callback<Dtos.WorkDetail>() {
             @Override
             public void ok(Dtos.WorkDetail value) {
                 ApiClient.post(() -> {
@@ -509,7 +523,7 @@ public class GuiWorkDetail extends GuiScreen {
             return;
         }
         status = TextFormatting.YELLOW + "取结构…";
-        ApiClient.downloadInfo(item.itemId, "1.12", new ApiClient.Callback<Dtos.DownloadInfo>() {
+        ApiClient.downloadInfo(item.itemId, "1.12", accessCode, new ApiClient.Callback<Dtos.DownloadInfo>() {
             @Override
             public void ok(Dtos.DownloadInfo info) {
                 setStatus(TextFormatting.YELLOW + "解析结构…"
