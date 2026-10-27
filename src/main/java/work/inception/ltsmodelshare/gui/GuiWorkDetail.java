@@ -79,8 +79,18 @@ public class GuiWorkDetail extends GuiScreen {
     /** 每个条目当前显示第几张图（itemId → 索引）。合集里每个作品有自己的图，要各自切换 */
     private final java.util.Map<Long, Integer> itemImageIndex = new java.util.HashMap<>();
 
-    /** 描述区最多显示 7 行，超出用描述区自己的滚动 */
-    private static final int SUMMARY_WINDOW = 7;
+    /*
+     * 描述窗口的行数**跟封面图数量挂钩**：
+     * - 多张封面（有画廊/缩略图）→ 7 行，因为左栏高、右栏有空间；
+     * - 只有一张封面 → 4 行，避免右栏被描述撑得比封面还高。
+     */
+    private static final int SUMMARY_WINDOW_MULTI = 7;
+    private static final int SUMMARY_WINDOW_SINGLE = 4;
+
+    /** 当前该显示几行描述 */
+    private int summaryWindow() {
+        return gallery.size() > 1 ? SUMMARY_WINDOW_MULTI : SUMMARY_WINDOW_SINGLE;
+    }
     private int summaryScroll;
     /** 描述区在屏幕上的矩形（滚轮落在这里就滚描述，否则滚整页） */
     private int summaryBoxX;
@@ -251,7 +261,7 @@ public class GuiWorkDetail extends GuiScreen {
         }
         int sLines = summaryLineCount();
         if (sLines > 0) {
-            h += 6 + Math.min(sLines, SUMMARY_WINDOW) * 10 + 2;
+            h += 6 + Math.min(sLines, summaryWindow()) * 10 + 2;
         }
         return h;
     }
@@ -278,7 +288,7 @@ public class GuiWorkDetail extends GuiScreen {
 
     /** 超过 7 行时，描述区自己滚动 */
     private int summaryMaxScroll() {
-        return Math.max(0, summaryLineCount() - SUMMARY_WINDOW);
+        return Math.max(0, summaryLineCount() - summaryWindow());
     }
 
     private boolean hasCollectionDeps() {
@@ -561,18 +571,18 @@ public class GuiWorkDetail extends GuiScreen {
         summaryBoxH = 0;
         if (!lines.isEmpty()) {
             y += 6;
-            int window = Math.min(lines.size(), SUMMARY_WINDOW);
+            int window = Math.min(lines.size(), summaryWindow());
             summaryBoxY = y;
             summaryBoxH = window * 10;
             summaryScroll = Math.max(0, Math.min(summaryScroll, summaryMaxScroll()));
 
-            boolean scrollable = lines.size() > SUMMARY_WINDOW;
+            boolean scrollable = lines.size() > summaryWindow();
             if (scrollable) {
                 // 描述区单独裁剪，滚动只影响这块
                 enableScissor(rightX - 1, y - 1, rightW + 2, window * 10 + 2);
             }
             int sy = y;
-            for (int i = summaryScroll; i < Math.min(lines.size(), summaryScroll + SUMMARY_WINDOW); i++) {
+            for (int i = summaryScroll; i < Math.min(lines.size(), summaryScroll + summaryWindow()); i++) {
                 drawString(fontRenderer, TextFormatting.GRAY + trim(lines.get(i), rightW - 6), rightX, sy, 0x999999);
                 sy += 10;
             }
