@@ -140,9 +140,13 @@ public class GuiAdvancedSearch extends GuiScreen {
         tagsBoxY = y;
         tagsBoxW = panelW;
 
-        // 底部按钮占 20 + 上下留白；排序行在它上面
-        sortY = height - 30 - 22;
-        tagsBoxH = Math.max(TAG_ROW_H, sortY - 8 - tagsBoxY);
+        /*
+         * 底部按钮（20 高）→ 排序行（18 高）→ 标签列表，层层往上。
+         * 原来是 sortY = height-52、标签盒底 = sortY-8、"排序"标题又画在 sortY-11，
+         * 三者挤在一起会重叠；现在每条之间至少留 12~16px。
+         */
+        sortY = height - 30 - 32;
+        tagsBoxH = Math.max(TAG_ROW_H, sortY - 16 - tagsBoxY);
 
         buttonList.add(new GuiButton(3, panelLeft, sortY, COL_W, 18,
                 "latest".equals(working.sort) ? "✔ 最新" : "最新"));
@@ -364,8 +368,10 @@ public class GuiAdvancedSearch extends GuiScreen {
         drawDefaultBackground();
         int cx = width / 2;
 
-        Gui.drawRect(panelLeft - 8, 26, panelLeft + panelW + 8, height - 22, 0x70000000);
-        drawCenteredString(fontRenderer, "高级搜索", cx, 14, 0xFFFFFF);
+        // 背景板要盖住所有内容（含底部按钮）：上到标题下沿、下到窗口底部留 6px
+        Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
+        Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);
+        drawCenteredString(fontRenderer, "高级搜索", cx, 12, 0xFFFFFF);
 
         drawString(fontRenderer, TextFormatting.GRAY + "按作者筛选", panelLeft, authorLabelY, 0xAAAAAA);
         fieldAuthor.drawTextBox();
@@ -411,7 +417,7 @@ public class GuiAdvancedSearch extends GuiScreen {
             Gui.drawRect(barX, thumbY, barX + 3, thumbY + thumbH, 0xAAFFFFFF);
         }
 
-        drawString(fontRenderer, TextFormatting.GRAY + "排序", panelLeft, sortY - 11, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + "排序", panelLeft, sortY - 12, 0xAAAAAA);
 
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, height - 42, 0xFFFFFF);
