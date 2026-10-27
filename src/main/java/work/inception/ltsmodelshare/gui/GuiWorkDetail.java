@@ -12,6 +12,10 @@ import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import net.minecraft.client.Minecraft;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.integrated.IntegratedServer;
+import net.minecraft.item.ItemStack;
+import com.creativemd.littletiles.common.util.converation.StructureStringUtils;
 import net.minecraft.client.entity.EntityPlayerSP;
 import work.inception.ltsmodelshare.client.ImageCache;
 import work.inception.ltsmodelshare.client.ImageDraw;
@@ -501,41 +505,79 @@ public class GuiWorkDetail extends GuiScreen {
         });
     }
 
-    /**
-     * 把 SNBT 交给 **LittleTiles 自带的导入器**（`/lt-import` 打开的界面）。
+        /**
+     * 用 LittleTiles 的 API 直接把 SNBT 变成蓝图道具，塞进玩家背包（满了掉在脚下）。
      *
-     * <p>为什么不自己在客户端造道具：客户端只有 {@code EntityPlayerSP}，
-     * 往它背包里塞东西会被服务端同步覆盖（联机完全不生效，单人也不可靠）。
-     * LittleTiles 的导入界面是**服务端容器**里生成蓝图道具的，走那条路才正确。</p>
+     * <p>关键点：**在服务端生成**。客户端只有 `EntityPlayerSP`，往里塞东西会被同步覆盖，
+     * 所以单人游戏走"集成服务端"（IntegratedServer）的玩家实体，
+     * 这样背包变化是服务端权威的，退出重进也还在。</p>
      *
-     * <p>流程：结构文本 → 系统剪贴板 → 执行 `/lt-import` → 弹出导入框，
-     * 点一下「Paste」再点「Import」就生成蓝图（我们替他把最容易出错的一步做了）。</p>
+     * <p>联机（专用服务端）没有我们的服务端代码，只能退回 LittleTiles 的导入界面。</p>
      */
-    private void handToLittleTiles(Dtos.Item item, String snbt) {
+    private void handToLittleTiles(final Dtos.Item item, final String snbt) {
+        final Minecraft mc = Minecraft.getMinecraft();
+        final EntityPlayerSP clientPlayer = mc.player;
+        if (clientPlayer == null) {
+            status = TextFormatting.RED + "请先进入一个世界，再获取蓝图";
+            return;
+        }
+
+        // ===== 单人 / 局域网主机：直接在集成服务端生成道具 =====
+        net.minecraft.server.integrated.IntegratedServer server = mc.getIntegratedServer();
+        if (server != null) {
+            final java.util.UUID uuid = clientPlayer.getUniqueID();
+            server.addScheduledTask(() -> {
+                try {
+                    net.minecraft.entity.player.EntityPlayerMP mp =
+                            server.getPlayerList().getPlayerByUUID(uuid);
+                    if (mp == null) {
+                        setStatus(TextFormatting.RED + "找不到服务端玩家实体");
+                        return;
+                    }
+                    ItemStack stack = StructureStringUtils.importStructure(snbt);
+                    if (stack == null || stack.isEmpty()) {
+                        setStatus(TextFormatting.RED + "解析失败：结构为空或版本不兼容");
+                        return;
+                    }
+                    boolean added = mp.inventory.addItemStackToInventory(stack);
+                    if (!added) {
+                        // 背包满了就掉在脚下
+                        mp.dropItem(stack, false);
+                        setStatus(TextFormatting.YELLOW + "背包满了，蓝图掉在你脚下：" + stack.getDisplayName());
+                        work.inception.ltsmodelshare.LtsModelShare.LOG.info(
+                                "背包已满，蓝图已掉落：itemId={}", item.itemId);
+                    } else {
+                        setStatus(TextFormatting.GREEN + "已生成蓝图：" + stack.getDisplayName()
+                                + "（" + snbt.length() + " 字符）");
+                        work.inception.ltsmodelshare.LtsModelShare.LOG.info(
+                                "已生成蓝图：itemId={} 字符数={}", item.itemId, snbt.length());
+                    }
+                    mp.inventory.markDirty();
+                } catch (Throwable t) {
+                    setStatus(TextFormatting.RED + "生成失败：" + t);
+                    work.inception.ltsmodelshare.LtsModelShare.LOG.warn(
+                            "生成蓝图失败 itemId={}：{}", item.itemId, t.toString());
+                }
+            });
+            return;
+        }
+
+        // ===== 联机：没有服务端代码，退回 LittleTiles 导入界面 =====
         boolean copied = false;
         try {
-            java.awt.datatransfer.StringSelection sel =
-                    new java.awt.datatransfer.StringSelection(snbt);
+            java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(snbt);
             java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
             copied = true;
         } catch (Throwable t) {
             work.inception.ltsmodelshare.LtsModelShare.LOG.warn("写剪贴板失败：{}", t.toString());
         }
-
         if (!copied) {
-            status = TextFormatting.RED + "写剪贴板失败，结构没法交给导入器";
+            status = TextFormatting.RED + "联机模式下需要 LittleTiles 导入框，但写剪贴板失败";
             return;
         }
-
         madeBlueprint.add(item.itemId);
-        EntityPlayerSP player = Minecraft.getMinecraft().player;
-        if (player != null) {
-            // 打开 LittleTiles 的导入界面（服务端命令）
-            player.sendChatMessage("/lt-import");
-        }
-        status = TextFormatting.GREEN + "已复制结构（" + snbt.length() + " 字符）→ 在弹框点 Paste 再 Import";
-        work.inception.ltsmodelshare.LtsModelShare.LOG.info(
-                "已把结构交给 LittleTiles 导入器：itemId={} 字符数={}", item.itemId, snbt.length());
+        clientPlayer.sendChatMessage("/lt-import");
+        status = TextFormatting.YELLOW + "联机模式：结构已复制 → 在导入框点 Paste 再 Import";
     }
     private void setStatus(String text) {
         ApiClient.post(() -> status = text);

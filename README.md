@@ -179,8 +179,14 @@ cmd /c mklink /J "$h\minecraft\assets" "$h\forge_gradle\assets"
 1. `POST /api/work/download-snbt?itemId=&version=1.12`
    —— 结构不是 1.12 的话**由服务端先转成 1.12**（响应里 `converted=true`）；
 2. `GET assetUrl` 取 SNBT 文本（不落盘）；
-3. 文本写进**系统剪贴板**，然后执行 `/lt-import` 打开 LittleTiles 的导入框；
-4. 在弹框里点 **Paste** → **Import**，LittleTiles 生成蓝图道具（在服务端容器里创建，联机也有效）。
+3. 用 LittleTiles 的 API **在服务端**生成蓝图道具：
+   `StructureStringUtils.importStructure(snbt)` → `ItemStack`；
+4. 塞进玩家背包（`EntityPlayerMP.inventory.addItemStackToInventory`），
+   **放不下就掉在脚下**（`dropItem`）。
 
-> 为什么不在客户端直接造道具：客户端只有 `EntityPlayerSP`，往里塞东西会被服务端同步覆盖，
-> 联机无效、单人也不可靠。LittleTiles 的导入界面是服务端容器，走它才正确。
+> 为什么强调"服务端"：客户端只有 `EntityPlayerSP`，往它背包里塞东西会被服务端同步覆盖，
+> 联机无效、单人也不可靠。单人游戏走**集成服务端**（`Minecraft.getIntegratedServer()`）
+> 的玩家实体，背包变化才是服务端权威、重进游戏还在。
+>
+> **联机（专用服务端）限制**：我们没有服务端代码，此时自动退回 LittleTiles 的导入界面
+> ——结构写入剪贴板并执行 `/lt-import`，在弹框里 Paste + Import 即可。
