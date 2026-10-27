@@ -102,6 +102,15 @@ processResources {
 }
 
 jar {
+    /*
+     * 每次构建输出**唯一文件名**。
+     *
+     * 之前踩过的坑：开发客户端正在跑的时候重新 build，gradle 会原地覆盖
+     * build/libs/LittletilesModelShare-0.1.0.jar，而运行中的游戏是懒加载类的 ——
+     * 一旦它去那个文件里取还没加载的类，就会 NoClassDefFoundError 直接崩。
+     * 改成带时间戳的文件名后，旧 jar 原封不动，正在跑的游戏不受影响。
+     */
+    archiveName = "LittletilesModelShare-0.1.0-" + new Date().format('MMdd-HHmmss') + ".jar"
     manifest {
         attributes([
             'Specification-Title': 'ltsmodelshare',

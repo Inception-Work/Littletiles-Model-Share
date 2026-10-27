@@ -495,19 +495,17 @@ public class GuiWorkDetail extends GuiScreen {
          * 这种结构即使解析出来也放不下（LittleTiles 会报 grid 不兼容），提前拦住并告诉玩家怎么改配置。
          */
         if (GridLimits.exceeds(item.grid)) {
-            // 一长串操作步骤塞状态栏会超出屏幕，改成弹窗
+            // 文案尽量短：弹窗要小，长了会撑成大对话框
+            int need = GridLimits.suggestScale(item.grid);
             java.util.List<String> lines = new java.util.ArrayList<>();
-            lines.add(TextFormatting.RED + "不兼容：这个结构用 grid " + item.grid
-                    + "，客户端当前上限是 " + GridLimits.maxGrid() + "。");
+            lines.add(TextFormatting.RED + "grid " + item.grid + " 超出客户端上限 "
+                    + GridLimits.maxGrid());
             lines.add("");
-            lines.add("改法：");
-            lines.add("1. 先退出游戏");
-            lines.add("2. 打开 config/littletiles.json");
-            lines.add("3. 把 core.scale 改成 " + GridLimits.suggestScale(item.grid));
-            lines.add("4. 保存文件，重新启动游戏");
+            lines.add("退出游戏 → 打开 config/littletiles.json");
+            lines.add("把 core.scale 改成 " + need + " → 重启游戏");
             lines.add("");
-            lines.add("（core.scale 每 +1，上限翻倍：7 → 64，8 → 128，9 → 256）");
-            mc.displayGuiScreen(new GuiNotice("grid 超出客户端上限", lines, this, "知道了"));
+            lines.add(TextFormatting.GRAY + "每 +1 上限翻倍：7 → 64，8 → 128");
+            mc.displayGuiScreen(new GuiNotice("grid 不兼容", lines, this, "知道了"));
             return;
         }
         status = TextFormatting.YELLOW + "取结构…";
