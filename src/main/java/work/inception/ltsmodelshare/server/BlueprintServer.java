@@ -66,9 +66,11 @@ public final class BlueprintServer {
         if (PacketHandler.NET != null) {
             PacketHandler.NET.sendTo(new MsgBlueprintResult(ok, text), player);
         }
-        // 同时打一行到聊天栏：玩家可能已经关掉我们的界面
-        TextComponentString msg = new TextComponentString(
-                (ok ? TextFormatting.GREEN : TextFormatting.RED) + "[模型共享] " + text);
-        player.sendMessage(msg);
+        // 聊天栏只在开发环境打：发布版不要往玩家聊天框里刷屏（界面里仍有状态文字）
+        if (work.inception.ltsmodelshare.DevEnv.isDev()) {
+            TextComponentString msg = new TextComponentString(
+                    (ok ? TextFormatting.GREEN : TextFormatting.RED) + "[模型共享/调试] " + text);
+            player.sendMessage(msg);
+        }
     }
 }

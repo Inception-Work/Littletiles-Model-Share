@@ -21,10 +21,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class BlueprintClient {
 
     /** 等服务端回执的超时（毫秒） */
-    private static final long TIMEOUT_MS = 15000L;
+    /** 软超时：只提示"还在处理"，不抢剪贴板（大模型服务端解析可能要几十秒） */
+    private static final long SOFT_TIMEOUT_MS = 20000L;
+    /** 硬超时：到这一步才认为对方没装本模组，退回剪贴板方案 */
+    private static final long HARD_TIMEOUT_MS = 60000L;
     private static final AtomicInteger TRANSFER_ID = new AtomicInteger(1);
 
     private static boolean waiting;
+    private static boolean softWarned;
     private static long sentAt;
     private static String lastSnbt = "";
     private static String lastTitle = "";
@@ -37,6 +41,7 @@ public final class BlueprintClient {
         lastSnbt = snbt == null ? "" : snbt;
         lastTitle = title == null ? "" : title;
         waiting = true;
+        softWarned = false;
         sentAt = System.currentTimeMillis();
         if (PacketHandler.NET == null) {
             waiting = false;
@@ -72,19 +77,33 @@ public final class BlueprintClient {
             ((GuiWorkDetail) mc.currentScreen).onServerBlueprint(ok, text);
             return;
         }
-        if (mc.player != null) {
+        if (work.inception.ltsmodelshare.DevEnv.isDev() && mc.player != null) {
             mc.player.sendMessage(new TextComponentString(
-                    (ok ? TextFormatting.GREEN : TextFormatting.RED) + "[模型共享] " + text));
+                    (ok ? TextFormatting.GREEN : TextFormatting.RED) + "[模型共享/调试] " + text));
         }
     }
 
     /** 每 tick 调一次：超时就退回剪贴板方案 */
     public static void tick() {
-        if (!waiting || System.currentTimeMillis() - sentAt < TIMEOUT_MS) {
+        if (!waiting) {
             return;
         }
-        waiting = false;
-        fallbackToClipboard("服务端没有响应（对方可能没装本模组）");
+        long waited = System.currentTimeMillis() - sentAt;
+        // 第一段：只是慢（服务端要解析结构），提示一下别再点，但不抢剪贴板
+        if (!softWarned && waited >= SOFT_TIMEOUT_MS) {
+            softWarned = true;
+            Minecraft mc = Minecraft.getMinecraft();
+            if (mc.currentScreen instanceof GuiWorkDetail) {
+                ((GuiWorkDetail) mc.currentScreen)
+                        .onServerBlueprint(false, "服务端还在处理（大模型解析会慢一些），请稍等…");
+            }
+            return;
+        }
+        // 第二段：真的没回音，才退回剪贴板
+        if (waited >= HARD_TIMEOUT_MS) {
+            waiting = false;
+            fallbackToClipboard("服务端没有响应（对方可能没装本模组）");
+        }
     }
 
     /** 老办法：SNBT 复制到剪贴板，让玩家用 LittleTiles 的导入框 */
@@ -105,9 +124,9 @@ public final class BlueprintClient {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen instanceof GuiWorkDetail) {
             ((GuiWorkDetail) mc.currentScreen).onServerBlueprint(false, text);
-        } else if (mc.player != null) {
+        } else if (work.inception.ltsmodelshare.DevEnv.isDev() && mc.player != null) {
             mc.player.sendMessage(new TextComponentString(
-                    TextFormatting.YELLOW + "[模型共享] " + text));
+                    TextFormatting.YELLOW + "[模型共享/调试] " + text));
         }
     }
 }
