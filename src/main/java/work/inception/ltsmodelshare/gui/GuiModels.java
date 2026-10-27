@@ -47,10 +47,13 @@ public class GuiModels extends GuiScreen {
      */
     private void computeLayout() {
         int margin = 8;
-        cardW = width >= 300 ? 96 : (width >= 210 ? 78 : Math.max(48, width - margin * 2));
-        imgH = Math.max(26, cardW * 9 / 16);
-        // 封面下三行字：标题 / 作者 / 「下载 · 浏览」
-        cardH = imgH + 31;
+        /*
+         * 首页卡片：封面缩小、作者与数据用小一号字（0.75 倍），标题保持原大小。
+         * 文字区高度 = 标题 9 + 作者 7 + 数据 7（共 24），比原来矮两行左右。
+         */
+        cardW = width >= 300 ? 78 : (width >= 210 ? 66 : Math.max(44, width - margin * 2));
+        imgH = Math.max(24, cardW * 9 / 16);
+        cardH = imgH + 24;
 
         cols = Math.max(1, (width - margin * 2 + GAP_X) / (cardW + GAP_X));
         // 最多 3 列：再多作者名就挤没了
@@ -279,14 +282,14 @@ public class GuiModels extends GuiScreen {
         int imgW = cardW - 6;
         drawImage(card.cover, imgX, imgY, imgW, imgH, 0x30FFFFFF);
 
-        // 第一行：标题
-        int textY = imgY + imgH + 2;
+        // 第一行：标题（保持原大小）
+        int textY = imgY + imgH + 1;
         drawString(fontRenderer, trim(card.title == null ? "(无标题)" : card.title, cardW - 6),
                 x + 3, textY, 0xFFFFFF);
 
-        // 第二行：作者头像 + 名字（单独一行，别和数据挤在一起，否则名字先被吃掉）
-        int ay = textY + 10;
-        int avatarSize = 8;
+        // 第二行：作者头像 + 名字（0.75 倍字）
+        int ay = textY + 9;
+        int avatarSize = 6;
         Dtos.Author author = card.author;
         int cursor = x + 3;
         String name = "";
@@ -296,11 +299,25 @@ public class GuiModels extends GuiScreen {
             name = author.displayName != null && !author.displayName.isEmpty()
                     ? author.displayName : (author.username == null ? "" : author.username);
         }
-        drawString(fontRenderer, trim(name, cardW - 6 - (cursor - x - 3)), cursor, ay, 0xCCCCCC);
+        drawSmall(trim(name, (int) ((cardW - 6 - (cursor - x - 3)) / SMALL_TEXT)), cursor, ay, 0xCCCCCC);
 
-        // 第三行：下载 / 浏览（用中文词，比 ↓ ◉ 这种小符号清楚）
-        String counts = TextFormatting.GRAY + "下载 " + card.downloadCount + "  浏览 " + card.viewCount;
-        drawString(fontRenderer, trim(counts, cardW - 6), x + 3, ay + 10, 0xAAAAAA);
+        // 第三行：下载 / 浏览（同样 0.75 倍）
+        drawSmall(trim("下载 " + card.downloadCount + "  浏览 " + card.viewCount,
+                (int) ((cardW - 6) / SMALL_TEXT)), x + 3, ay + 7, 0xAAAAAA);
+    }
+
+    /** 小一号字（0.75 倍）—— 作者与数据用，标题不用 */
+    private static final float SMALL_TEXT = 0.75f;
+
+    private void drawSmall(String text, int x, int y, int color) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        GlStateManager.pushMatrix();
+        GlStateManager.scale(SMALL_TEXT, SMALL_TEXT, 1f);
+        drawString(fontRenderer, text, (int) (x / SMALL_TEXT), (int) (y / SMALL_TEXT), color);
+        GlStateManager.popMatrix();
+        GlStateManager.color(1f, 1f, 1f, 1f);
     }
 
     /**
