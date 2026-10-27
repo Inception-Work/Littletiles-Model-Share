@@ -9,7 +9,6 @@ import org.lwjgl.input.Mouse;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
-import work.inception.ltsmodelshare.client.TextUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -477,14 +476,6 @@ public class GuiAdvancedSearch extends GuiScreen {
 
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, height - 42, 0xFFFFFF);
-        }
-        if (!working.isEmpty()) {
-            List<String> s = TextUtil.wrap(fontRenderer, "当前条件：" + working.summary(), width - 40);
-            int y = height - 54 - s.size() * 10;
-            for (String line : s) {
-                drawCenteredString(fontRenderer, TextFormatting.GRAY + line, cx, y, 0xAAAAAA);
-                y += 10;
-            }
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);
