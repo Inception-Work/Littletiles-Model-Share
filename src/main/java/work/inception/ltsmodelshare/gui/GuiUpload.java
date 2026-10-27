@@ -67,7 +67,9 @@ public class GuiUpload extends GuiScreen {
     // 截图
     private final List<File> shots = new ArrayList<>();
     private final Set<File> selectedShots = new LinkedHashSet<>();
-    private int shotScroll;
+    /** 截图网格的滚动偏移（像素，连续滚动而不是按行整跳） */
+    private int shotScrollPx;
+    private static final int ROW_H = CELL_H + CELL_GAP;
 
     // 标签
     private final List<Dtos.Tag> tags = new ArrayList<>();
@@ -139,7 +141,8 @@ public class GuiUpload extends GuiScreen {
         boxH = Math.max(CELL_H, actionY - 36 - boxY);
 
         // 左截图（更宽）/ 右标签（窄一些，标签本身不长）
-        int leftW = Math.min(3 * CELL_W + 2 * CELL_GAP + 6, panelW * 64 / 100);
+        // 3 张/行需要 3*CELL_W + 2*CELL_GAP，再留 8px 余量（之前 -4 的算法会少算一格）
+        int leftW = Math.min(3 * CELL_W + 2 * CELL_GAP + 8, panelW * 66 / 100);
         shotsBoxX = panelLeft;
         shotsBoxW = leftW;
         tagsBoxX = panelLeft + leftW + 8;
@@ -206,24 +209,25 @@ public class GuiUpload extends GuiScreen {
                 }
             }
         }
-        shotScroll = 0;
+        shotScrollPx = 0;
         selectedShots.removeIf(f -> !f.isFile());
     }
 
+    /** 一行放几张：(宽 + 间距) / (格宽 + 间距) —— 这样 3 张刚好放得下时就会算出 3 */
     private int cellsPerRow() {
-        return Math.max(1, (shotsBoxW - 4) / (CELL_W + CELL_GAP));
+        return Math.max(1, (shotsBoxW + CELL_GAP) / (CELL_W + CELL_GAP));
     }
 
     private int shotRowsVisible() {
-        return Math.max(1, boxH / (CELL_H + CELL_GAP));
+        return Math.max(1, boxH / ROW_H);
+    }
+
+    private int maxShotScrollPx() {
+        return Math.max(0, shotRowCount() * ROW_H - boxH);
     }
 
     private int shotRowCount() {
         return (shots.size() + cellsPerRow() - 1) / Math.max(1, cellsPerRow());
-    }
-
-    private int maxShotScroll() {
-        return Math.max(0, shotRowCount() - shotRowsVisible());
     }
 
     private int shotIndexAt(int mouseX, int mouseY) {
@@ -233,10 +237,11 @@ public class GuiUpload extends GuiScreen {
         }
         int perRow = cellsPerRow();
         int col = (mouseX - shotsBoxX) / (CELL_W + CELL_GAP);
-        int row = (mouseY - boxY) / (CELL_H + CELL_GAP) + shotScroll;
         if (col >= perRow) {
             return -1;
         }
+        int contentY = mouseY - boxY + shotScrollPx;
+        int row = contentY / ROW_H;
         int index = row * perRow + col;
         return index >= 0 && index < shots.size() ? index : -1;
     }
@@ -301,7 +306,9 @@ public class GuiUpload extends GuiScreen {
         int my = height - Mouse.getEventY() * height / Math.max(1, mc.displayHeight) - 1;
 
         if (mx >= shotsBoxX && mx <= shotsBoxX + shotsBoxW && my >= boxY && my <= boxY + boxH) {
-            shotScroll = Math.max(0, Math.min(shotScroll - Integer.signum(wheel), maxShotScroll()));
+            // 连续滚动：每格滚半行（17px），不再整行跳，看起来不会"一页一页翻"
+            int step = ROW_H / 2;
+            shotScrollPx = Math.max(0, Math.min(shotScrollPx - Integer.signum(wheel) * step, maxShotScrollPx()));
             return;
         }
         if (mx >= tagsBoxX && mx <= tagsBoxX + tagsBoxW && my >= boxY && my <= boxY + boxH) {
@@ -567,11 +574,15 @@ public class GuiUpload extends GuiScreen {
                     shotsBoxX + 4, boxY + 4, 0x777777);
         }
         int perRow = cellsPerRow();
-        int firstRow = shotScroll;
-        int lastRow = Math.min(shotRowCount(), shotScroll + shotRowsVisible());
+        int firstRow = shotScrollPx / ROW_H;
+        int offset = shotScrollPx % ROW_H;
         int hovered = shotIndexAt(mouseX, mouseY);
 
-        for (int row = firstRow; row < lastRow; row++) {
+        for (int row = firstRow; row < shotRowCount(); row++) {
+            int rowTop = boxY + (row - firstRow) * ROW_H - offset;
+            if (rowTop >= boxY + boxH) {
+                break;   // 已经画到可视区外
+            }
             for (int col = 0; col < perRow; col++) {
                 int index = row * perRow + col;
                 if (index >= shots.size()) {
@@ -579,7 +590,7 @@ public class GuiUpload extends GuiScreen {
                 }
                 File f = shots.get(index);
                 int cellX = shotsBoxX + col * (CELL_W + CELL_GAP);
-                int cellY = boxY + (row - firstRow) * (CELL_H + CELL_GAP);
+                int cellY = rowTop;
                 boolean on = selectedShots.contains(f);
 
                 // 懒加载：只给当前可见行请求贴图
@@ -592,9 +603,8 @@ public class GuiUpload extends GuiScreen {
                 }
             }
         }
-        if (maxShotScroll() > 0) {
-            drawScrollbar(shotsBoxX + shotsBoxW - 4, boxY, boxH, shotScroll, maxShotScroll(),
-                    shotRowCount(), shotRowsVisible());
+        if (maxShotScrollPx() > 0) {
+            drawScrollbarPx(shotsBoxX + shotsBoxW - 4, boxY, boxH, shotScrollPx, maxShotScrollPx());
         }
 
         // ---------- 右：标签列表 ----------
@@ -664,6 +674,17 @@ public class GuiUpload extends GuiScreen {
             drawCenteredString(fontRenderer, TextFormatting.GRAY + "点一下关闭",
                     cx, cy + h / 2 - 12, 0xAAAAAA);
         }
+    }
+
+    /** 像素滚动条：thumb 高度按 可视/总 比例，位置按 偏移/最大偏移 */
+    private void drawScrollbarPx(int barX, int boxTop, int boxHeight, int scrollPx, int maxPx) {
+        if (maxPx <= 0) {
+            return;
+        }
+        Gui.drawRect(barX, boxTop, barX + 3, boxTop + boxHeight, 0x40000000);
+        int thumbH = Math.max(10, (int) ((long) boxHeight * boxHeight / (boxHeight + maxPx)));
+        int thumbY = boxTop + (int) ((long) (boxHeight - thumbH) * scrollPx / maxPx);
+        Gui.drawRect(barX, thumbY, barX + 3, thumbY + thumbH, 0xAAFFFFFF);
     }
 
     private void drawFrame(int x, int y, int w, int h, int color) {
