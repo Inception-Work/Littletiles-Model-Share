@@ -591,23 +591,18 @@ public class GuiWorkDetail extends GuiScreen {
             return;
         }
 
-        // ===== 联机：没有服务端代码，退回 LittleTiles 导入界面 =====
-        boolean copied = false;
-        try {
-            java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(snbt);
-            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-            copied = true;
-        } catch (Throwable t) {
-            work.inception.ltsmodelshare.LtsModelShare.LOG.warn("写剪贴板失败：{}", t.toString());
-        }
-        if (!copied) {
-            status = TextFormatting.RED + "联机模式下需要 LittleTiles 导入框，但写剪贴板失败";
-            return;
-        }
-        madeBlueprint.add(item.itemId);
-        clientPlayer.sendChatMessage("/lt-import");
-        status = TextFormatting.YELLOW + "联机模式：结构已复制 → 在导入框点 Paste 再 Import";
+        // ===== 联机（专用服务端）：交给服务端生成 =====
+        // 服务端装了本模组时，它会 importStructure 并把蓝图塞进背包（道具才是权威的）；
+        // 6 秒没回执说明对方没装，BlueprintClient 会自动退回「复制 SNBT + /lt-import」。
+        status = TextFormatting.YELLOW + "已请求服务端生成蓝图…";
+        work.inception.ltsmodelshare.client.BlueprintClient.request(snbt, item.title);
     }
+
+    /** 服务端回执（由 BlueprintClient 在主线程调用） */
+    public void onServerBlueprint(boolean ok, String text) {
+        status = (ok ? TextFormatting.GREEN : TextFormatting.RED) + text;
+    }
+
     private void setStatus(String text) {
         ApiClient.post(() -> status = text);
     }

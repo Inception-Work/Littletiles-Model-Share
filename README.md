@@ -107,7 +107,7 @@ run/                    # 开发客户端数据目录（生成的，别提交）
 
 ## 还没做 / 已知限制
 
-1. **联机一键获取蓝图**：目前单人/局域网主机在服务端生成道具；专用服务端没有我们的服务端代码，会退回"剪贴板 + `/lt-import`"。
+1. ~~联机一键获取蓝图~~ —— 已实现（网络包 + 服务端生成，见下）。
 2. **PAT 需要部署**：站点侧代码已完成，但要建表 + 重启后端 + 发布前端才能用。
 3. **上传只支持单个作品**（`kind=single`），合集/多条目还没做。
 4. 密码框是明文输入（画面上打了 ●），要更安全就只用访问令牌。
@@ -193,8 +193,14 @@ cmd /c mklink /J "$h\minecraft\assets" "$h\forge_gradle\assets"
 > 联机无效、单人也不可靠。单人游戏走**集成服务端**（`Minecraft.getIntegratedServer()`）
 > 的玩家实体，背包变化才是服务端权威、重进游戏还在。
 >
-> **联机（专用服务端）限制**：我们没有服务端代码，此时自动退回 LittleTiles 的导入界面
-> ——结构写入剪贴板并执行 `/lt-import`，在弹框里 Paste + Import 即可。
+> **联机（专用服务端）**：服务端装了本模组时，客户端把 SNBT 发给服务端
+> （`MsgBlueprintRequest`，自己用 int 长度而不是 `writeUTF8String`，否则上万字符的结构会炸），
+> 由服务端 `importStructure` 并塞进玩家背包，再把结果（`MsgBlueprintResult`）回执给客户端。
+> 服务端没装本模组时，6 秒收不到回执会自动退回「剪贴板 + `/lt-import`」。
+>
+> 模组因此**不再是 `clientSideOnly`**：按键 / GUI / 客户端命令都挪进了
+> `proxy.ClientProxy`，专用服务端只加载 `CommonProxy` + 网络通道。
+> 已用 `gradlew runServer` 实测：服务端正常加载（`successfully loaded 9 mods`，`Done (9.074s)`）。
 
 ## 上传流程
 

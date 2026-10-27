@@ -1,32 +1,29 @@
 package work.inception.ltsmodelshare;
 
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.common.SidedProxy;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.lwjgl.input.Keyboard;
-import work.inception.ltsmodelshare.client.InputHandler;
+import work.inception.ltsmodelshare.proxy.CommonProxy;
 
 /**
- * Littletiles Model Share —— 在游戏内登录、浏览并下载站点的 LittleTiles 模型。
+ * Littletiles Model Share —— 在游戏内登录、浏览、上传和获取 LittleTiles 模型。
  *
- * <p>当前实现：配置 + 登录 + 列表 + 详情 + 下载（SNBT 落盘）。
- * 还没做：直接在游戏里把下载的模型"贴"到世界里（导入 LittleTiles 结构）、上传。</p>
+ * <p>入口：按 <b>I</b> 打开面板，或者聊天栏输入 <code>/ltsmodels</code>。</p>
  *
- * <p>入口：按 <b>M</b> 打开面板，或者聊天栏输入 <code>/ltsmodels</code>。</p>
+ * <p><b>为什么不再是 {@code clientSideOnly}</b>：联机时要由**服务端**生成蓝图
+ * （{@code importStructure} + 塞背包），否则道具会被服务端同步覆盖。
+ * 客户端专属的东西（按键 / GUI / 客户端命令）都放在
+ * {@link work.inception.ltsmodelshare.proxy.ClientProxy} 里，
+ * 专用服务端只加载 {@link CommonProxy} + 网络通道。</p>
  */
 @Mod(
         modid = LtsModelShare.MODID,
         name = LtsModelShare.NAME,
         version = LtsModelShare.VERSION,
         acceptedMinecraftVersions = "[1.12,1.13)",
-        clientSideOnly = true,
         acceptableRemoteVersions = "*"
 )
 public class LtsModelShare {
@@ -38,33 +35,25 @@ public class LtsModelShare {
     public static final Logger LOG = LogManager.getLogger(MODID);
 
     /**
-     * 默认按键：<b>I</b>。
-     *
-     * <p>原来用 M，但 LittleTiles 的 `little.mark`（标记）默认也是 M，两个绑定撞在一起
-     * 时按键会被 LittleTiles 先吃掉，表现为"按 M 没反应"。所以换成 I。</p>
+     * 按物理端选实现：客户端拿到 {@code ClientProxy}（按键 / GUI / 客户端命令），
+     * 专用服务端拿到 {@code CommonProxy}（只注册网络通道）。
      */
-    @SideOnly(Side.CLIENT)
-    public static KeyBinding keyOpen;
+    @SidedProxy(
+            clientSide = "work.inception.ltsmodelshare.proxy.ClientProxy",
+            serverSide = "work.inception.ltsmodelshare.proxy.CommonProxy"
+    )
+    public static CommonProxy proxy;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         ModConfig.get();
-        if (event.getSide().isClient()) {
-            keyOpen = new KeyBinding("key.ltsmodelshare.open", Keyboard.KEY_I, "key.categories.ltsmodelshare");
-            ClientRegistry.registerKeyBinding(keyOpen);
-            MinecraftForge.EVENT_BUS.register(new InputHandler());
-            // 和 LittleTiles 的 little.mark 抢 M 键 → 启动时自动挪到空闲键
-            MinecraftForge.EVENT_BUS.register(new work.inception.ltsmodelshare.client.KeyConflictFixer());
-        }
-        LOG.info("{} {} 预初始化完成", NAME, VERSION);
+        proxy.preInit(event);
+        LOG.info("{} {} 预初始化完成（side={}）", NAME, VERSION, event.getSide());
     }
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
-        if (event.getSide().isClient()) {
-            net.minecraftforge.client.ClientCommandHandler.instance.registerCommand(
-                    new work.inception.ltsmodelshare.command.CommandLts());
-        }
-        LOG.info("{} {} 初始化完成（M 键或 /ltsmodels 打开面板）", NAME, VERSION);
+        proxy.init(event);
+        LOG.info("{} {} 初始化完成", NAME, VERSION);
     }
 }

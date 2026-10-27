@@ -15,7 +15,7 @@ public class InputHandler {
 
     @SubscribeEvent
     public void onKeyInput(InputEvent.KeyInputEvent event) {
-        if (LtsModelShare.keyOpen == null || !LtsModelShare.keyOpen.isPressed()) {
+        if (work.inception.ltsmodelshare.proxy.ClientProxy.keyOpen == null || !work.inception.ltsmodelshare.proxy.ClientProxy.keyOpen.isPressed()) {
             return;
         }
         // 主菜单也允许打开（浏览/登录不需要世界，只有「获取蓝图」需要）

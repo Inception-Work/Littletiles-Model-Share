@@ -33,7 +33,7 @@ public class KeyConflictFixer {
             return;
         }
         Minecraft mc = Minecraft.getMinecraft();
-        if (mc.gameSettings == null || LtsModelShare.keyOpen == null) {
+        if (mc.gameSettings == null || work.inception.ltsmodelshare.proxy.ClientProxy.keyOpen == null) {
             return;
         }
         done = true;
@@ -45,7 +45,7 @@ public class KeyConflictFixer {
     }
 
     private void fixIfConflicting(Minecraft mc) {
-        KeyBinding ours = LtsModelShare.keyOpen;
+        KeyBinding ours = work.inception.ltsmodelshare.proxy.ClientProxy.keyOpen;
         int current = ours.getKeyCode();
         if (current == Keyboard.KEY_NONE) {
             return; // 玩家自己解绑了，别管
