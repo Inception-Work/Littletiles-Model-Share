@@ -175,10 +175,6 @@ public class GuiInviteAccess extends GuiScreen {
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, cy + 34, 0xFFFFFF);
         }
-        if (!busy) {
-            drawCenteredString(fontRenderer, TextFormatting.DARK_GRAY + "回车 = 访问，ESC = 返回",
-                    cx, cy + 48, 0x777777);
-        }
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

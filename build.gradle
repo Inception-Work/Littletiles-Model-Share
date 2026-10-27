@@ -21,7 +21,7 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle.forge'
 
-version = '0.1.0'
+version = '0.1.1'
 group = 'work.inception'
 archivesBaseName = 'LittletilesModelShare'
 
@@ -110,7 +110,7 @@ jar {
      * 一旦它去那个文件里取还没加载的类，就会 NoClassDefFoundError 直接崩。
      * 改成带时间戳的文件名后，旧 jar 原封不动，正在跑的游戏不受影响。
      */
-    archiveName = "LittletilesModelShare-0.1.0-" + new Date().format('MMdd-HHmmss') + ".jar"
+    archiveName = "LittletilesModelShare-0.1.1-" + new Date().format('MMdd-HHmmss') + ".jar"
     manifest {
         attributes([
             'Specification-Title': 'ltsmodelshare',
