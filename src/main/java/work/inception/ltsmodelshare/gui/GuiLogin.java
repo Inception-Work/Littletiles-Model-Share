@@ -114,7 +114,9 @@ public class GuiLogin extends GuiScreen {
             ModConfig cfg = ModConfig.get();
             cfg.token = pat;
             cfg.refreshToken = "";
-            cfg.username = "访问令牌";
+            // 不再往 username 里写「访问令牌」这种占位：以前它会回填到账号框里，
+            // 看起来就像"输入框里还留着访问令牌"
+            cfg.username = "";
             cfg.save();
             status = TextFormatting.GREEN + "已保存访问令牌，过期时间由站点控制";
             mc.displayGuiScreen(after != null ? after : new GuiModels());
