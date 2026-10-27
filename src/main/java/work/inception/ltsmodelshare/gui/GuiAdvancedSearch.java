@@ -6,6 +6,7 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.util.text.TextFormatting;
 import org.lwjgl.input.Mouse;
+import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.TextUtil;
@@ -19,11 +20,20 @@ import java.util.Set;
 /**
  * 高级搜索：按作者、标签、排序筛选，跟网页版的检索条件对齐。
  *
- * <p>站点 {@code POST /api/public/work/cards} 支持 {@code q / tagCodes / authorId / sort}，
- * 这里负责把这些填好回传给浏览页。</p>
+ * <pre>
+ *   按作者筛选  [输入框........][搜索作者]
+ *   已选：xxx                        [清除作者]
+ *   作者候选(2)              标签（可多选，9 个）
+ *   ┌────────────┐          ┌──────────────────┐
+ *   │ ✔ unicoicey│          │ ✔ 建筑           │
+ *   │ · teek_zha…│          │ · 家具           │
+ *   └────────────┘          └──────────────────┘
+ *   排序  [最新][最热]
+ *   [应用] [清空条件] [取消]
+ * </pre>
  *
- * <p>标签是**滚动的列表**（不是一堆按钮）：标签数量会涨，之前两列排 8 行直接超出页面。
- * 现在固定一个盒子、行高 14、滚轮滚动、点行切换勾选，盒子高度按窗口剩余空间算。</p>
+ * <p>两列都是**定高滚动列表**：作者候选原来是一排按钮，搜出结果就把下面的内容顶下去；
+ * 现在左列只在有候选时出现（没有候选则标签占满宽度），两列各自滚轮滚动、各自带滚动条。</p>
  */
 public class GuiAdvancedSearch extends GuiScreen {
 
@@ -64,9 +74,7 @@ public class GuiAdvancedSearch extends GuiScreen {
         }
     }
 
-    private static final int AUTHOR_BASE = 200;
-    private static final int MAX_AUTHORS = 3;
-    private static final int TAG_ROW_H = 14;
+    private static final int ROW_H = 14;
     private static final int COL_W = 148;
 
     private final GuiModels parent;
@@ -78,19 +86,22 @@ public class GuiAdvancedSearch extends GuiScreen {
     private final List<Dtos.Tag> tags = new ArrayList<>();
     private final List<Dtos.Author> authorHits = new ArrayList<>();
     private boolean loadingTags;
+
     private int tagScroll;
+    private int authorScroll;
 
     // 布局
     private int panelLeft;
     private int panelW;
     private int authorLabelY;
-    private int hitsY;
     private int selectedY;
-    private int tagsLabelY;
+    private int listsLabelY;
+    private int boxY;
+    private int boxH;
+    private int authorBoxX;
+    private int authorBoxW;
     private int tagsBoxX;
-    private int tagsBoxY;
     private int tagsBoxW;
-    private int tagsBoxH;
     private int sortY;
 
     public GuiAdvancedSearch(GuiModels parent, Filter current) {
@@ -115,38 +126,32 @@ public class GuiAdvancedSearch extends GuiScreen {
         buttonList.add(new GuiButton(1, panelLeft + panelW - 102, y - 1, 102, 20, "搜索作者"));
         y += 24;
 
-        hitsY = y;
-        int shown = Math.min(authorHits.size(), MAX_AUTHORS);
-        for (int i = 0; i < shown; i++) {
-            Dtos.Author a = authorHits.get(i);
-            String name = a.displayName != null && !a.displayName.isEmpty() ? a.displayName : a.username;
-            buttonList.add(new GuiButton(AUTHOR_BASE + i, panelLeft, y, panelW, 16,
-                    name + "  @" + a.username));
-            y += 17;
-        }
-        if (shown > 0) {
-            y += 3;
-        }
-
         selectedY = y;
         if (working.authorId != null) {
             buttonList.add(new GuiButton(2, panelLeft + panelW - 102, y - 2, 102, 18, "清除作者"));
         }
-        y += 13;
+        y += 14;
 
-        tagsLabelY = y;
+        listsLabelY = y;
         y += 11;
-        tagsBoxX = panelLeft;
-        tagsBoxY = y;
-        tagsBoxW = panelW;
+        boxY = y;
 
-        /*
-         * 底部按钮（20 高）→ 排序行（18 高）→ 标签列表，层层往上。
-         * 原来是 sortY = height-52、标签盒底 = sortY-8、"排序"标题又画在 sortY-11，
-         * 三者挤在一起会重叠；现在每条之间至少留 12~16px。
-         */
         sortY = height - 30 - 32;
-        tagsBoxH = Math.max(TAG_ROW_H, sortY - 16 - tagsBoxY);
+        boxH = Math.max(ROW_H, sortY - 16 - boxY);
+
+        // 有作者候选 → 左边用户列表、右边标签；没候选 → 标签占满
+        if (authorHits.isEmpty()) {
+            authorBoxX = 0;
+            authorBoxW = 0;
+            tagsBoxX = panelLeft;
+            tagsBoxW = panelW;
+        } else {
+            int leftW = Math.max(80, (panelW - 8) * 46 / 100);
+            authorBoxX = panelLeft;
+            authorBoxW = leftW;
+            tagsBoxX = panelLeft + leftW + 8;
+            tagsBoxW = panelW - leftW - 8;
+        }
 
         buttonList.add(new GuiButton(3, panelLeft, sortY, COL_W, 18,
                 "latest".equals(working.sort) ? "✔ 最新" : "最新"));
@@ -161,33 +166,56 @@ public class GuiAdvancedSearch extends GuiScreen {
         if (tags.isEmpty() && !loadingTags) {
             loadTags();
         }
-        clampTagScroll();
+        clampScrolls();
     }
 
-    // ==================== 标签列表 ====================
+    // ==================== 列表尺寸 / 命中 ====================
 
-    private int visibleTagRows() {
-        return Math.max(1, tagsBoxH / TAG_ROW_H);
+    private int visibleRows(int boxHeight) {
+        return Math.max(1, boxHeight / ROW_H);
     }
 
     private int maxTagScroll() {
-        return Math.max(0, tags.size() - visibleTagRows());
+        return Math.max(0, tags.size() - visibleRows(boxH));
     }
 
-    private void clampTagScroll() {
+    private int maxAuthorScroll() {
+        return Math.max(0, authorHits.size() - visibleRows(boxH));
+    }
+
+    private void clampScrolls() {
         tagScroll = Math.max(0, Math.min(tagScroll, maxTagScroll()));
+        authorScroll = Math.max(0, Math.min(authorScroll, maxAuthorScroll()));
     }
 
-    /** 鼠标落在第几行标签（-1 = 没命中） */
-    private int tagRowAt(int mouseX, int mouseY) {
-        if (mouseX < tagsBoxX || mouseX > tagsBoxX + tagsBoxW
-                || mouseY < tagsBoxY || mouseY > tagsBoxY + tagsBoxH) {
+    private int tagIndexAt(int mouseX, int mouseY) {
+        if (tagsBoxW <= 0 || mouseX < tagsBoxX || mouseX > tagsBoxX + tagsBoxW
+                || mouseY < boxY || mouseY > boxY + boxH) {
             return -1;
         }
-        int row = (mouseY - tagsBoxY) / TAG_ROW_H;
-        int index = tagScroll + row;
+        int index = tagScroll + (mouseY - boxY) / ROW_H;
         return index >= 0 && index < tags.size() ? index : -1;
     }
+
+    private int authorIndexAt(int mouseX, int mouseY) {
+        if (authorBoxW <= 0 || mouseX < authorBoxX || mouseX > authorBoxX + authorBoxW
+                || mouseY < boxY || mouseY > boxY + boxH) {
+            return -1;
+        }
+        int index = authorScroll + (mouseY - boxY) / ROW_H;
+        return index >= 0 && index < authorHits.size() ? index : -1;
+    }
+
+    private boolean inAuthorBox(int mx, int my) {
+        return authorBoxW > 0 && mx >= authorBoxX && mx <= authorBoxX + authorBoxW
+                && my >= boxY && my <= boxY + boxH;
+    }
+
+    private boolean inTagsBox(int mx, int my) {
+        return mx >= tagsBoxX && mx <= tagsBoxX + tagsBoxW && my >= boxY && my <= boxY + boxH;
+    }
+
+    // ==================== 数据 ====================
 
     private void loadTags() {
         loadingTags = true;
@@ -233,9 +261,10 @@ public class GuiAdvancedSearch extends GuiScreen {
                             authorHits.add(a);
                         }
                     }
+                    authorScroll = 0;
                     status = authorHits.isEmpty()
                             ? TextFormatting.RED + "没找到这个作者"
-                            : TextFormatting.GREEN + "找到 " + authorHits.size() + " 个，点名字选中";
+                            : TextFormatting.GREEN + "左边是候选，点名字选中";
                     initGui();
                 });
             }
@@ -258,9 +287,15 @@ public class GuiAdvancedSearch extends GuiScreen {
         }
         int mx = Mouse.getEventX() * width / Math.max(1, mc.displayWidth);
         int my = height - Mouse.getEventY() * height / Math.max(1, mc.displayHeight) - 1;
-        if (mx >= tagsBoxX && mx <= tagsBoxX + tagsBoxW && my >= tagsBoxY && my <= tagsBoxY + tagsBoxH) {
+
+        if (inAuthorBox(mx, my)) {
+            authorScroll -= Integer.signum(wheel);
+            clampScrolls();
+            return;
+        }
+        if (inTagsBox(mx, my)) {
             tagScroll -= Integer.signum(wheel);
-            clampTagScroll();
+            clampScrolls();
         }
     }
 
@@ -293,36 +328,22 @@ public class GuiAdvancedSearch extends GuiScreen {
             return;
         }
         if (id == 6) {
-            /*
-             * 「清空条件」= 立刻清空并生效（原来只清工作副本、还要再点「应用」，
-             * 很容易被理解成"没清掉标签"）。清完直接回浏览页重查。
-             */
+            // 立刻清空并生效（原来只清工作副本、还要再点应用，容易被当成"没清掉"）
             working.authorId = null;
             working.authorName = "";
             working.tagCodes.clear();
             working.sort = "latest";
             authorHits.clear();
             tagScroll = 0;
-            work.inception.ltsmodelshare.LtsModelShare.LOG.info(
-                    "[adv] 清空条件：tags={} author={}", working.tagCodes.size(), working.authorId);
+            authorScroll = 0;
+            LtsModelShare.LOG.info("[adv] 清空条件：tags={} author={}",
+                    working.tagCodes.size(), working.authorId);
             parent.applyFilter(working);
             mc.displayGuiScreen(parent);
             return;
         }
         if (id == 7) {
             mc.displayGuiScreen(parent);
-            return;
-        }
-        if (id >= AUTHOR_BASE && id < AUTHOR_BASE + MAX_AUTHORS) {
-            int i = id - AUTHOR_BASE;
-            if (i < authorHits.size()) {
-                Dtos.Author a = authorHits.get(i);
-                working.authorId = a.userId;
-                working.authorName = a.displayName != null && !a.displayName.isEmpty()
-                        ? a.displayName : a.username;
-                status = TextFormatting.GREEN + "已选作者：" + working.authorName;
-                initGui();
-            }
         }
     }
 
@@ -349,15 +370,27 @@ public class GuiAdvancedSearch extends GuiScreen {
         if (mouseButton != 0) {
             return;
         }
-        int index = tagRowAt(mouseX, mouseY);
-        if (index >= 0) {
-            String code = tags.get(index).code;
+
+        int authorIndex = authorIndexAt(mouseX, mouseY);
+        if (authorIndex >= 0) {
+            Dtos.Author a = authorHits.get(authorIndex);
+            working.authorId = a.userId;
+            working.authorName = a.displayName != null && !a.displayName.isEmpty()
+                    ? a.displayName : a.username;
+            status = TextFormatting.GREEN + "已选作者：" + working.authorName;
+            initGui();
+            return;
+        }
+
+        int tagIndex = tagIndexAt(mouseX, mouseY);
+        if (tagIndex >= 0) {
+            String code = tags.get(tagIndex).code;
             boolean added = working.tagCodes.add(code);
             if (!added) {
                 working.tagCodes.remove(code);
             }
-            work.inception.ltsmodelshare.LtsModelShare.LOG.info(
-                    "[adv] 标签 {} {}（当前 {} 个）", code, added ? "选中" : "取消", working.tagCodes.size());
+            LtsModelShare.LOG.info("[adv] 标签 {} {}（当前 {} 个）",
+                    code, added ? "选中" : "取消", working.tagCodes.size());
         }
     }
 
@@ -368,7 +401,6 @@ public class GuiAdvancedSearch extends GuiScreen {
         drawDefaultBackground();
         int cx = width / 2;
 
-        // 背景板要盖住所有内容（含底部按钮）：上到标题下沿、下到窗口底部留 6px
         Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);
         drawCenteredString(fontRenderer, "高级搜索", cx, 12, 0xFFFFFF);
@@ -381,42 +413,66 @@ public class GuiAdvancedSearch extends GuiScreen {
                 ? TextFormatting.DARK_GRAY + selected : TextFormatting.GREEN + selected,
                 panelLeft, selectedY, 0x55FF55);
 
-        // ---------- 标签：滚动列表 ----------
+        // 列标题
+        if (authorBoxW > 0) {
+            drawString(fontRenderer, TextFormatting.GRAY + "作者候选（" + authorHits.size() + "）",
+                    authorBoxX, listsLabelY, 0xAAAAAA);
+        }
         drawString(fontRenderer, TextFormatting.GRAY + "标签（可多选"
-                + (tags.isEmpty() ? "" : "，共 " + tags.size() + " 个") + "）"
-                + (loadingTags ? TextFormatting.DARK_GRAY + "  加载中…" : ""),
-                panelLeft, tagsLabelY, 0xAAAAAA);
+                + (tags.isEmpty() ? "" : "，" + tags.size() + " 个") + "）"
+                + (loadingTags ? TextFormatting.DARK_GRAY + " 加载中…" : ""),
+                tagsBoxX, listsLabelY, 0xAAAAAA);
 
-        Gui.drawRect(tagsBoxX, tagsBoxY, tagsBoxX + tagsBoxW, tagsBoxY + tagsBoxH, 0x40000000);
+        // ---------- 左列：作者候选 ----------
+        if (authorBoxW > 0) {
+            Gui.drawRect(authorBoxX, boxY, authorBoxX + authorBoxW, boxY + boxH, 0x40000000);
+            for (int row = 0; row < visibleRows(boxH); row++) {
+                int index = authorScroll + row;
+                if (index >= authorHits.size()) {
+                    break;
+                }
+                Dtos.Author a = authorHits.get(index);
+                int rowY = boxY + row * ROW_H;
+                boolean isSelected = working.authorId != null && working.authorId.equals(a.userId);
+                boolean hover = authorIndexAt(mouseX, mouseY) == index;
+                if (hover) {
+                    Gui.drawRect(authorBoxX + 1, rowY, authorBoxX + authorBoxW - 5,
+                            rowY + ROW_H - 1, 0x40FFFFFF);
+                }
+                String name = a.displayName != null && !a.displayName.isEmpty()
+                        ? a.displayName : a.username;
+                drawString(fontRenderer, (isSelected ? TextFormatting.GREEN + "✔ " : TextFormatting.GRAY + "· ")
+                                + trim(name, authorBoxW - 12), authorBoxX + 4, rowY + 3,
+                        isSelected ? 0x55FF55 : 0xCCCCCC);
+            }
+            drawScrollbar(authorBoxX + authorBoxW - 4, boxY, boxH, authorScroll,
+                    maxAuthorScroll(), authorHits.size());
+        }
+
+        // ---------- 右列：标签 ----------
+        Gui.drawRect(tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + boxH, 0x40000000);
         if (tags.isEmpty() && !loadingTags) {
             drawString(fontRenderer, TextFormatting.DARK_GRAY + "（没有标签）",
-                    tagsBoxX + 4, tagsBoxY + 3, 0x777777);
+                    tagsBoxX + 4, boxY + 3, 0x777777);
         }
-        for (int row = 0; row < visibleTagRows(); row++) {
+        for (int row = 0; row < visibleRows(boxH); row++) {
             int index = tagScroll + row;
             if (index >= tags.size()) {
                 break;
             }
             Dtos.Tag tag = tags.get(index);
-            int rowY = tagsBoxY + row * TAG_ROW_H;
+            int rowY = boxY + row * ROW_H;
             boolean on = working.tagCodes.contains(tag.code);
-            boolean hover = tagRowAt(mouseX, mouseY) == index;
-
+            boolean hover = tagIndexAt(mouseX, mouseY) == index;
             if (hover) {
-                Gui.drawRect(tagsBoxX + 1, rowY, tagsBoxX + tagsBoxW - 5, rowY + TAG_ROW_H - 1, 0x40FFFFFF);
+                Gui.drawRect(tagsBoxX + 1, rowY, tagsBoxX + tagsBoxW - 5, rowY + ROW_H - 1, 0x40FFFFFF);
             }
             drawString(fontRenderer, (on ? TextFormatting.GREEN + "✔ " : TextFormatting.GRAY + "·  ")
                     + tag.name, tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xCCCCCC);
         }
-        // 滚动条
-        if (maxTagScroll() > 0) {
-            int barX = tagsBoxX + tagsBoxW - 4;
-            Gui.drawRect(barX, tagsBoxY, barX + 3, tagsBoxY + tagsBoxH, 0x40000000);
-            int thumbH = Math.max(8, tagsBoxH * visibleTagRows() / tags.size());
-            int thumbY = tagsBoxY + (tagsBoxH - thumbH) * tagScroll / maxTagScroll();
-            Gui.drawRect(barX, thumbY, barX + 3, thumbY + thumbH, 0xAAFFFFFF);
-        }
+        drawScrollbar(tagsBoxX + tagsBoxW - 4, boxY, boxH, tagScroll, maxTagScroll(), tags.size());
 
+        // ---------- 排序 / 状态 ----------
         drawString(fontRenderer, TextFormatting.GRAY + "排序", panelLeft, sortY - 12, 0xAAAAAA);
 
         if (!status.isEmpty()) {
@@ -432,6 +488,34 @@ public class GuiAdvancedSearch extends GuiScreen {
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    private void drawScrollbar(int barX, int boxTop, int boxHeight, int scroll, int maxScroll, int total) {
+        if (maxScroll <= 0) {
+            return;
+        }
+        Gui.drawRect(barX, boxTop, barX + 3, boxTop + boxHeight, 0x40000000);
+        int visible = visibleRows(boxHeight);
+        int thumbH = Math.max(8, boxHeight * visible / Math.max(visible, total));
+        int thumbY = boxTop + (boxHeight - thumbH) * scroll / maxScroll;
+        Gui.drawRect(barX, thumbY, barX + 3, thumbY + thumbH, 0xAAFFFFFF);
+    }
+
+    private String trim(String text, int maxWidth) {
+        if (text == null) {
+            return "";
+        }
+        if (fontRenderer.getStringWidth(text) <= maxWidth) {
+            return text;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            sb.append(c);
+            if (fontRenderer.getStringWidth(sb.toString() + "…") > maxWidth) {
+                return sb.substring(0, Math.max(0, sb.length() - 1)) + "…";
+            }
+        }
+        return text;
     }
 
     @Override
