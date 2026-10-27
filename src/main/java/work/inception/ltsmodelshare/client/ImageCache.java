@@ -121,6 +121,15 @@ public final class ImageCache {
         return null;
     }
 
+    /** 本地文件路径 → 可直接喂给 {@link #img(String)} 的 URL */
+    public static String fileUrl(java.io.File file) {
+        try {
+            return file.toURI().toURL().toString();
+        } catch (Exception e) {
+            return "file:" + file.getAbsolutePath().replace('\\', '/');
+        }
+    }
+
     private static String absolute(String url) {
         String u = url.trim();
         if (u.isEmpty()) {
@@ -129,7 +138,7 @@ public final class ImageCache {
         if (u.startsWith("//")) {
             return "https:" + u;
         }
-        if (u.startsWith("http://") || u.startsWith("https://")) {
+        if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("file:")) {
             return u;
         }
         return ModConfig.get().url(u.startsWith("/") ? u : "/" + u);

@@ -358,6 +358,64 @@ public final class ApiClient {
         });
     }
 
+    /**
+     * 上传一张截图：{@code POST /api/studio/work/upload-image}（multipart，字段名 file）。
+     *
+     * @return 服务端返回的图片地址（预览档），直接放进 save 的 images 里
+     */
+    public static void uploadImage(final java.io.File file, final Callback<String> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (!cfg.loggedIn()) {
+                    cb.fail("请先登录");
+                    return;
+                }
+                if (file == null || !file.isFile()) {
+                    cb.fail("文件不存在");
+                    return;
+                }
+                String boundary = "----ltsmodelshare" + System.currentTimeMillis();
+                byte[] data = java.nio.file.Files.readAllBytes(file.toPath());
+                String ext = file.getName().toLowerCase().endsWith(".png") ? "png" : "jpg";
+
+                byte[] head = ("--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"file\"; filename=\"shot." + ext + "\"\r\n"
+                        + "Content-Type: " + ("png".equals(ext) ? "image/png" : "image/jpeg") + "\r\n\r\n")
+                        .getBytes(StandardCharsets.UTF_8);
+                byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(cfg.url("/api/studio/work/upload-image"))
+                        .openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(60000);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
+                conn.setRequestProperty("Authorization", "Bearer " + cfg.token);
+                try (OutputStream out = conn.getOutputStream()) {
+                    out.write(head);
+                    out.write(data);
+                    out.write(tail);
+                }
+                int code = conn.getResponseCode();
+                String respText = readAll(code / 100 == 2 ? conn.getInputStream() : conn.getErrorStream());
+                conn.disconnect();
+
+                Dtos.ImageUploadResp resp = respText == null || respText.trim().isEmpty() ? null
+                        : GSON.fromJson(respText, Dtos.ImageUploadResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("上传截图失败：" + e.getMessage());
+            }
+        });
+    }
     /** 保存作品（{@code POST /api/studio/work/save}）→ 返回作品 ID */
     public static void saveWork(final Dtos.WorkSaveRequest request, final Callback<Long> cb) {
         io(() -> {

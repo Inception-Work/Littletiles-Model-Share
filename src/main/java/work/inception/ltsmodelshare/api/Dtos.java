@@ -234,6 +234,8 @@ public final class Dtos {
         public String summary;
         /** 受控标签 code */
         public List<String> tagCodes;
+        /** 作品截图地址（≤6 张），来自 upload-image */
+        public List<String> images;
         public List<SaveItem> items;
 
         public static class SaveItem {
@@ -262,5 +264,9 @@ public final class Dtos {
     }
 
     public static class AuthorsResp extends Resp<List<Author>> {
+    }
+
+    /** upload-image 返回图片地址（字符串） */
+    public static class ImageUploadResp extends Resp<String> {
     }
 }
