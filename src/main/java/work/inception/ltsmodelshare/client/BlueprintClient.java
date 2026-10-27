@@ -5,8 +5,11 @@ import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.gui.GuiWorkDetail;
-import work.inception.ltsmodelshare.network.MsgBlueprintRequest;
+import work.inception.ltsmodelshare.network.MsgBlueprintChunk;
 import work.inception.ltsmodelshare.network.PacketHandler;
+import work.inception.ltsmodelshare.network.SnbtCodec;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 客户端：请求服务端生成蓝图，并处理回执。
@@ -18,7 +21,8 @@ import work.inception.ltsmodelshare.network.PacketHandler;
 public final class BlueprintClient {
 
     /** 等服务端回执的超时（毫秒） */
-    private static final long TIMEOUT_MS = 6000L;
+    private static final long TIMEOUT_MS = 15000L;
+    private static final AtomicInteger TRANSFER_ID = new AtomicInteger(1);
 
     private static boolean waiting;
     private static long sentAt;
@@ -39,8 +43,25 @@ public final class BlueprintClient {
             fallbackToClipboard("网络通道未初始化");
             return;
         }
-        PacketHandler.NET.sendToServer(new MsgBlueprintRequest(lastSnbt, lastTitle));
-        LtsModelShare.LOG.info("[联机] 已向服务端请求生成蓝图（{} 字符）", lastSnbt.length());
+        // gzip 后再切片：单包超过 32767 字节会被 Forge 直接拒绝
+        byte[] packed = SnbtCodec.compress(lastSnbt);
+        int total = Math.max(1, (packed.length + MsgBlueprintChunk.MAX_DATA - 1) / MsgBlueprintChunk.MAX_DATA);
+        if (total > 64) {
+            waiting = false;
+            fallbackToClipboard("结构太大（压缩后 " + packed.length + " 字节），联机通道传不了");
+            return;
+        }
+        int transferId = TRANSFER_ID.incrementAndGet();
+        for (int i = 0; i < total; i++) {
+            int from = i * MsgBlueprintChunk.MAX_DATA;
+            int len = Math.min(MsgBlueprintChunk.MAX_DATA, packed.length - from);
+            byte[] part = new byte[len];
+            System.arraycopy(packed, from, part, 0, len);
+            PacketHandler.NET.sendToServer(
+                    new MsgBlueprintChunk(transferId, i, total, i == 0 ? lastTitle : "", part));
+        }
+        LtsModelShare.LOG.info("[联机] 已请求服务端生成蓝图（{} 字符 → 压缩 {} 字节 → {} 片）",
+                lastSnbt.length(), packed.length, total);
     }
 
     /** 服务端回执 */

@@ -28,7 +28,8 @@ public final class PacketHandler {
         }
         NET = NetworkRegistry.INSTANCE.newSimpleChannel(CHANNEL);
         // 0 = 客户端 → 服务端：请求生成蓝图
-        NET.registerMessage(MsgBlueprintRequest.Handler.class, MsgBlueprintRequest.class, 0, Side.SERVER);
+        // 0 = 客户端 → 服务端：结构分片（gzip 后切开，单包不超过 30KB）
+        NET.registerMessage(MsgBlueprintChunk.Handler.class, MsgBlueprintChunk.class, 0, Side.SERVER);
         // 1 = 服务端 → 客户端：结果回执（只在客户端注册处理器；服务端只负责发）
         tryRegisterClientResult();
         LtsModelShare.LOG.debug("通道 {} 注册完成", CHANNEL);

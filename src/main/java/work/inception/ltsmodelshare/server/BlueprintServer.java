@@ -36,7 +36,7 @@ public final class BlueprintServer {
                 reply(player, false, "结构文本为空");
                 return;
             }
-            if (snbt.length() > work.inception.ltsmodelshare.network.MsgBlueprintRequest.MAX_CHARS) {
+            if (snbt.length() > work.inception.ltsmodelshare.network.SnbtCodec.MAX_CHARS) {
                 reply(player, false, "结构文本太大（" + snbt.length() + " 字符），已拒绝");
                 return;
             }
