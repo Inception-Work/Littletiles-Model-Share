@@ -27,31 +27,32 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 上传手持蓝图到站点（存成草稿，审核在网站上点）。
+ * 上传手持蓝图（草稿 or 直接提交审核）。
  *
  * <pre>
  *  上传手持蓝图
  *  已导出 6154 字符
- *  标题  [________________________________]
- *  简介  ┌────────────────────────────────┐
- *        │ 多行，Enter 换行               │
- *        └────────────────────────────────┘
- *  截图（点选，最多 6）            标签（可多选）
- *  ┌─────────────────────┐      ┌────────────────────┐
- *  │ [图][图][图]        │      │ ✔ 建筑             │
- *  │ [图][图][图]        │      │ · 家具             │
- *  └─────────────────────┘      └────────────────────┘
- *  [上传并保存草稿]                          [取消]
+ *  标题  [__________________________________]
+ *  简介（Enter 换行）
+ *        ┌──────────────────────────────────┐
+ *        │                                  │
+ *        └──────────────────────────────────┘
+ *  截图（点选，最多 6）        标签（可多选）
+ *  ┌───────────────────────┐   ┌────────────────┐
+ *  │ [图][图][图]          │   │ ✔ 建筑         │
+ *  │ [图][图][图]          │   │ · 家具         │
+ *  └───────────────────────┘   └────────────────┘
+ *  [提交草稿]  [提交审核]                              [取消]
  * </pre>
  *
- * <p>截图取自 {@code <gameDir>/screenshots}（游戏里 F2 生成）：一行三张、不显示文件名、
- * 选中项四周画绿色边框；缩略图**懒加载** —— 只给当前可见的格子请求贴图。</p>
+ * <p>上传过程用**阻塞式进度弹窗**：期间所有操作被吞掉，弹窗显示当前步骤
+ * （上传结构 / 截图 2/4 / 保存 / 提交审核），结束后显示结果，点一下关闭。</p>
  */
 public class GuiUpload extends GuiScreen {
 
     private static final int MAX_SHOTS = 6;
-    private static final int CELL_W = 52;
-    private static final int CELL_H = 30;        // 约 16:9
+    private static final int CELL_W = 60;
+    private static final int CELL_H = 34;        // 约 16:9
     private static final int CELL_GAP = 4;
     private static final int TAG_ROW_H = 14;
 
@@ -59,9 +60,6 @@ public class GuiUpload extends GuiScreen {
 
     private GuiTextField fieldTitle;
     private MultiLineText summary;
-
-    private String status = "";
-    private boolean busy;
 
     private String snbt;
     private String exportError;
@@ -76,6 +74,12 @@ public class GuiUpload extends GuiScreen {
     private final Set<String> tagCodes = new LinkedHashSet<>();
     private boolean loadingTags;
     private int tagScroll;
+
+    // 上传进度（阻塞弹窗）
+    private boolean busy;
+    private String progress = "";
+    private String resultText;
+    private boolean resultOk;
 
     // 布局
     private int panelLeft;
@@ -103,7 +107,7 @@ public class GuiUpload extends GuiScreen {
     public void initGui() {
         buttonList.clear();
         int cx = width / 2;
-        panelW = Math.min(400, width - 24);
+        panelW = Math.min(440, width - 24);
         panelLeft = cx - panelW / 2;
 
         int y = 44;
@@ -119,7 +123,6 @@ public class GuiUpload extends GuiScreen {
         summaryBoxX = panelLeft;
         summaryBoxY = y;
         summaryBoxW = panelW;
-        // 简介框：正常 3 行，矮窗口（<300）用 2 行，给小面的截图/标签区留空间
         int summaryLines = height >= 300 ? 3 : 2;
         summaryBoxH = summaryLines * 10 + 8;
         if (summary == null) {
@@ -135,15 +138,18 @@ public class GuiUpload extends GuiScreen {
         actionY = height - 30;
         boxH = Math.max(CELL_H, actionY - 36 - boxY);
 
-        // 左截图 / 右标签
-        int leftW = Math.min(3 * CELL_W + 2 * CELL_GAP + 6, panelW * 55 / 100);
+        // 左截图（更宽）/ 右标签（窄一些，标签本身不长）
+        int leftW = Math.min(3 * CELL_W + 2 * CELL_GAP + 6, panelW * 64 / 100);
         shotsBoxX = panelLeft;
         shotsBoxW = leftW;
         tagsBoxX = panelLeft + leftW + 8;
-        tagsBoxW = panelW - leftW - 8;
+        tagsBoxW = Math.max(90, panelW - leftW - 8);
 
         buttonList.add(new GuiButton(3, panelLeft + panelW - 78, listsLabelY - 3, 78, 18, "刷新截图"));
-        buttonList.add(new GuiButton(1, panelLeft, actionY, 130, 20, "上传并保存草稿"));
+
+        int bw = 110;
+        buttonList.add(new GuiButton(1, panelLeft, actionY, bw, 20, "提交草稿"));
+        buttonList.add(new GuiButton(4, panelLeft + bw + 6, actionY, bw, 20, "提交审核"));
         buttonList.add(new GuiButton(2, panelLeft + panelW - 90, actionY, 90, 20, "取消"));
 
         exportFromHand();
@@ -220,7 +226,6 @@ public class GuiUpload extends GuiScreen {
         return Math.max(0, shotRowCount() - shotRowsVisible());
     }
 
-    /** 鼠标落在第几张截图（-1 = 没命中） */
     private int shotIndexAt(int mouseX, int mouseY) {
         if (shotsBoxW <= 0 || mouseX < shotsBoxX || mouseX > shotsBoxX + shotsBoxW
                 || mouseY < boxY || mouseY > boxY + boxH) {
@@ -257,10 +262,7 @@ public class GuiUpload extends GuiScreen {
 
             @Override
             public void fail(String message) {
-                ApiClient.post(() -> {
-                    loadingTags = false;
-                    status = TextFormatting.RED + message;
-                });
+                ApiClient.post(() -> loadingTags = false);
             }
         });
     }
@@ -287,6 +289,10 @@ public class GuiUpload extends GuiScreen {
     @Override
     public void handleMouseInput() throws IOException {
         super.handleMouseInput();
+        if (busy) {
+            Mouse.getEventDWheel();   // 消费滚轮，避免背景跟着滚
+            return;
+        }
         int wheel = Mouse.getEventDWheel();
         if (wheel == 0) {
             return;
@@ -305,33 +311,39 @@ public class GuiUpload extends GuiScreen {
 
     @Override
     protected void actionPerformed(GuiButton button) {
+        if (busy) {
+            return;
+        }
         if (button.id == 2) {
             mc.displayGuiScreen(parent);
             return;
         }
         if (button.id == 3) {
             loadShots();
-            status = TextFormatting.GRAY + "截图已刷新（" + shots.size() + " 张）";
             return;
         }
-        if (button.id != 1 || busy) {
-            return;
+        if (button.id == 1) {
+            startUpload(false);
+        } else if (button.id == 4) {
+            startUpload(true);
         }
-        startUpload();
     }
 
-    private void startUpload() {
+    /** @param alsoSubmit true = 保存后立即提交审核；false = 只存草稿 */
+    private void startUpload(final boolean alsoSubmit) {
         if (snbt == null) {
-            status = TextFormatting.RED + (exportError == null ? "没有可上传的结构" : exportError);
+            finish(false, exportError == null ? "没有可上传的结构" : exportError);
             return;
         }
         String title = fieldTitle.getText().trim();
         if (title.isEmpty()) {
-            status = TextFormatting.RED + "标题不能为空";
+            finish(false, "标题不能为空");
             return;
         }
+
         busy = true;
-        status = TextFormatting.YELLOW + "上传结构…";
+        resultText = null;
+        progress = "上传结构…";
 
         final String finalTitle = title;
         final String summaryText = summary.getText().trim();
@@ -341,48 +353,46 @@ public class GuiUpload extends GuiScreen {
             public void ok(Dtos.SnbtUpload blob) {
                 List<File> queue = new ArrayList<>(selectedShots);
                 if (queue.isEmpty()) {
-                    saveWork(blob, finalTitle, summaryText, new ArrayList<>());
+                    saveWork(blob, finalTitle, summaryText, new ArrayList<>(), alsoSubmit);
                 } else {
-                    uploadNext(queue, 0, new ArrayList<>(), blob, finalTitle, summaryText);
+                    uploadNext(queue, 0, new ArrayList<>(), blob, finalTitle, summaryText, alsoSubmit);
                 }
             }
 
             @Override
             public void fail(String message) {
-                ApiClient.post(() -> {
-                    busy = false;
-                    status = TextFormatting.RED + message;
-                });
+                finish(false, message);
             }
         });
     }
 
     private void uploadNext(final List<File> queue, final int index, final List<String> urls,
-                            final Dtos.SnbtUpload blob, final String title, final String summaryText) {
+                            final Dtos.SnbtUpload blob, final String title, final String summaryText,
+                            final boolean alsoSubmit) {
         if (index >= queue.size()) {
-            saveWork(blob, title, summaryText, urls);
+            saveWork(blob, title, summaryText, urls, alsoSubmit);
             return;
         }
-        setStatus(TextFormatting.YELLOW + "上传截图 " + (index + 1) + "/" + queue.size() + "…");
+        setProgress("上传截图 " + (index + 1) + "/" + queue.size() + "…");
         ApiClient.uploadImage(queue.get(index), new ApiClient.Callback<String>() {
             @Override
             public void ok(String url) {
                 urls.add(url);
-                uploadNext(queue, index + 1, urls, blob, title, summaryText);
+                uploadNext(queue, index + 1, urls, blob, title, summaryText, alsoSubmit);
             }
 
             @Override
             public void fail(String message) {
                 LtsModelShare.LOG.warn("截图上传失败：{}", message);
-                uploadNext(queue, index + 1, urls, blob, title, summaryText);
+                uploadNext(queue, index + 1, urls, blob, title, summaryText, alsoSubmit);
             }
         });
     }
 
     private void saveWork(final Dtos.SnbtUpload blob, final String title, final String summaryText,
-                          final List<String> imageUrls) {
-        setStatus(TextFormatting.YELLOW + "保存作品…");
-        Dtos.WorkSaveRequest req = new Dtos.WorkSaveRequest();
+                          final List<String> imageUrls, final boolean alsoSubmit) {
+        setProgress("保存作品…");
+        final Dtos.WorkSaveRequest req = new Dtos.WorkSaveRequest();
         req.kind = "single";
         req.title = title;
         req.summary = summaryText.isEmpty() ? null : summaryText;
@@ -393,31 +403,77 @@ public class GuiUpload extends GuiScreen {
 
         ApiClient.saveWork(req, new ApiClient.Callback<Long>() {
             @Override
-            public void ok(Long workId) {
-                ApiClient.post(() -> {
-                    busy = false;
-                    status = TextFormatting.GREEN + "已保存为草稿：作品 #" + workId
-                            + "（截图 " + imageUrls.size() + " 张，标签 " + tagCodes.size() + " 个）"
-                            + " —— 去网站「创作台」提交审核";
+            public void ok(final Long workId) {
+                if (!alsoSubmit) {
+                    finish(true, "已保存为草稿：作品 #" + workId
+                            + "（截图 " + imageUrls.size() + " 张，标签 " + tagCodes.size() + " 个）\n"
+                            + "去网站「创作台」可以继续编辑再提交审核");
+                    return;
+                }
+                setProgress("申请上传授权…");
+                ApiClient.agreeUploadRights(new ApiClient.Callback<Long>() {
+                    @Override
+                    public void ok(Long consentId) {
+                        setProgress("提交审核…");
+                        ApiClient.submitReview(workId, false, consentId,
+                                new ApiClient.Callback<Dtos.SubmitReview>() {
+                                    @Override
+                                    public void ok(Dtos.SubmitReview value) {
+                                        finish(true, value.submitted
+                                                        ? "已提交审核：作品 #" + workId + "，通过后会公开"
+                                                        + (value.message == null ? "" : "\n" + value.message)
+                                                        : "作品 #" + workId + " 已保存，模型还在生成，完成后会自动提交");
+                                    }
+
+                                    @Override
+                                    public void fail(String message) {
+                                        finish(false, "作品已保存（#" + workId + "），但提交审核失败：" + message
+                                                + "\n可以去网站创作台手动提交");
+                                    }
+                                });
+                    }
+
+                    @Override
+                    public void fail(String message) {
+                        finish(false, "作品已保存（#" + workId + "），但申请上传授权失败：" + message
+                                + "\n可以去网站创作台手动提交");
+                    }
                 });
             }
 
             @Override
             public void fail(String message) {
-                ApiClient.post(() -> {
-                    busy = false;
-                    status = TextFormatting.RED + message;
-                });
+                finish(false, message);
             }
         });
     }
 
-    private void setStatus(String text) {
-        ApiClient.post(() -> status = text);
+    private void setProgress(String text) {
+        ApiClient.post(() -> progress = text);
+    }
+
+    private void finish(boolean ok, String text) {
+        ApiClient.post(() -> {
+            busy = true;              // 保持阻塞，等玩家点一下看结果
+            resultOk = ok;
+            resultText = text;
+            progress = "";
+        });
+    }
+
+    private void dismissResult() {
+        busy = false;
+        resultText = null;
     }
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (busy) {
+            if (keyCode == 1 && resultText != null) {
+                dismissResult();
+            }
+            return;
+        }
         if (keyCode == 1) {
             mc.displayGuiScreen(parent);
             return;
@@ -439,6 +495,12 @@ public class GuiUpload extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        if (busy) {
+            if (resultText != null && mouseButton == 0) {
+                dismissResult();
+            }
+            return;
+        }
         super.mouseClicked(mouseX, mouseY, mouseButton);
         fieldTitle.mouseClicked(mouseX, mouseY, mouseButton);
         if (fieldTitle.isFocused()) {
@@ -456,9 +518,7 @@ public class GuiUpload extends GuiScreen {
             File f = shots.get(shotIndex);
             if (selectedShots.contains(f)) {
                 selectedShots.remove(f);
-            } else if (selectedShots.size() >= MAX_SHOTS) {
-                status = TextFormatting.RED + "最多选 " + MAX_SHOTS + " 张";
-            } else {
+            } else if (selectedShots.size() < MAX_SHOTS) {
                 selectedShots.add(f);
             }
             return;
@@ -500,7 +560,7 @@ public class GuiUpload extends GuiScreen {
         drawString(fontRenderer, TextFormatting.GRAY + "标签（可多选"
                 + (tags.isEmpty() ? "" : "，" + tags.size() + " 个") + "）", tagsBoxX, listsLabelY, 0xAAAAAA);
 
-        // ---------- 左：截图网格（一行三张、无文件名、绿框选中、懒加载） ----------
+        // ---------- 左：截图网格 ----------
         Gui.drawRect(shotsBoxX, boxY, shotsBoxX + shotsBoxW, boxY + boxH, 0x40000000);
         if (shots.isEmpty()) {
             drawString(fontRenderer, TextFormatting.DARK_GRAY + "（没有截图，游戏里按 F2）",
@@ -522,7 +582,7 @@ public class GuiUpload extends GuiScreen {
                 int cellY = boxY + (row - firstRow) * (CELL_H + CELL_GAP);
                 boolean on = selectedShots.contains(f);
 
-                // 懒加载：只有循环到"当前可见行"时才请求这张图的贴图
+                // 懒加载：只给当前可见行请求贴图
                 ImageDraw.drawCropped(ImageCache.fileUrl(f), cellX, cellY, CELL_W, CELL_H);
 
                 if (on) {
@@ -561,11 +621,49 @@ public class GuiUpload extends GuiScreen {
                     tags.size(), tagsVisible());
         }
 
-        if (!status.isEmpty()) {
-            drawCenteredString(fontRenderer, status, cx, height - 20, 0xFFFFFF);
+        super.drawScreen(mouseX, mouseY, partialTicks);
+
+        // ---------- 阻塞式进度弹窗（最后画，盖住一切） ----------
+        if (busy) {
+            drawProgressOverlay();
+        }
+    }
+
+    private void drawProgressOverlay() {
+        int cx = width / 2;
+        int cy = height / 2;
+        int w = Math.min(300, width - 40);
+        String text = resultText != null ? resultText : progress;
+        List<String> lines = TextUtil.wrap(fontRenderer, text == null ? "" : text, w - 16);
+        int h = 26 + lines.size() * 10 + 16;
+
+        Gui.drawRect(0, 0, width, height, 0xA0000000);
+        Gui.drawRect(cx - w / 2 - 2, cy - h / 2 - 2, cx + w / 2 + 2, cy + h / 2 + 2, 0xFF000000);
+        Gui.drawRect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, 0xFF2B2B2B);
+        drawFrame(cx - w / 2, cy - h / 2, w, h, 0xFF8A8A8A);
+
+        String title = resultText == null ? "处理中" : (resultOk ? "完成" : "失败");
+        int titleColor = resultText == null ? 0xFFFF55 : (resultOk ? 0x55FF55 : 0xFF5555);
+        drawCenteredString(fontRenderer, title, cx, cy - h / 2 + 6, titleColor);
+
+        int y = cy - h / 2 + 20;
+        for (String line : lines) {
+            drawCenteredString(fontRenderer, line, cx, y, 0xDDDDDD);
+            y += 10;
         }
 
-        super.drawScreen(mouseX, mouseY, partialTicks);
+        if (resultText == null) {
+            int dots = (int) ((System.currentTimeMillis() / 300L) % 4L);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < dots; i++) {
+                sb.append('.');
+            }
+            drawCenteredString(fontRenderer, TextFormatting.GRAY + sb.toString(),
+                    cx, cy + h / 2 - 12, 0xAAAAAA);
+        } else {
+            drawCenteredString(fontRenderer, TextFormatting.GRAY + "点一下关闭",
+                    cx, cy + h / 2 - 12, 0xAAAAAA);
+        }
     }
 
     private void drawFrame(int x, int y, int w, int h, int color) {
@@ -588,7 +686,6 @@ public class GuiUpload extends GuiScreen {
 
     // ==================== 多行文本框 ====================
 
-    /** 极简多行输入框：Enter 换行、Backspace 删除、Tab 在标题/简介间切换 */
     private final class MultiLineText {
         private final StringBuilder text = new StringBuilder();
         private boolean focused;

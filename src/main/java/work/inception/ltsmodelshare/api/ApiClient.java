@@ -434,6 +434,48 @@ public final class ApiClient {
             }
         });
     }
+    /**
+     * 同意「上传授权」协议，拿到本次提交要用的 consentId。
+     *
+     * <p>站点要求：**每次提交审核**都要新拿一个 consentId，不能复用很久以前的同意。</p>
+     */
+    public static void agreeUploadRights(final Callback<Long> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String body = "{\"consentType\":\"upload_rights\",\"agreed\":true}";
+                Dtos.ConsentResp resp = postAuthed(cfg.url("/api/account/notification/consent/agree"),
+                        body, Dtos.ConsentResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("授权失败：" + e.getMessage());
+            }
+        });
+    }
+
+    /** 提交审核：{@code POST /api/studio/work/submit-review?workId=&keepOnline=&consentId=} */
+    public static void submitReview(final long workId, final boolean keepOnline, final long consentId,
+                                    final Callback<Dtos.SubmitReview> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String url = cfg.url("/api/studio/work/submit-review?workId=" + workId
+                        + "&keepOnline=" + keepOnline + "&consentId=" + consentId);
+                Dtos.SubmitReviewResp resp = postAuthed(url, "{}", Dtos.SubmitReviewResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("提交审核失败：" + e.getMessage());
+            }
+        });
+    }
     // ==================== 底层 ====================
 
     private static <T> T post(String url, String body, String token, Class<T> type) throws IOException {

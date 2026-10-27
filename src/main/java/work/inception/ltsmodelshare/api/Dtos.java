@@ -269,4 +269,20 @@ public final class Dtos {
     /** upload-image 返回图片地址（字符串） */
     public static class ImageUploadResp extends Resp<String> {
     }
+
+    // ==================== 提交审核 ====================
+
+    /** 同意「上传授权」协议后返回的 consentId */
+    public static class ConsentResp extends Resp<Long> {
+    }
+
+    /** submit-review 的结果 */
+    public static class SubmitReview {
+        /** false = 还有模型在生成，完成后会自动提交 */
+        public boolean submitted;
+        public String message;
+    }
+
+    public static class SubmitReviewResp extends Resp<SubmitReview> {
+    }
 }
