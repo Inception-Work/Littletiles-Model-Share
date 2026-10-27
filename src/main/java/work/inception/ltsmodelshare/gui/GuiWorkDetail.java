@@ -658,7 +658,7 @@ public class GuiWorkDetail extends GuiScreen {
 
         Dtos.Author author = detail != null ? detail.author : card.author;
         if (author != null) {
-            drawAvatar(author, rightX, y, 16);
+            work.inception.ltsmodelshare.client.Avatars.draw(fontRenderer, author, rightX, y, 16);
             String name = author.displayName != null && !author.displayName.isEmpty()
                     ? author.displayName : (author.username == null ? "" : author.username);
             drawString(fontRenderer, trim(name, rightW - 20), rightX + 20, y + 1, 0xFFFFFF);
@@ -820,22 +820,6 @@ public class GuiWorkDetail extends GuiScreen {
         }
     }
 
-    /** 有头像就用头像；没有就画个首字母色块（站点上很多人没传头像） */
-    private void drawAvatar(Dtos.Author author, int x, int y, int size) {
-        String url = author.avatarUrl;
-        if (url != null && !url.isEmpty() && ImageCache.img(url) != null) {
-            drawImage(url, x, y, size, size);
-            return;
-        }
-        String seed = author.username == null ? "?" : author.username;
-        int hash = Math.abs(seed.hashCode());
-        int r = (hash & 0x7F) + 0x30;
-        int g = ((hash >> 8) & 0x7F) + 0x30;
-        int b = ((hash >> 16) & 0x7F) + 0x30;
-        Gui.drawRect(x, y, x + size, y + size, 0xFF000000 | (r << 16) | (g << 8) | b);
-        String letter = seed.isEmpty() ? "?" : seed.substring(0, 1).toUpperCase();
-        drawCenteredString(fontRenderer, letter, x + size / 2, y + (size - 8) / 2, 0xFFFFFF);
-    }
 
     private String join(List<String> list) {
         StringBuilder sb = new StringBuilder();

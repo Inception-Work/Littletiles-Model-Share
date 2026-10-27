@@ -74,6 +74,8 @@ public class GuiAdvancedSearch extends GuiScreen {
     }
 
     private static final int ROW_H = 14;
+    /** 候选行里的头像边长（约一个字高） */
+    private static final int AVATAR = 10;
     private static final int COL_W = 148;
 
     private final GuiModels parent;
@@ -261,9 +263,8 @@ public class GuiAdvancedSearch extends GuiScreen {
                         }
                     }
                     authorScroll = 0;
-                    status = authorHits.isEmpty()
-                            ? TextFormatting.RED + "没找到这个作者"
-                            : TextFormatting.GREEN + "左边是候选，点名字选中";
+                    // 成功不弹提示（列表本身就是提示），只有没找到才说一句
+                    status = authorHits.isEmpty() ? TextFormatting.RED + "没找到这个作者" : "";
                     initGui();
                 });
             }
@@ -440,8 +441,11 @@ public class GuiAdvancedSearch extends GuiScreen {
                 }
                 String name = a.displayName != null && !a.displayName.isEmpty()
                         ? a.displayName : a.username;
+                // 头像 = 一个字高（10px），有图用图、没图用首字母色块
+                work.inception.ltsmodelshare.client.Avatars.draw(fontRenderer, a,
+                        authorBoxX + 4, rowY + 2, AVATAR);
                 drawString(fontRenderer, (isSelected ? TextFormatting.GREEN + "✔ " : TextFormatting.GRAY + "· ")
-                                + trim(name, authorBoxW - 12), authorBoxX + 4, rowY + 3,
+                                + trim(name, authorBoxW - 16 - AVATAR), authorBoxX + 4 + AVATAR + 2, rowY + 3,
                         isSelected ? 0x55FF55 : 0xCCCCCC);
             }
             drawScrollbar(authorBoxX + authorBoxW - 4, boxY, boxH, authorScroll,
