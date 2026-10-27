@@ -313,8 +313,32 @@ public class GuiWorkDetail extends GuiScreen {
         return Math.max(0, summaryLineCount() - summaryWindow());
     }
 
+    /**
+     * 这条作品实际要显示的依赖。
+     *
+     * <p>合集的依赖在顶层 {@code detail.dependencies}，**单个作品的在 {@code items[].dependencies}**
+     * （后端 DTO 的注释就是这么写的）。以前只读顶层，所以单个作品永远显示「原版」。</p>
+     */
+    private java.util.List<Dtos.Dependency> effectiveDeps() {
+        if (detail == null) {
+            return java.util.Collections.emptyList();
+        }
+        if (detail.dependencies != null && !detail.dependencies.isEmpty()) {
+            return detail.dependencies;
+        }
+        java.util.List<Dtos.Dependency> out = new java.util.ArrayList<>();
+        if (detail.items != null) {
+            for (Dtos.Item it : detail.items) {
+                if (it != null && it.dependencies != null) {
+                    out.addAll(it.dependencies);
+                }
+            }
+        }
+        return out;
+    }
+
     private boolean hasCollectionDeps() {
-        return detail != null && detail.dependencies != null && !detail.dependencies.isEmpty();
+        return !effectiveDeps().isEmpty();
     }
 
     private int computeContentHeight() {
@@ -691,7 +715,7 @@ public class GuiWorkDetail extends GuiScreen {
         // 依赖（合集）接在数据下面
         if (hasCollectionDeps()) {
             y += 6;
-            for (Dtos.Dependency dep : detail.dependencies) {
+            for (Dtos.Dependency dep : effectiveDeps()) {
                 String type = dep != null && dep.type != null ? dep.type : "依赖";
                 String name = dep != null && dep.name != null ? dep.name : "?";
                 drawString(fontRenderer, TextFormatting.DARK_PURPLE + "[" + type + "] "

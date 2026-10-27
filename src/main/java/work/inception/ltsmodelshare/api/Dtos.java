@@ -253,6 +253,13 @@ public final class Dtos {
             /** 模型是哪一代：1.12.2 / 1.19+ */
             public String mcVersion;
 
+            /** 是否含 LittleTiles 之外的方块（0/1），不填后端按 null 处理 */
+            public Integer hasModBlocks;
+            /** 是否用了其它材质（材质包）（0/1） */
+            public Integer usesOtherTextures;
+            /** 依赖声明：{type: mod|texture, name, url} —— 详情页按这个渲染 */
+            public java.util.List<Dependency> dependencies;
+
             public SaveItem(long snbtBlobId, String title, String mcVersion) {
                 this.snbtBlobId = snbtBlobId;
                 this.title = title;

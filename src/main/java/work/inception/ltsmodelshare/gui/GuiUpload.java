@@ -12,6 +12,7 @@ import net.minecraft.util.text.TextFormatting;
 import org.lwjgl.input.Mouse;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.api.ApiClient;
+import work.inception.ltsmodelshare.api.DependencyScan;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.ImageCache;
 import work.inception.ltsmodelshare.client.ImageDraw;
@@ -409,8 +410,21 @@ public class GuiUpload extends GuiScreen {
         req.summary = summaryText.isEmpty() ? null : summaryText;
         req.tagCodes = new ArrayList<>(tagCodes);
         req.images = new ArrayList<>(imageUrls);
-        req.items = Collections.singletonList(
-                new Dtos.WorkSaveRequest.SaveItem(blob.blobId, title, "1.12.2"));
+        // 扫一遍 SNBT，把「用了哪些模组方块 / 其它材质」一并上报 ——
+        // 不带这些字段的话，详情页的依赖会一直显示「原版」。
+        final DependencyScan.Result deps = DependencyScan.scan(snbt);
+        final Dtos.WorkSaveRequest.SaveItem item =
+                new Dtos.WorkSaveRequest.SaveItem(blob.blobId, title, "1.12.2");
+        if (deps.hasModBlocks) {
+            item.hasModBlocks = 1;
+        }
+        if (deps.usesOtherTextures) {
+            item.usesOtherTextures = 1;
+        }
+        if (!deps.dependencies.isEmpty()) {
+            item.dependencies = deps.dependencies;
+        }
+        req.items = Collections.singletonList(item);
 
         ApiClient.saveWork(req, new ApiClient.Callback<Long>() {
             @Override
