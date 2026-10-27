@@ -297,11 +297,21 @@ public class GuiModels extends GuiScreen {
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, height - 54, 0xFFFFFF);
         }
-        String filterLine = filter == null || filter.isEmpty() ? "" : "  [" + filter.summary() + "]";
-        String foot = TextFormatting.GRAY + String.format("第 %d / %d 页 · 共 %d 个", page, maxPage(), total)
-                + TextFormatting.YELLOW + filterLine
+        /*
+         * 页脚：页码 + 登录状态 + 筛选摘要。
+         * 标签选多了摘要会很长 —— 超出窗口宽度就用 … 收尾（原来是直接画出去，被裁掉半截）。
+         */
+        String base = TextFormatting.GRAY + String.format("第 %d / %d 页 · 共 %d 个", page, maxPage(), total)
                 + (ModConfig.get().loggedIn() ? " · 已登录 " + ModConfig.get().username : " · 未登录（只能浏览）");
-        drawCenteredString(fontRenderer, foot, cx, height - 40, 0xAAAAAA);
+        String filterPart = "";
+        if (filter != null && !filter.isEmpty()) {
+            int baseW = fontRenderer.getStringWidth(stripCodes(base));
+            int room = width - 24 - baseW - fontRenderer.getStringWidth("  []");
+            if (room > 18) {
+                filterPart = "  [" + trim(filter.summary(), room) + "]";
+            }
+        }
+        drawCenteredString(fontRenderer, base + TextFormatting.YELLOW + filterPart, cx, height - 40, 0xAAAAAA);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
@@ -370,6 +380,11 @@ public class GuiModels extends GuiScreen {
             Gui.drawRect(x, y, x + w, y + h, placeholderColor);
         }
         ImageDraw.drawCropped(url, x, y, w, h);
+    }
+
+    /** 去掉 §x 颜色码（算宽度时要排除，不然会被算成两个字符） */
+    private String stripCodes(String text) {
+        return text == null ? "" : text.replaceAll("\u00A7.", "");
     }
 
     private String trim(String text, int maxWidth) {

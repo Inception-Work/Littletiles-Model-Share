@@ -409,8 +409,10 @@ public class GuiAdvancedSearch extends GuiScreen {
         fieldAuthor.drawTextBox();
 
         String selected = working.authorId == null ? "未选作者" : "已选：" + working.authorName;
+        // 右侧有「清除作者」按钮（102 宽），这行要限宽，超了用 … 收尾
         drawString(fontRenderer, working.authorId == null
-                ? TextFormatting.DARK_GRAY + selected : TextFormatting.GREEN + selected,
+                        ? TextFormatting.DARK_GRAY + trim(selected, panelW - 110)
+                        : TextFormatting.GREEN + trim(selected, panelW - 110),
                 panelLeft, selectedY, 0x55FF55);
 
         // 列标题
