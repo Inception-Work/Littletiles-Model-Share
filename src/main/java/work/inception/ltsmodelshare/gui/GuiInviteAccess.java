@@ -167,7 +167,7 @@ public class GuiInviteAccess extends GuiScreen {
                 cx, cy - 82, 0xAAAAAA);
 
         drawString(fontRenderer, "作品 ID", cx - 100, cy - 73, 0xCCCCCC);
-        drawString(fontRenderer, "访问码（可留空）", cx - 100, cy - 34, 0xCCCCCC);
+        drawString(fontRenderer, "访问码", cx - 100, cy - 34, 0xCCCCCC);
 
         fieldWorkId.drawTextBox();
         fieldCode.drawTextBox();
