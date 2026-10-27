@@ -1,13 +1,33 @@
-# Littletiles Model Share
+# LittleTiles Model Share
 
-在**游戏内**登录 inception.work、浏览并下载 LittleTiles 模型的客户端模组（Forge 1.12.2 / Java 8）。
+> 在游戏内浏览、获取和分享 LittleTiles 模型。
+> An in-game browser, downloader and uploader for LittleTiles models shared on [inception.work](https://www.inception.work/models).
 
-当前状态：**开发环境已跑通 + 一个能加载的空模组骨架**（能编译、能进游戏、有日志）。功能还没写：
+**一句话 / One-liner**
 
-1. 站内登录（拿 token，存本地配置）
-2. 模型列表浏览（列表 + 缩略图 + 搜索/标签）
-3. 下载模型文件到本地目录，并导入成 LittleTiles 结构
-4. （后续）上传本地结构到站点
+- 中文：在游戏里按 `I` 打开模型面板，挑一个模型点「获取蓝图」，它就变成背包里的 Little 蓝图；手里拿着的蓝图也能连同截图和标签一起上传。
+- English: Press `I` in game, pick a model, hit "Get blueprint" and it lands in your inventory as a Little Blueprint. The blueprint in your hand can be uploaded back with title, description, tags and screenshots.
+
+**特点 / Features**
+
+| 中文 | English |
+|---|---|
+| 游戏内登录（账号密码或访问令牌），不存密码 | Sign in from inside the game (password or personal access token); passwords are never stored |
+| 卡片流浏览 + 高级搜索（作者 / 标签 / 排序） | Card grid plus advanced search by author, tags and sort order |
+| 详情页：封面、多图、标签、数据、合集依赖 | Detail page with cover, gallery, tags, stats and collection dependencies |
+| 一键获取：模型**在服务端**变成蓝图进背包，单人 / 局域网 / 专用服务器都可用 | One-click download: the blueprint is created **server-side** and put into your inventory — works in single-player, LAN and on dedicated servers |
+| 上传：标题、多行简介、标签、游戏内截图，可存草稿或直接提交审核 | Upload with title, multi-line description, tags and in-game screenshots; save as draft or submit for review |
+| grid 超限时告诉你怎么改 `config/littletiles.json` | Tells you exactly what to change in `config/littletiles.json` when a model needs a bigger grid |
+
+**依赖 / Requires**
+
+- Minecraft 1.12.2 + Forge 14.23.5.2847 或更新
+- [LittleTiles](https://www.curseforge.com/minecraft/mc-mods/littletiles) 1.5.66（服务端也要装）
+- 客户端与服务端装同一个本模组版本
+
+**Credits**
+
+LittleTiles by [CreativeMD](https://github.com/CreativeMD) · UI powered by [McPixel Craft UI](https://www.inception.work/mcpixel-ui)
 
 ---
 
