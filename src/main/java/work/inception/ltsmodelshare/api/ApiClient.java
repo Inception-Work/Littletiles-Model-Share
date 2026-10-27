@@ -79,6 +79,75 @@ public final class ApiClient {
         });
     }
 
+    /**
+     * 静默续期：用 refreshToken 换新的 access token（滑动窗口，服务端每次轮换）。
+     *
+     * <p>服务端方案：access 30 分钟、refresh 2 小时且**每次续期重新计时**，
+     * 所以只要两小时内用过一次（打开面板/取结构都算），就一直不用重新登录。</p>
+     *
+     * @return true = 续期成功（cfg 里的 token/refreshToken 已更新并落盘）
+     */
+    public static boolean refreshBlocking() {
+        ModConfig cfg = ModConfig.get();
+        if (cfg.refreshToken == null || cfg.refreshToken.isEmpty()) {
+            return false;
+        }
+        try {
+            String body = GSON.toJson(new Dtos.RefreshRequest(cfg.refreshToken));
+            Dtos.RefreshResp resp = post(cfg.url("/api/account/auth/refresh"), body, null,
+                    Dtos.RefreshResp.class);
+            if (resp == null || !resp.success || resp.payload == null
+                    || resp.payload.token == null || resp.payload.token.isEmpty()) {
+                LtsModelShare.LOG.warn("续期失败：{}", describe(resp));
+                return false;
+            }
+            cfg.token = resp.payload.token;
+            if (resp.payload.refreshToken != null && !resp.payload.refreshToken.isEmpty()) {
+                cfg.refreshToken = resp.payload.refreshToken;
+            }
+            cfg.save();
+            LtsModelShare.LOG.info("登录已续期（access + refresh 都换了新的）");
+            return true;
+        } catch (Exception e) {
+            LtsModelShare.LOG.warn("续期异常：{}", e.toString());
+            return false;
+        }
+    }
+
+    /** 后台线程里静默续期一次（打开面板时调用，顺便把过期时间往后推） */
+    public static void refreshQuietly() {
+        io(() -> {
+            if (ModConfig.get().loggedIn()) {
+                refreshBlocking();
+            }
+        });
+    }
+
+    /**
+     * 需要登录的请求：401 / 失败时先续期再重试一次。
+     */
+    private static <T extends Dtos.Resp<?>> T postAuthed(String url, String body, Class<T> type) throws IOException {
+        ModConfig cfg = ModConfig.get();
+        T resp = post(url, body, cfg.token, type);
+        if (needsRefresh(resp) && refreshBlocking()) {
+            resp = post(url, body, cfg.token, type);
+        }
+        return resp;
+    }
+
+    /** 响应看起来像「令牌过期/未登录」就给一次续期机会 */
+    private static boolean needsRefresh(Dtos.Resp<?> resp) {
+        if (resp == null) {
+            return true;
+        }
+        if (resp.success) {
+            return false;
+        }
+        String code = resp.error_code == null ? "" : resp.error_code.toLowerCase();
+        String msg = resp.error_message == null ? "" : resp.error_message;
+        return code.contains("a02") || code.contains("401") || code.contains("token")
+                || msg.contains("登录") || msg.contains("过期") || msg.contains("token");
+    }
     /** 模型列表：POST /api/public/work/cards */
     public static void listCards(final Dtos.CardQuery query, final Callback<Dtos.Page<Dtos.WorkCard>> cb) {
         io(() -> {
@@ -132,7 +201,7 @@ public final class ApiClient {
                 }
                 String url = cfg.url("/api/work/download-snbt?itemId=" + itemId
                         + (version == null || version.isEmpty() ? "" : "&version=" + version));
-                Dtos.DownloadResp resp = post(url, "{}", cfg.token, Dtos.DownloadResp.class);
+                Dtos.DownloadResp resp = postAuthed(url, "{}", Dtos.DownloadResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
                     return;

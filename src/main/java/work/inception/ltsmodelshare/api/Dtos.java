@@ -187,4 +187,24 @@ public final class Dtos {
 
     public static class DownloadResp extends Resp<DownloadInfo> {
     }
+
+    // ==================== 令牌续期 ====================
+
+    /** POST /api/account/auth/refresh 的请求体 */
+    public static class RefreshRequest {
+        public String refreshToken;
+
+        public RefreshRequest(String refreshToken) {
+            this.refreshToken = refreshToken;
+        }
+    }
+
+    /** 续期返回：新的 access token + 轮换后的 refresh token */
+    public static class TokenPair {
+        public String token;
+        public String refreshToken;
+    }
+
+    public static class RefreshResp extends Resp<TokenPair> {
+    }
 }

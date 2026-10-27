@@ -30,6 +30,8 @@ public class InputHandler {
         if (!cfg.loggedIn()) {
             mc.displayGuiScreen(new GuiLogin(new GuiModels()));
         } else {
+            // 已登录：顺便静默续期一次（服务端是滑动窗口，用过就把过期时间往后推）
+            work.inception.ltsmodelshare.api.ApiClient.refreshQuietly();
             mc.displayGuiScreen(new GuiModels());
         }
     }
