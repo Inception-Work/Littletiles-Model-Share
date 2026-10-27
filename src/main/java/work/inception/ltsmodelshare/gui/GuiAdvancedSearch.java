@@ -289,13 +289,20 @@ public class GuiAdvancedSearch extends GuiScreen {
             return;
         }
         if (id == 6) {
+            /*
+             * 「清空条件」= 立刻清空并生效（原来只清工作副本、还要再点「应用」，
+             * 很容易被理解成"没清掉标签"）。清完直接回浏览页重查。
+             */
             working.authorId = null;
             working.authorName = "";
             working.tagCodes.clear();
             working.sort = "latest";
             authorHits.clear();
-            status = TextFormatting.GRAY + "已清空条件（点「应用」生效）";
-            initGui();
+            tagScroll = 0;
+            work.inception.ltsmodelshare.LtsModelShare.LOG.info(
+                    "[adv] 清空条件：tags={} author={}", working.tagCodes.size(), working.authorId);
+            parent.applyFilter(working);
+            mc.displayGuiScreen(parent);
             return;
         }
         if (id == 7) {
@@ -341,9 +348,12 @@ public class GuiAdvancedSearch extends GuiScreen {
         int index = tagRowAt(mouseX, mouseY);
         if (index >= 0) {
             String code = tags.get(index).code;
-            if (!working.tagCodes.remove(code)) {
-                working.tagCodes.add(code);
+            boolean added = working.tagCodes.add(code);
+            if (!added) {
+                working.tagCodes.remove(code);
             }
+            work.inception.ltsmodelshare.LtsModelShare.LOG.info(
+                    "[adv] 标签 {} {}（当前 {} 个）", code, added ? "选中" : "取消", working.tagCodes.size());
         }
     }
 
