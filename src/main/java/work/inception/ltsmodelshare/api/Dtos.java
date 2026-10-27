@@ -207,4 +207,52 @@ public final class Dtos {
 
     public static class RefreshResp extends Resp<TokenPair> {
     }
+
+    // ==================== 上传（手持蓝图 → 站点草稿） ====================
+
+    /** POST /api/studio/work/upload-snbt 的返回 */
+    public static class SnbtUpload {
+        public long blobId;
+        public String sha256;
+        public long sizeBytes;
+        public String assetUrl;
+        /** true = 同一份 SNBT 已存在，后端复用（不会重新生成白模） */
+        public boolean dedup;
+        /** SNBT 顶层网格 */
+        public Integer grid;
+        public Integer boxCount;
+    }
+
+    public static class SnbtUploadResp extends Resp<SnbtUpload> {
+    }
+
+    /** POST /api/studio/work/save 的请求体（只用到最少的字段） */
+    public static class WorkSaveRequest {
+        /** single / collection */
+        public String kind = "single";
+        public String title;
+        public String summary;
+        /** 受控标签 code */
+        public List<String> tagCodes;
+        public List<SaveItem> items;
+
+        public static class SaveItem {
+            /** upload-snbt 返回的 blobId */
+            public long snbtBlobId;
+            public String title;
+            public String summary;
+            /** 模型是哪一代：1.12.2 / 1.19+ */
+            public String mcVersion;
+
+            public SaveItem(long snbtBlobId, String title, String mcVersion) {
+                this.snbtBlobId = snbtBlobId;
+                this.title = title;
+                this.mcVersion = mcVersion;
+            }
+        }
+    }
+
+    /** save 返回作品 ID */
+    public static class WorkSaveResp extends Resp<Long> {
+    }
 }

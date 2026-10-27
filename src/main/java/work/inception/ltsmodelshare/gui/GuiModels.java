@@ -103,7 +103,8 @@ public class GuiModels extends GuiScreen {
         buttonList.add(new GuiButton(3, cx - 150, by, 56, 20, "上一页"));
         buttonList.add(new GuiButton(4, cx - 90, by, 56, 20, "下一页"));
         buttonList.add(new GuiButton(5, cx - 20, by, 66, 20, ModConfig.get().loggedIn() ? "退出登录" : "登录"));
-        buttonList.add(new GuiButton(6, cx + 50, by, 46, 20, "关闭"));
+        buttonList.add(new GuiButton(7, cx + 50, by, 78, 20, "上传蓝图"));
+        buttonList.add(new GuiButton(6, cx + 132, by, 46, 20, "关闭"));
 
         computeLayout();
         reload();
@@ -190,6 +191,9 @@ public class GuiModels extends GuiScreen {
                 } else {
                     mc.displayGuiScreen(new GuiLogin(this));
                 }
+                break;
+            case 7:
+                mc.displayGuiScreen(new GuiUpload(this));
                 break;
             case 6:
                 mc.displayGuiScreen(null);

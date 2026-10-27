@@ -253,6 +253,85 @@ public final class ApiClient {
             }
         });
     }
+    // ==================== 上传 ====================
+
+    /**
+     * 上传 SNBT 文本：{@code POST /api/studio/work/upload-snbt}（multipart，字段名 file）。
+     *
+     * <p>站点只认 txt 文件，所以把文本包成一个 txt 再传 —— 跟网页端粘贴 SNBT 的做法一致，
+     * 哈希/去重/白模生成都在服务端，模组这边不重复实现。</p>
+     */
+    public static void uploadSnbt(final String text, final String fileNameHint,
+                                  final Callback<Dtos.SnbtUpload> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (!cfg.loggedIn()) {
+                    cb.fail("请先登录");
+                    return;
+                }
+                String boundary = "----ltsmodelshare" + System.currentTimeMillis();
+                String name = (fileNameHint == null || fileNameHint.isEmpty() ? "blueprint" : fileNameHint)
+                        .replaceAll("[^\\w\\-\\u4e00-\\u9fa5]", "_") + ".txt";
+
+                byte[] head = ("--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"file\"; filename=\"" + name + "\"\r\n"
+                        + "Content-Type: text/plain; charset=utf-8\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+                byte[] body = text.getBytes(StandardCharsets.UTF_8);
+                byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+
+                HttpURLConnection conn = (HttpURLConnection) new URL(cfg.url("/api/studio/work/upload-snbt"))
+                        .openConnection();
+                conn.setRequestMethod("POST");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(120000);
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
+                if (!cfg.token.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + cfg.token);
+                }
+                try (OutputStream out = conn.getOutputStream()) {
+                    out.write(head);
+                    out.write(body);
+                    out.write(tail);
+                }
+                int code = conn.getResponseCode();
+                String respText = readAll(code / 100 == 2 ? conn.getInputStream() : conn.getErrorStream());
+                conn.disconnect();
+
+                Dtos.SnbtUploadResp resp = respText == null || respText.trim().isEmpty() ? null
+                        : GSON.fromJson(respText, Dtos.SnbtUploadResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("上传失败：" + e.getMessage());
+            }
+        });
+    }
+
+    /** 保存作品（{@code POST /api/studio/work/save}）→ 返回作品 ID */
+    public static void saveWork(final Dtos.WorkSaveRequest request, final Callback<Long> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String body = GSON.toJson(request);
+                Dtos.WorkSaveResp resp = postAuthed(cfg.url("/api/studio/work/save"), body,
+                        Dtos.WorkSaveResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail("保存失败：" + e.getMessage());
+            }
+        });
+    }
     // ==================== 底层 ====================
 
     private static <T> T post(String url, String body, String token, Class<T> type) throws IOException {
