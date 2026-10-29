@@ -1,5 +1,7 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
@@ -34,6 +36,8 @@ public class GuiInviteAccess extends GuiScreen {
 
     @Override
     public void initGui() {
+        String workId = fieldWorkId == null ? "" : fieldWorkId.getText();
+        String code = fieldCode == null ? "" : fieldCode.getText();
         buttonList.clear();
         int cx = width / 2;
         int cy = height / 2;
@@ -41,13 +45,15 @@ public class GuiInviteAccess extends GuiScreen {
         // 与登录页同一套节奏：标签 10px + 输入框 18px + 间隔 12px
         fieldWorkId = new GuiTextField(0, fontRenderer, cx - 100, cy - 62, 200, 18);
         fieldWorkId.setMaxStringLength(18);
+        fieldWorkId.setText(workId);
         fieldWorkId.setFocused(true);
 
         fieldCode = new GuiTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
         fieldCode.setMaxStringLength(64);
+        fieldCode.setText(code);
 
-        buttonList.add(new GuiButton(1, cx - 100, cy + 4, 96, 20, "访问"));
-        buttonList.add(new GuiButton(2, cx + 4, cy + 4, 96, 20, "取消"));
+        buttonList.add(new LocalizedButton(1, cx - 100, cy + 4, 200, 20, tr("ltsmodelshare.invite.open")));
+        buttonList.add(GuiNavigation.backButton(2, width, height, tr("ltsmodelshare.common.back")));
     }
 
     @Override
@@ -65,31 +71,32 @@ public class GuiInviteAccess extends GuiScreen {
     private void submit() {
         String raw = fieldWorkId.getText().trim();
         if (raw.isEmpty()) {
-            status = TextFormatting.RED + "请先填作品 ID";
+            status = TextFormatting.RED + tr("ltsmodelshare.invite.id_required");
             return;
         }
         long workId;
         try {
             workId = Long.parseLong(raw);
         } catch (NumberFormatException e) {
-            status = TextFormatting.RED + "作品 ID 只能填数字";
+            status = TextFormatting.RED + tr("ltsmodelshare.invite.id_number");
             return;
         }
         if (workId <= 0) {
-            status = TextFormatting.RED + "作品 ID 只能填数字";
+            status = TextFormatting.RED + tr("ltsmodelshare.invite.id_number");
             return;
         }
 
         final String code = fieldCode.getText().trim();
         busy = true;
-        status = TextFormatting.GRAY + "正在打开…";
+        status = TextFormatting.GRAY + tr("ltsmodelshare.invite.opening");
         ApiClient.detailCard(workId, code, new ApiClient.Callback<Dtos.WorkCard>() {
             @Override
             public void ok(final Dtos.WorkCard card) {
                 ApiClient.post(() -> {
                     busy = false;
+                    if (mc.currentScreen != GuiInviteAccess.this) return;
                     // 详情页还会带着访问码再拉一次详情：权限对错以服务端那次为准
-                    mc.displayGuiScreen(new GuiWorkDetail(card, code, parent));
+                    mc.displayGuiScreen(new GuiWorkDetail(card, code, GuiInviteAccess.this));
                 });
             }
 
@@ -103,16 +110,19 @@ public class GuiInviteAccess extends GuiScreen {
         });
     }
 
-    /** 访问码相关的两条错误码翻成人话（服务端是 M05-030 / M05-031） */
+    /** 访问码错误与旧邀请失效的服务端错误码翻成人话。 */
     private String friendly(String message) {
         if (message == null || message.trim().isEmpty()) {
-            return "打不开这个作品，请确认作品 ID 与访问码";
+            return tr("ltsmodelshare.invite.failed");
         }
         if (message.contains("M05-030")) {
-            return "这个作品需要访问码，请把作者给的访问码填上";
+            return tr("ltsmodelshare.invite.code_required");
         }
         if (message.contains("M05-031")) {
-            return "访问码不对，请对照邀请信息重新输入";
+            return tr("ltsmodelshare.invite.code_wrong");
+        }
+        if (message.contains("M05-064")) {
+            return tr("ltsmodelshare.invite.expired");
         }
         return message;
     }
@@ -162,12 +172,12 @@ public class GuiInviteAccess extends GuiScreen {
         int cx = width / 2;
         int cy = height / 2;
 
-        drawCenteredString(fontRenderer, "Littletiles Model Share · 凭邀请访问", cx, cy - 95, 0xFFFFFF);
-        drawCenteredString(fontRenderer, TextFormatting.GRAY + "填作者给你的作品 ID 与访问码",
+        drawCenteredString(fontRenderer, tr("ltsmodelshare.invite.title"), cx, cy - 95, 0xFFFFFF);
+        drawCenteredString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.invite.help"),
                 cx, cy - 82, 0xAAAAAA);
 
-        drawString(fontRenderer, "作品 ID", cx - 100, cy - 73, 0xCCCCCC);
-        drawString(fontRenderer, "访问码", cx - 100, cy - 34, 0xCCCCCC);
+        drawString(fontRenderer, tr("ltsmodelshare.invite.id"), cx - 100, cy - 73, 0xCCCCCC);
+        drawString(fontRenderer, tr("ltsmodelshare.invite.code"), cx - 100, cy - 34, 0xCCCCCC);
 
         fieldWorkId.drawTextBox();
         fieldCode.drawTextBox();

@@ -84,8 +84,8 @@ public final class Dtos {
     /**
      * 作品里的一条模型。
      *
-     * <p>字段对着后端 PublicItemView 来：**没有** sizeBytes / snbtVersion，
-     * 文件大小在 {@code preview.sizeBytes}（只有生成好白模的才有）。</p>
+     * <p>字段对着后端 PublicItemView 来：{@code snbtSizeBytes} 是上传的结构原件，
+     * {@code preview.sizeBytes} 是另行生成的白模 OBJ，两者不能混用。</p>
      */
     public static class Item {
         public long itemId;
@@ -97,6 +97,8 @@ public final class Dtos {
         public Integer grid;
         /** box 总数 */
         public Integer boxCount;
+        /** 上传的 SNBT 原件大小；不是白模 OBJ 的 preview.sizeBytes。 */
+        public Long snbtSizeBytes;
         public Integer boxOffsetCount;
         public Integer boxPlainCount;
         public List<String> images;
@@ -122,6 +124,8 @@ public final class Dtos {
     public static class Tag {
         public String code;
         public String name;
+        /** Existing website translations, keyed by zh-cn / zh-tw / en / ja / ko / de / fr. */
+        public java.util.Map<String, String> nameI18n;
     }
 
     public static class Author {
@@ -129,7 +133,17 @@ public final class Dtos {
         public String username;
         public String displayName;
         public String avatarUrl;
+        public String bannerUrl;
+        public String bio;
         public String preferredLocale;
+        public long followingCount;
+        public long followerCount;
+    }
+
+    /** 作者主页：公开资料 + 按 top 排序的公开作品分页 */
+    public static class AuthorHome {
+        public Author author;
+        public Page<WorkCard> works;
     }
 
     /** 下载 SNBT 的结果 */
@@ -180,6 +194,9 @@ public final class Dtos {
     }
 
     public static class CardsResp extends Resp<Page<WorkCard>> {
+    }
+
+    public static class AuthorHomeResp extends Resp<AuthorHome> {
     }
 
     public static class DetailResp extends Resp<WorkDetail> {

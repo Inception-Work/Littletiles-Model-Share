@@ -1,5 +1,7 @@
 package work.inception.ltsmodelshare.client;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import com.creativemd.littletiles.common.util.grid.LittleGridContext;
 import work.inception.ltsmodelshare.LtsModelShare;
 
@@ -52,8 +54,7 @@ public final class GridLimits {
             scale++;
             target *= 2;
         }
-        return "把 config/littletiles.json 里 core.scale 改成 " + scale
-                + "（上限 " + target + "），然后重启游戏";
+        return tr("ltsmodelshare.grid.hint", scale, target);
     }
     /** 要支持 grid=needed，建议把 core.scale 改成几（默认 6 → 上限 32，每 +1 翻倍） */
     public static int suggestScale(int needed) {

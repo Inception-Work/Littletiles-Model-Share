@@ -51,7 +51,7 @@ public final class SnbtCodec {
                 while ((n = gz.read(buf)) > 0) {
                     total += n;
                     if (total > MAX_CHARS * 4) {
-                        throw new IllegalStateException("结构解压后过大");
+                        throw new IllegalStateException("Decompressed structure exceeds size limit");
                     }
                     bos.write(buf, 0, n);
                 }

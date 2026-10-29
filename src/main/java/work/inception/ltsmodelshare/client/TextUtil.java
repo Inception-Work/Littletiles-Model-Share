@@ -1,6 +1,7 @@
 package work.inception.ltsmodelshare.client;
 
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.renderer.GlStateManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,24 @@ import java.util.List;
 public final class TextUtil {
 
     private TextUtil() {
+    }
+
+    /** Keep full translated action labels inside their existing button bounds. */
+    public static void drawCenteredFit(FontRenderer fr, String text, int centerX, int top, int maxWidth, int color) {
+        int textWidth = fr.getStringWidth(text);
+        if (textWidth <= maxWidth || textWidth == 0) {
+            fr.drawStringWithShadow(text, centerX - textWidth / 2, top, color);
+            return;
+        }
+        float scale = Math.max(1, maxWidth) / (float) textWidth;
+        GlStateManager.pushMatrix();
+        try {
+            GlStateManager.translate(centerX, top + 4, 0);
+            GlStateManager.scale(scale, scale, 1);
+            fr.drawStringWithShadow(text, -textWidth / 2.0f, -4, color);
+        } finally {
+            GlStateManager.popMatrix();
+        }
     }
 
     /** 按像素宽度折行（逐字符），已存在的 \n 也保留 */

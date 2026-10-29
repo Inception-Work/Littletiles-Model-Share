@@ -1,5 +1,8 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+import work.inception.ltsmodelshare.client.SiteTags;
+
 import com.creativemd.littletiles.common.util.converation.StructureStringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
@@ -80,6 +83,7 @@ public class GuiUpload extends GuiScreen {
 
     // 上传进度（阻塞弹窗）
     private boolean busy;
+    private boolean submitted;
     private String progress = "";
     private String resultText;
     private boolean resultOk;
@@ -138,7 +142,7 @@ public class GuiUpload extends GuiScreen {
         y += 11;
         boxY = y;
 
-        actionY = height - 30;
+        actionY = GuiNavigation.footerY(height);
         boxH = Math.max(CELL_H, actionY - 36 - boxY);
 
         // 左截图（更宽）/ 右标签（窄一些，标签本身不长）
@@ -149,12 +153,16 @@ public class GuiUpload extends GuiScreen {
         tagsBoxX = panelLeft + leftW + 8;
         tagsBoxW = Math.max(90, panelW - leftW - 8);
 
-        buttonList.add(new GuiButton(3, panelLeft + panelW - 78, listsLabelY - 3, 78, 18, "刷新截图"));
+        buttonList.add(new LocalizedButton(3, panelLeft + panelW - 78, listsLabelY - 3, 78, 18, tr("ltsmodelshare.upload.refresh_shots")));
 
-        int bw = 110;
-        buttonList.add(new GuiButton(1, panelLeft, actionY, bw, 20, "提交草稿"));
-        buttonList.add(new GuiButton(4, panelLeft + bw + 6, actionY, bw, 20, "提交审核"));
-        buttonList.add(new GuiButton(2, panelLeft + panelW - 90, actionY, 90, 20, "取消"));
+        int bw = GuiNavigation.actionWidth(width, 2, 110);
+        buttonList.add(new LocalizedButton(1, GuiNavigation.MARGIN, actionY, bw, 20, tr("ltsmodelshare.upload.draft")));
+        buttonList.add(new LocalizedButton(4, GuiNavigation.MARGIN + bw + GuiNavigation.GAP, actionY, bw, 20,
+                tr("ltsmodelshare.upload.review")));
+        buttonList.add(GuiNavigation.backButton(2, width, height, tr("ltsmodelshare.common.back")));
+        for (GuiButton button : buttonList) {
+            if (button.id == 1 || button.id == 4) button.enabled = !submitted;
+        }
 
         exportFromHand();
         if (shots.isEmpty()) {
@@ -172,18 +180,18 @@ public class GuiUpload extends GuiScreen {
         exportError = null;
         EntityPlayerSP player = Minecraft.getMinecraft().player;
         if (player == null) {
-            exportError = "请先进入一个世界";
+            exportError = tr("ltsmodelshare.common.world_required");
             return;
         }
         ItemStack held = player.getHeldItemMainhand();
         if (held == null || held.isEmpty()) {
-            exportError = "手里没有东西 —— 请先拿着一张 LittleTiles 蓝图";
+            exportError = tr("ltsmodelshare.upload.hold_blueprint");
             return;
         }
         try {
             String text = StructureStringUtils.exportStructure(held);
             if (text == null || text.trim().isEmpty()) {
-                exportError = "手里的物品不是 LittleTiles 蓝图";
+                exportError = tr("ltsmodelshare.upload.not_blueprint");
                 return;
             }
             snbt = text;
@@ -192,7 +200,7 @@ public class GuiUpload extends GuiScreen {
                 fieldTitle.setText(name == null ? "" : name);
             }
         } catch (Throwable t) {
-            exportError = "导出失败：" + t;
+            exportError = tr("ltsmodelshare.upload.export_failed", t);
         }
     }
 
@@ -339,19 +347,20 @@ public class GuiUpload extends GuiScreen {
 
     /** @param alsoSubmit true = 保存后立即提交审核；false = 只存草稿 */
     private void startUpload(final boolean alsoSubmit) {
+        if (submitted) return;
         if (snbt == null) {
-            finish(false, exportError == null ? "没有可上传的结构" : exportError);
+            finish(false, exportError == null ? tr("ltsmodelshare.upload.no_structure") : exportError);
             return;
         }
         String title = fieldTitle.getText().trim();
         if (title.isEmpty()) {
-            finish(false, "标题不能为空");
+            finish(false, tr("ltsmodelshare.upload.title_required"));
             return;
         }
 
         busy = true;
         resultText = null;
-        progress = "上传结构…";
+        progress = tr("ltsmodelshare.upload.structure");
 
         final String finalTitle = title;
         final String summaryText = summary.getText().trim();
@@ -381,7 +390,7 @@ public class GuiUpload extends GuiScreen {
             saveWork(blob, title, summaryText, urls, alsoSubmit);
             return;
         }
-        setProgress("上传截图 " + (index + 1) + "/" + queue.size() + "…");
+        setProgress(tr("ltsmodelshare.upload.shot_progress", index + 1, queue.size()));
         ApiClient.uploadImage(queue.get(index), new ApiClient.Callback<String>() {
             @Override
             public void ok(String url) {
@@ -399,7 +408,7 @@ public class GuiUpload extends GuiScreen {
 
     private void saveWork(final Dtos.SnbtUpload blob, final String title, final String summaryText,
                           final List<String> imageUrls, final boolean alsoSubmit) {
-        setProgress("保存作品…");
+        setProgress(tr("ltsmodelshare.upload.saving"));
         final Dtos.WorkSaveRequest req = new Dtos.WorkSaveRequest();
         req.kind = "single";
         // 站点保存时不带 visibility 会默认存成 private —— 那样审核通过也不会出现在
@@ -430,38 +439,34 @@ public class GuiUpload extends GuiScreen {
             @Override
             public void ok(final Long workId) {
                 if (!alsoSubmit) {
-                    finish(true, "已保存为草稿：作品 #" + workId
-                            + "（截图 " + imageUrls.size() + " 张，标签 " + tagCodes.size() + " 个）\n"
-                            + "去网站「创作台」可以继续编辑再提交审核");
+                    finish(true, tr("ltsmodelshare.upload.draft_saved", workId, imageUrls.size(), tagCodes.size()));
                     return;
                 }
-                setProgress("申请上传授权…");
+                setProgress(tr("ltsmodelshare.upload.consent"));
                 ApiClient.agreeUploadRights(new ApiClient.Callback<Long>() {
                     @Override
                     public void ok(Long consentId) {
-                        setProgress("提交审核…");
+                        setProgress(tr("ltsmodelshare.upload.submitting"));
                         ApiClient.submitReview(workId, false, consentId,
                                 new ApiClient.Callback<Dtos.SubmitReview>() {
                                     @Override
                                     public void ok(Dtos.SubmitReview value) {
                                         finish(true, value.submitted
-                                                        ? "已提交审核：作品 #" + workId + "，通过后会公开"
+                                                        ? tr("ltsmodelshare.upload.submitted", workId)
                                                         + (value.message == null ? "" : "\n" + value.message)
-                                                        : "作品 #" + workId + " 已保存，模型还在生成，完成后会自动提交");
+                                                        : tr("ltsmodelshare.upload.auto_submit", workId));
                                     }
 
                                     @Override
                                     public void fail(String message) {
-                                        finish(false, "作品已保存（#" + workId + "），但提交审核失败：" + message
-                                                + "\n可以去网站创作台手动提交");
+                                        finish(false, tr("ltsmodelshare.upload.review_error", workId, message));
                                     }
                                 });
                     }
 
                     @Override
                     public void fail(String message) {
-                        finish(false, "作品已保存（#" + workId + "），但申请上传授权失败：" + message
-                                + "\n可以去网站创作台手动提交");
+                        finish(false, tr("ltsmodelshare.upload.consent_error", workId, message));
                     }
                 });
             }
@@ -481,23 +486,18 @@ public class GuiUpload extends GuiScreen {
         ApiClient.post(() -> {
             busy = true;              // 保持阻塞，等玩家点一下看结果
             resultOk = ok;
+            submitted = ok;
             resultText = text;
             progress = "";
         });
     }
 
-    /**
-     * 关掉结果弹窗。
-     *
-     * <p>**上传成功**就直接退出上传页回浏览页（内容已经提交完了，留在原页只会让人
-     * 再点一次提交，容易重复建作品）；失败则留在原地，方便改完重试。</p>
-     */
+    /** Dismiss only this overlay; a second ESC leaves the upload page. */
     private void dismissResult() {
         busy = false;
-        boolean ok = resultOk;
         resultText = null;
-        if (ok) {
-            mc.displayGuiScreen(parent);
+        for (GuiButton button : buttonList) {
+            if (button.id == 1 || button.id == 4) button.enabled = !submitted;
         }
     }
 
@@ -576,29 +576,27 @@ public class GuiUpload extends GuiScreen {
         int cx = width / 2;
 
         Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
-        drawCenteredString(fontRenderer, "上传手持蓝图", cx, 22, 0xFFFFFF);
+        drawCenteredString(fontRenderer, tr("ltsmodelshare.upload.title"), cx, 22, 0xFFFFFF);
 
         String state = exportError != null ? TextFormatting.RED + exportError
-                : snbt != null ? TextFormatting.GREEN + "已导出 " + snbt.length() + " 字符" : "";
+                : snbt != null ? TextFormatting.GREEN + tr("ltsmodelshare.upload.exported", snbt.length()) : "";
         if (!state.isEmpty()) {
             drawCenteredString(fontRenderer, state, cx, 32, 0x55FF55);
         }
 
-        drawString(fontRenderer, TextFormatting.GRAY + "标题", panelLeft, titleLabelY, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.upload.field_title"), panelLeft, titleLabelY, 0xAAAAAA);
         fieldTitle.drawTextBox();
 
-        drawString(fontRenderer, TextFormatting.GRAY + "简介（Enter 换行）", panelLeft, summaryLabelY, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.upload.summary"), panelLeft, summaryLabelY, 0xAAAAAA);
         summary.draw(mouseX, mouseY);
 
-        drawString(fontRenderer, TextFormatting.GRAY + "截图（点选，最多 " + MAX_SHOTS + "，已选 "
-                + selectedShots.size() + "）", shotsBoxX, listsLabelY, 0xAAAAAA);
-        drawString(fontRenderer, TextFormatting.GRAY + "标签（可多选"
-                + (tags.isEmpty() ? "" : "，" + tags.size() + " 个") + "）", tagsBoxX, listsLabelY, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.upload.screenshots", MAX_SHOTS, selectedShots.size()), shotsBoxX, listsLabelY, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + (tags.isEmpty() ? tr("ltsmodelshare.common.tags") : tr("ltsmodelshare.common.tags_count", tags.size())), tagsBoxX, listsLabelY, 0xAAAAAA);
 
         // ---------- 左：截图网格 ----------
         Gui.drawRect(shotsBoxX, boxY, shotsBoxX + shotsBoxW, boxY + boxH, 0x40000000);
         if (shots.isEmpty()) {
-            drawString(fontRenderer, TextFormatting.DARK_GRAY + "（没有截图，游戏里按 F2）",
+            drawString(fontRenderer, TextFormatting.DARK_GRAY + tr("ltsmodelshare.upload.no_shots"),
                     shotsBoxX + 4, boxY + 4, 0x777777);
         }
         int perRow = cellsPerRow();
@@ -638,7 +636,7 @@ public class GuiUpload extends GuiScreen {
         // ---------- 右：标签列表 ----------
         Gui.drawRect(tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + boxH, 0x40000000);
         if (tags.isEmpty() && !loadingTags) {
-            drawString(fontRenderer, TextFormatting.DARK_GRAY + "（没有标签）", tagsBoxX + 4, boxY + 4, 0x777777);
+            drawString(fontRenderer, TextFormatting.DARK_GRAY + tr("ltsmodelshare.search.no_tags"), tagsBoxX + 4, boxY + 4, 0x777777);
         }
         for (int row = 0; row < tagsVisible(); row++) {
             int index = tagScroll + row;
@@ -652,7 +650,7 @@ public class GuiUpload extends GuiScreen {
                 Gui.drawRect(tagsBoxX + 1, rowY, tagsBoxX + tagsBoxW - 5, rowY + TAG_ROW_H - 1, 0x40FFFFFF);
             }
             drawString(fontRenderer, (on ? TextFormatting.GREEN + "✔ " : TextFormatting.GRAY + "·  ")
-                    + tag.name, tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xCCCCCC);
+                    + SiteTags.label(tag), tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xCCCCCC);
         }
         if (maxTagScroll() > 0) {
             drawScrollbar(tagsBoxX + tagsBoxW - 4, boxY, boxH, tagScroll, maxTagScroll(),
@@ -680,7 +678,7 @@ public class GuiUpload extends GuiScreen {
         Gui.drawRect(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, 0xFF2B2B2B);
         drawFrame(cx - w / 2, cy - h / 2, w, h, 0xFF8A8A8A);
 
-        String title = resultText == null ? "处理中" : (resultOk ? "完成" : "失败");
+        String title = resultText == null ? tr("ltsmodelshare.upload.busy") : (resultOk ? tr("ltsmodelshare.upload.done") : tr("ltsmodelshare.upload.failed"));
         int titleColor = resultText == null ? 0xFFFF55 : (resultOk ? 0x55FF55 : 0xFF5555);
         drawCenteredString(fontRenderer, title, cx, cy - h / 2 + 6, titleColor);
 
@@ -699,7 +697,7 @@ public class GuiUpload extends GuiScreen {
             drawCenteredString(fontRenderer, TextFormatting.GRAY + sb.toString(),
                     cx, cy + h / 2 - 12, 0xAAAAAA);
         } else {
-            drawCenteredString(fontRenderer, TextFormatting.GRAY + "点一下关闭",
+            drawCenteredString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.upload.dismiss"),
                     cx, cy + h / 2 - 12, 0xAAAAAA);
         }
     }

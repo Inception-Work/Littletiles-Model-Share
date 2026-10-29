@@ -21,7 +21,7 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle.forge'
 
-version = '0.1.2'
+version = '0.1.3'
 group = 'work.inception'
 archivesBaseName = 'LittletilesModelShare'
 
@@ -87,6 +87,8 @@ dependencies {
      * 所以：jar 放 deps/（只给编译），运行时靠 run/mods（玩家环境靠他们自己的 mods 目录）。
      */
     compileOnly files('deps/LittleTiles_v1.5.66_mc1.12.2.jar')
+    // 原生预览会使用 LittleTiles 的 CreativeCore 数据类型；只编译，不打包进本模组。
+    compileOnly files('deps/CreativeCore_v1.10.70_mc1.12.2.jar')
 }
 
 processResources {
@@ -101,6 +103,13 @@ processResources {
     }
 }
 
+// Exercise localization behavior without starting the game or adding test libraries.
+task localizationChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath
+    main = 'work.inception.ltsmodelshare.client.LocalizationChecks'
+}
+check.dependsOn localizationChecks
+
 jar {
     /*
      * 每次构建输出**唯一文件名**。
@@ -110,7 +119,7 @@ jar {
      * 一旦它去那个文件里取还没加载的类，就会 NoClassDefFoundError 直接崩。
      * 改成带时间戳的文件名后，旧 jar 原封不动，正在跑的游戏不受影响。
      */
-    archiveName = "LittletilesModelShare-0.1.2-" + new Date().format('MMdd-HHmmss') + ".jar"
+    archiveName = "LittletilesModelShare-${project.version}-" + new Date().format('MMdd-HHmmss') + ".jar"
     manifest {
         attributes([
             'Specification-Title': 'ltsmodelshare',

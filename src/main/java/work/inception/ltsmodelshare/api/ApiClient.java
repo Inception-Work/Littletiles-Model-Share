@@ -1,5 +1,8 @@
 package work.inception.ltsmodelshare.api;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+import static work.inception.ltsmodelshare.client.Translations.siteLocale;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import work.inception.ltsmodelshare.LtsModelShare;
@@ -74,7 +77,7 @@ public final class ApiClient {
                 cfg.save();
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("登录失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.login_failed", e.getMessage()));
             }
         });
     }
@@ -154,7 +157,7 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 if (query.sort == null) query.sort = "latest";
-                if (query.locale == null || query.locale.isEmpty()) query.locale = "zh-CN";
+                if (query.locale == null || query.locale.isEmpty()) query.locale = siteLocale();
                 if (query.size <= 0) query.size = 12;
                 if (query.current <= 0) query.current = 1;
                 String body = GSON.toJson(query);
@@ -166,7 +169,30 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("取列表失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** 作者主页：POST /api/public/work/author（需登录，作品固定按 top 排序）。 */
+    public static void authorHome(final long userId, final String keyword, final boolean exact,
+                                  final String locale, final int current, final int size,
+                                  final Callback<Dtos.AuthorHome> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String url = cfg.url("/api/public/work/author?userId=" + userId
+                        + "&current=" + current + "&size=" + size + "&exact=" + exact
+                        + "&locale=" + encode(locale == null || locale.isEmpty() ? siteLocale() : locale)
+                        + (keyword == null || keyword.trim().isEmpty() ? "" : "&q=" + encode(keyword.trim())));
+                Dtos.AuthorHomeResp resp = postAuthed(url, "{}", Dtos.AuthorHomeResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.author_failed", e.getMessage()));
             }
         });
     }
@@ -184,7 +210,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("取标签失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.tags_failed", e.getMessage()));
             }
         });
     }
@@ -203,7 +229,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("搜作者失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.search_author_failed", e.getMessage()));
             }
         });
     }
@@ -228,8 +254,8 @@ public final class ApiClient {
     /**
      * 作品详情（带访问码）：POST /api/public/work/detail?workId=&code=
      *
-     * <p>unlisted（凭链接）作品的访问码。服务端缺码回 M05-030、错码回 M05-031；
-     * 公开作品带上也不影响（它不校验）。</p>
+     * <p>仅 unlisted（凭链接）作品可携访问码：缺码回 M05-030、错码回 M05-031；
+     * 作品改成公开后，旧邀请携码请求回 M05-064，公开作品需走不带码的列表入口。</p>
      */
     public static void detail(final long workId, final String code,
                               final Callback<Dtos.WorkDetail> cb) {
@@ -237,7 +263,7 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 String tail = code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim());
-                Dtos.DetailResp resp = post(cfg.url("/api/public/work/detail?workId=" + workId + tail),
+                Dtos.DetailResp resp = post(cfg.url("/api/public/work/detail?workId=" + workId + "&locale=" + encode(siteLocale()) + tail),
                         "{}", cfg.token, Dtos.DetailResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
@@ -245,7 +271,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("取详情失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.detail_failed", e.getMessage()));
             }
         });
     }
@@ -304,7 +330,7 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 if (!cfg.loggedIn()) {
-                    cb.fail("请先登录（M 打开面板 → 登录）");
+                    cb.fail(tr("ltsmodelshare.api.login_hint"));
                     return;
                 }
                 String url = cfg.url("/api/work/download-snbt?itemId=" + itemId
@@ -317,7 +343,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("取下载地址失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.download_failed", e.getMessage()));
             }
         });
     }
@@ -334,31 +360,34 @@ public final class ApiClient {
                 ModConfig cfg = ModConfig.get();
                 String url = info.assetUrl;
                 if (url == null || url.isEmpty()) {
-                    cb.fail("下载地址为空");
+                    cb.fail(tr("ltsmodelshare.api.download_empty"));
                     return;
                 }
                 if (url.startsWith("/")) {
                     url = cfg.baseUrl + url;
                 }
                 HttpURLConnection conn = open(url, "GET", null, null);
-                int code = conn.getResponseCode();
-                if (code / 100 != 2) {
-                    cb.fail("取结构失败：HTTP " + code);
-                    return;
-                }
                 String text;
-                try (InputStream in = conn.getInputStream()) {
-                    text = readAll(in);
+                try {
+                    AssetHeaders.apply(conn, cfg.baseUrl);
+                    int code = conn.getResponseCode();
+                    if (code / 100 != 2) {
+                        cb.fail(tr("ltsmodelshare.api.structure_http", code));
+                        return;
+                    }
+                    try (InputStream in = conn.getInputStream()) {
+                        text = readAll(in);
+                    }
                 } finally {
                     conn.disconnect();
                 }
                 if (text == null || text.trim().isEmpty()) {
-                    cb.fail("服务器返回了空内容");
+                    cb.fail(tr("ltsmodelshare.api.empty_response"));
                     return;
                 }
                 cb.ok(text);
             } catch (Exception e) {
-                cb.fail("取结构失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.structure_failed", e.getMessage()));
             }
         });
     }
@@ -376,7 +405,7 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 if (!cfg.loggedIn()) {
-                    cb.fail("请先登录");
+                    cb.fail(tr("ltsmodelshare.api.login_required"));
                     return;
                 }
                 String boundary = "----ltsmodelshare" + System.currentTimeMillis();
@@ -418,7 +447,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("上传失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.upload_failed", e.getMessage()));
             }
         });
     }
@@ -433,11 +462,11 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 if (!cfg.loggedIn()) {
-                    cb.fail("请先登录");
+                    cb.fail(tr("ltsmodelshare.api.login_required"));
                     return;
                 }
                 if (file == null || !file.isFile()) {
-                    cb.fail("文件不存在");
+                    cb.fail(tr("ltsmodelshare.api.file_missing"));
                     return;
                 }
                 String boundary = "----ltsmodelshare" + System.currentTimeMillis();
@@ -477,7 +506,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("上传截图失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.image_failed", e.getMessage()));
             }
         });
     }
@@ -495,7 +524,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("保存失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.save_failed", e.getMessage()));
             }
         });
     }
@@ -518,7 +547,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload.consentId);
             } catch (Exception e) {
-                cb.fail("授权失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.consent_failed", e.getMessage()));
             }
         });
     }
@@ -538,7 +567,7 @@ public final class ApiClient {
                 }
                 cb.ok(resp.payload);
             } catch (Exception e) {
-                cb.fail("提交审核失败：" + e.getMessage());
+                cb.fail(tr("ltsmodelshare.api.review_failed", e.getMessage()));
             }
         });
     }
@@ -593,8 +622,8 @@ public final class ApiClient {
 
     /** 把响应壳翻成人话 */
     private static String describe(Dtos.Resp<?> resp) {
-        if (resp == null) return "响应解析失败（服务器返回了非 JSON？）";
-        String m = resp.error_message == null || resp.error_message.isEmpty() ? "请求失败" : resp.error_message;
+        if (resp == null) return tr("ltsmodelshare.api.invalid_response");
+        String m = resp.error_message == null || resp.error_message.isEmpty() ? tr("ltsmodelshare.api.request_failed") : resp.error_message;
         return resp.error_code == null || resp.error_code.isEmpty() ? m : m + "（" + resp.error_code + "）";
     }
 

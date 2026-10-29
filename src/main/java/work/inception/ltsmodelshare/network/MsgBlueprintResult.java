@@ -68,7 +68,20 @@ public class MsgBlueprintResult implements IMessage {
             final boolean ok = msg.ok;
             final String text = msg.text;
             net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(
-                    () -> BlueprintClient.onResult(ok, text));
+                    () -> {
+                        // Old servers send plain text; new servers send vanilla translation components.
+                        String localized = text;
+                        if (text.startsWith("{")) {
+                            try {
+                                net.minecraft.util.text.ITextComponent component =
+                                        net.minecraft.util.text.ITextComponent.Serializer.jsonToComponent(text);
+                                if (component != null) localized = component.getFormattedText();
+                            } catch (RuntimeException ignored) {
+                                // Preserve a legacy/raw response that merely starts with a brace.
+                            }
+                        }
+                        BlueprintClient.onResult(ok, localized);
+                    });
             return null;
         }
     }

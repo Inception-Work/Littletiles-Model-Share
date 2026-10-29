@@ -1,5 +1,7 @@
 package work.inception.ltsmodelshare.client;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
@@ -45,7 +47,7 @@ public final class BlueprintClient {
         sentAt = System.currentTimeMillis();
         if (PacketHandler.NET == null) {
             waiting = false;
-            fallbackToClipboard("网络通道未初始化");
+            fallbackToClipboard(tr("ltsmodelshare.blueprint.channel_missing"));
             return;
         }
         // gzip 后再切片：单包超过 32767 字节会被 Forge 直接拒绝
@@ -53,7 +55,7 @@ public final class BlueprintClient {
         int total = Math.max(1, (packed.length + MsgBlueprintChunk.MAX_DATA - 1) / MsgBlueprintChunk.MAX_DATA);
         if (total > 64) {
             waiting = false;
-            fallbackToClipboard("结构太大（压缩后 " + packed.length + " 字节），联机通道传不了");
+            fallbackToClipboard(tr("ltsmodelshare.blueprint.compressed_large", packed.length));
             return;
         }
         int transferId = TRANSFER_ID.incrementAndGet();
@@ -79,7 +81,7 @@ public final class BlueprintClient {
         }
         if (work.inception.ltsmodelshare.DevEnv.isDev() && mc.player != null) {
             mc.player.sendMessage(new TextComponentString(
-                    (ok ? TextFormatting.GREEN : TextFormatting.RED) + "[模型共享/调试] " + text));
+                    (ok ? TextFormatting.GREEN : TextFormatting.RED) + tr("ltsmodelshare.common.debug", text)));
         }
     }
 
@@ -95,14 +97,14 @@ public final class BlueprintClient {
             Minecraft mc = Minecraft.getMinecraft();
             if (mc.currentScreen instanceof GuiWorkDetail) {
                 ((GuiWorkDetail) mc.currentScreen)
-                        .onServerBlueprint(false, "服务端还在处理（大模型解析会慢一些），请稍等…");
+                        .onServerBlueprint(false, tr("ltsmodelshare.blueprint.processing"));
             }
             return;
         }
         // 第二段：真的没回音，才退回剪贴板
         if (waited >= HARD_TIMEOUT_MS) {
             waiting = false;
-            fallbackToClipboard("服务端没有响应（对方可能没装本模组）");
+            fallbackToClipboard(tr("ltsmodelshare.blueprint.timeout"));
         }
     }
 
@@ -118,15 +120,15 @@ public final class BlueprintClient {
             LtsModelShare.LOG.warn("写剪贴板失败：{}", t.toString());
         }
         String text = copied
-                ? reason + "；结构已复制到剪贴板，进 LittleTiles 的导入框 Paste + Import"
-                : reason + "；而且写剪贴板也失败了，请重试";
+                ? tr("ltsmodelshare.blueprint.clipboard_ok", reason)
+                : tr("ltsmodelshare.blueprint.clipboard_failed", reason);
         LtsModelShare.LOG.info("[联机] {}", text);
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.currentScreen instanceof GuiWorkDetail) {
             ((GuiWorkDetail) mc.currentScreen).onServerBlueprint(false, text);
         } else if (work.inception.ltsmodelshare.DevEnv.isDev() && mc.player != null) {
             mc.player.sendMessage(new TextComponentString(
-                    TextFormatting.YELLOW + "[模型共享/调试] " + text));
+                    TextFormatting.YELLOW + tr("ltsmodelshare.common.debug", text)));
         }
     }
 }

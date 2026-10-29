@@ -3,7 +3,8 @@ package work.inception.ltsmodelshare.server;
 import com.creativemd.littletiles.common.util.converation.StructureStringUtils;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.text.TextFormatting;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.network.MsgBlueprintResult;
@@ -33,16 +34,16 @@ public final class BlueprintServer {
         }
         try {
             if (snbt == null || snbt.trim().isEmpty()) {
-                reply(player, false, "结构文本为空");
+                reply(player, false, "ltsmodelshare.server.empty");
                 return;
             }
             if (snbt.length() > work.inception.ltsmodelshare.network.SnbtCodec.MAX_CHARS) {
-                reply(player, false, "结构文本太大（" + snbt.length() + " 字符），已拒绝");
+                reply(player, false, "ltsmodelshare.server.too_large", snbt.length());
                 return;
             }
             ItemStack stack = StructureStringUtils.importStructure(snbt);
             if (stack == null || stack.isEmpty()) {
-                reply(player, false, "解析失败：结构为空或版本不兼容");
+                reply(player, false, "ltsmodelshare.common.parse_incompatible");
                 return;
             }
             // 名字统一用站点标题：LittleTiles 从 SNBT 里取的名字在某些结构上会变成乱码
@@ -54,21 +55,23 @@ public final class BlueprintServer {
             boolean added = player.inventory.addItemStackToInventory(stack);
             if (!added) {
                 player.dropItem(stack, false);
-                reply(player, true, "背包满了，蓝图掉在你脚下：" + stack.getDisplayName());
+                reply(player, true, "ltsmodelshare.server.dropped", stack.getDisplayName());
                 LtsModelShare.LOG.info("背包已满，蓝图已掉落：{}", title);
                 return;
             }
             player.inventory.markDirty();
-            reply(player, true, "已生成蓝图：" + stack.getDisplayName() + "（" + snbt.length() + " 字符）");
+            reply(player, true, "ltsmodelshare.server.created", stack.getDisplayName(), snbt.length());
             LtsModelShare.LOG.info("服务端生成蓝图：player={} title={} 字符数={}",
                     player.getName(), title, snbt.length());
         } catch (Throwable t) {
             LtsModelShare.LOG.warn("服务端生成蓝图失败：{}", t.toString());
-            reply(player, false, "生成失败：" + t);
+            reply(player, false, "ltsmodelshare.server.failed", t.toString());
         }
     }
 
-    private static void reply(EntityPlayerMP player, boolean ok, String text) {
+    private static void reply(EntityPlayerMP player, boolean ok, String key, Object... args) {
+        ITextComponent message = new TextComponentTranslation(key, args);
+        String text = ITextComponent.Serializer.componentToJson(message);
         // 网络层出任何问题都不能让服务端把玩家踢掉（Forge 在 handler 里抛异常会直接断连）
         try {
             if (PacketHandler.NET != null) {
@@ -79,9 +82,8 @@ public final class BlueprintServer {
         }
         // 聊天栏只在开发环境打：发布版不要往玩家聊天框里刷屏（界面里仍有状态文字）
         if (work.inception.ltsmodelshare.DevEnv.isDev()) {
-            TextComponentString msg = new TextComponentString(
-                    (ok ? TextFormatting.GREEN : TextFormatting.RED) + "[模型共享/调试] " + text);
-            player.sendMessage(msg);
+            message.getStyle().setColor(ok ? TextFormatting.GREEN : TextFormatting.RED);
+            player.sendMessage(message);
         }
     }
 }

@@ -1,5 +1,7 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -46,7 +48,7 @@ public class GuiNotice extends GuiScreen {
         this.title = title;
         this.paragraphs = paragraphs == null ? new ArrayList<>() : paragraphs;
         this.back = back;
-        this.closeLabel = closeLabel == null ? "知道了" : closeLabel;
+        this.closeLabel = closeLabel == null ? tr("ltsmodelshare.common.ok") : closeLabel;
     }
 
     @Override
@@ -70,7 +72,7 @@ public class GuiNotice extends GuiScreen {
         panelX = (width - panelW) / 2;
         panelY = Math.max(8, (height - panelH) / 2);
 
-        buttonList.add(new GuiButton(0,
+        buttonList.add(new LocalizedButton(0,
                 panelX + (panelW - BTN_W) / 2,
                 panelY + panelH - PAD - BTN_H,
                 BTN_W, BTN_H, closeLabel));

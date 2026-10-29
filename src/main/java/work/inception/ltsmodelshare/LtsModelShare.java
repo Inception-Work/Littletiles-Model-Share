@@ -30,7 +30,7 @@ public class LtsModelShare {
 
     public static final String MODID = "ltsmodelshare";
     public static final String NAME = "Littletiles Model Share";
-    public static final String VERSION = "0.1.2";
+    public static final String VERSION = "0.1.3";
 
     public static final Logger LOG = LogManager.getLogger(MODID);
 

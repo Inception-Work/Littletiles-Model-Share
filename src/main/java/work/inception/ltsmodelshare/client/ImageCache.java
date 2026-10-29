@@ -94,13 +94,15 @@ public final class ImageCache {
                     conn.setConnectTimeout(8000);
                     conn.setReadTimeout(12000);
                     conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-                    if (conn.getResponseCode() / 100 != 2) {
-                        FAILED.add(key);
-                        LOADING.remove(key);
-                        return;
-                    }
-                    try (InputStream in = conn.getInputStream()) {
-                        image = ImageIO.read(in);
+                    try {
+                        work.inception.ltsmodelshare.api.AssetHeaders.apply(conn, ModConfig.get().baseUrl);
+                        int code = conn.getResponseCode();
+                        if (code / 100 != 2) {
+                            throw new java.io.IOException("Image HTTP " + code);
+                        }
+                        try (InputStream in = conn.getInputStream()) {
+                            image = ImageIO.read(in);
+                        }
                     } finally {
                         conn.disconnect();
                     }

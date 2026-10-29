@@ -1,5 +1,8 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+import work.inception.ltsmodelshare.client.SiteTags;
+
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -42,6 +45,7 @@ public class GuiAdvancedSearch extends GuiScreen {
         public Long authorId;
         public String authorName = "";
         public final Set<String> tagCodes = new LinkedHashSet<>();
+        public final java.util.Map<String, Dtos.Tag> tagLabels = new java.util.LinkedHashMap<>();
         public String sort = "latest";
 
         public Filter copy() {
@@ -50,6 +54,7 @@ public class GuiAdvancedSearch extends GuiScreen {
             f.authorId = authorId;
             f.authorName = authorName;
             f.tagCodes.addAll(tagCodes);
+            f.tagLabels.putAll(tagLabels);
             f.sort = sort;
             return f;
         }
@@ -61,13 +66,14 @@ public class GuiAdvancedSearch extends GuiScreen {
         public String summary() {
             List<String> parts = new ArrayList<>();
             if (authorId != null) {
-                parts.add("作者 " + authorName);
+                parts.add(tr("ltsmodelshare.common.author_prefix", authorName));
             }
             if (!tagCodes.isEmpty()) {
-                parts.add("标签 " + String.join(" ", tagCodes));
+                parts.add(tr("ltsmodelshare.common.tags_prefix", tagCodes.stream().map(code -> tagLabels.containsKey(code)
+                        ? SiteTags.label(tagLabels.get(code)) : code).collect(java.util.stream.Collectors.joining(" "))));
             }
             if (!"latest".equals(sort)) {
-                parts.add("最热");
+                parts.add(tr("ltsmodelshare.search.hot"));
             }
             return String.join(" · ", parts);
         }
@@ -124,12 +130,12 @@ public class GuiAdvancedSearch extends GuiScreen {
         fieldAuthor = new GuiTextField(0, fontRenderer, panelLeft, y, Math.max(80, panelW - 106), 18);
         fieldAuthor.setMaxStringLength(32);
         fieldAuthor.setText(working.authorName == null ? "" : working.authorName);
-        buttonList.add(new GuiButton(1, panelLeft + panelW - 102, y - 1, 102, 20, "搜索作者"));
+        buttonList.add(new LocalizedButton(1, panelLeft + panelW - 102, y - 1, 102, 20, tr("ltsmodelshare.search.author")));
         y += 24;
 
         selectedY = y;
         if (working.authorId != null) {
-            buttonList.add(new GuiButton(2, panelLeft + panelW - 102, y - 2, 102, 18, "清除作者"));
+            buttonList.add(new LocalizedButton(2, panelLeft + panelW - 102, y - 2, 102, 18, tr("ltsmodelshare.search.clear_author")));
         }
         y += 14;
 
@@ -154,15 +160,17 @@ public class GuiAdvancedSearch extends GuiScreen {
             tagsBoxW = panelW - leftW - 8;
         }
 
-        buttonList.add(new GuiButton(3, panelLeft, sortY, COL_W, 18,
-                "latest".equals(working.sort) ? "✔ 最新" : "最新"));
-        buttonList.add(new GuiButton(4, panelLeft + COL_W + 8, sortY, COL_W, 18,
-                "hot".equals(working.sort) ? "✔ 最热" : "最热"));
+        buttonList.add(new LocalizedButton(3, panelLeft, sortY, COL_W, 18,
+                "latest".equals(working.sort) ? tr("ltsmodelshare.search.latest_selected") : tr("ltsmodelshare.search.latest")));
+        buttonList.add(new LocalizedButton(4, panelLeft + COL_W + 8, sortY, COL_W, 18,
+                "hot".equals(working.sort) ? tr("ltsmodelshare.search.hot_selected") : tr("ltsmodelshare.search.hot")));
 
-        int by = height - 30;
-        buttonList.add(new GuiButton(5, panelLeft, by, 96, 20, "应用"));
-        buttonList.add(new GuiButton(6, panelLeft + panelW / 2 - 48, by, 96, 20, "清空条件"));
-        buttonList.add(new GuiButton(7, panelLeft + panelW - 96, by, 96, 20, "取消"));
+        int by = GuiNavigation.footerY(height);
+        int actionWidth = GuiNavigation.actionWidth(width, 2, 96);
+        buttonList.add(new LocalizedButton(5, GuiNavigation.MARGIN, by, actionWidth, 20, tr("ltsmodelshare.search.apply")));
+        buttonList.add(new LocalizedButton(6, GuiNavigation.MARGIN + actionWidth + GuiNavigation.GAP,
+                by, actionWidth, 20, tr("ltsmodelshare.search.clear")));
+        buttonList.add(GuiNavigation.backButton(7, width, height, tr("ltsmodelshare.common.back")));
 
         if (tags.isEmpty() && !loadingTags) {
             loadTags();
@@ -229,6 +237,7 @@ public class GuiAdvancedSearch extends GuiScreen {
                     for (Dtos.Tag t : value) {
                         if (t != null && t.code != null && t.name != null) {
                             tags.add(t);
+                            working.tagLabels.put(t.code, t);
                         }
                     }
                     initGui();
@@ -248,10 +257,10 @@ public class GuiAdvancedSearch extends GuiScreen {
     private void searchAuthors() {
         String q = fieldAuthor.getText().trim();
         if (q.isEmpty()) {
-            status = TextFormatting.RED + "先输入作者名";
+            status = TextFormatting.RED + tr("ltsmodelshare.search.author_required");
             return;
         }
-        status = TextFormatting.GRAY + "搜索中…";
+        status = TextFormatting.GRAY + tr("ltsmodelshare.search.searching");
         ApiClient.searchAuthors(q, new ApiClient.Callback<List<Dtos.Author>>() {
             @Override
             public void ok(List<Dtos.Author> value) {
@@ -264,7 +273,7 @@ public class GuiAdvancedSearch extends GuiScreen {
                     }
                     authorScroll = 0;
                     // 成功不弹提示（列表本身就是提示），只有没找到才说一句
-                    status = authorHits.isEmpty() ? TextFormatting.RED + "没找到这个作者" : "";
+                    status = authorHits.isEmpty() ? TextFormatting.RED + tr("ltsmodelshare.search.author_missing") : "";
                     initGui();
                 });
             }
@@ -377,7 +386,7 @@ public class GuiAdvancedSearch extends GuiScreen {
             working.authorId = a.userId;
             working.authorName = a.displayName != null && !a.displayName.isEmpty()
                     ? a.displayName : a.username;
-            status = TextFormatting.GREEN + "已选作者：" + working.authorName;
+            status = TextFormatting.GREEN + tr("ltsmodelshare.search.author_selected", working.authorName);
             initGui();
             return;
         }
@@ -403,12 +412,12 @@ public class GuiAdvancedSearch extends GuiScreen {
 
         Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         Gui.drawRect(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);
-        drawCenteredString(fontRenderer, "高级搜索", cx, 12, 0xFFFFFF);
+        drawCenteredString(fontRenderer, tr("ltsmodelshare.search.title"), cx, 12, 0xFFFFFF);
 
-        drawString(fontRenderer, TextFormatting.GRAY + "按作者筛选", panelLeft, authorLabelY, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.search.filter_author"), panelLeft, authorLabelY, 0xAAAAAA);
         fieldAuthor.drawTextBox();
 
-        String selected = working.authorId == null ? "未选作者" : "已选：" + working.authorName;
+        String selected = working.authorId == null ? tr("ltsmodelshare.search.no_author") : tr("ltsmodelshare.search.selected", working.authorName);
         // 右侧有「清除作者」按钮（102 宽），这行要限宽，超了用 … 收尾
         drawString(fontRenderer, working.authorId == null
                         ? TextFormatting.DARK_GRAY + trim(selected, panelW - 110)
@@ -417,12 +426,11 @@ public class GuiAdvancedSearch extends GuiScreen {
 
         // 列标题
         if (authorBoxW > 0) {
-            drawString(fontRenderer, TextFormatting.GRAY + "作者候选（" + authorHits.size() + "）",
+            drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.search.author_hits", authorHits.size()),
                     authorBoxX, listsLabelY, 0xAAAAAA);
         }
-        drawString(fontRenderer, TextFormatting.GRAY + "标签（可多选"
-                + (tags.isEmpty() ? "" : "，" + tags.size() + " 个") + "）"
-                + (loadingTags ? TextFormatting.DARK_GRAY + " 加载中…" : ""),
+        drawString(fontRenderer, TextFormatting.GRAY + (tags.isEmpty() ? tr("ltsmodelshare.common.tags") : tr("ltsmodelshare.common.tags_count", tags.size()))
+                + (loadingTags ? TextFormatting.DARK_GRAY + tr("ltsmodelshare.common.loading_suffix") : ""),
                 tagsBoxX, listsLabelY, 0xAAAAAA);
 
         // ---------- 左列：作者候选 ----------
@@ -457,7 +465,7 @@ public class GuiAdvancedSearch extends GuiScreen {
         // ---------- 右列：标签 ----------
         Gui.drawRect(tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + boxH, 0x40000000);
         if (tags.isEmpty() && !loadingTags) {
-            drawString(fontRenderer, TextFormatting.DARK_GRAY + "（没有标签）",
+            drawString(fontRenderer, TextFormatting.DARK_GRAY + tr("ltsmodelshare.search.no_tags"),
                     tagsBoxX + 4, boxY + 3, 0x777777);
         }
         for (int row = 0; row < visibleRows(boxH); row++) {
@@ -473,12 +481,12 @@ public class GuiAdvancedSearch extends GuiScreen {
                 Gui.drawRect(tagsBoxX + 1, rowY, tagsBoxX + tagsBoxW - 5, rowY + ROW_H - 1, 0x40FFFFFF);
             }
             drawString(fontRenderer, (on ? TextFormatting.GREEN + "✔ " : TextFormatting.GRAY + "·  ")
-                    + tag.name, tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xCCCCCC);
+                    + SiteTags.label(tag), tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xCCCCCC);
         }
         drawScrollbar(tagsBoxX + tagsBoxW - 4, boxY, boxH, tagScroll, maxTagScroll(), tags.size());
 
         // ---------- 排序 / 状态 ----------
-        drawString(fontRenderer, TextFormatting.GRAY + "排序", panelLeft, sortY - 12, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.search.sort"), panelLeft, sortY - 12, 0xAAAAAA);
 
         if (!status.isEmpty()) {
             drawCenteredString(fontRenderer, status, cx, height - 42, 0xFFFFFF);

@@ -1,11 +1,12 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.text.TextFormatting;
 import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
@@ -32,9 +33,6 @@ public class GuiModels extends GuiScreen {
     private int cols = 3;
     private int rows = 2;
     private int cardW = 100;
-    private int cardH = 74;
-    /** 卡片背景遮罩比内容高 0.5 行字（约 5px），内容位置不变 */
-    private static final int CARD_BG_EXTRA = 5;
     private int cardBgH = 79;
     private int imgH = 50;
     private static final int GAP_X = 6;
@@ -49,30 +47,15 @@ public class GuiModels extends GuiScreen {
      * 文字还挤在一起。固定尺寸 + 自适应列数在任何缩放下都稳。）
      */
     private void computeLayout() {
-        int margin = 8;
-        /*
-         * 首页卡片：封面缩小、作者与数据用小一号字（0.75 倍），标题保持原大小。
-         * 文字区高度 = 标题 9 + 作者 7 + 数据 7（共 24），比原来矮两行左右。
-         */
-        cardW = width >= 300 ? 78 : (width >= 210 ? 66 : Math.max(44, width - margin * 2));
-        imgH = Math.max(24, cardW * 9 / 16);
-        cardH = imgH + 24;
-        cardBgH = cardH + CARD_BG_EXTRA;
-
-        cols = Math.max(1, (width - margin * 2 + GAP_X) / (cardW + GAP_X));
-        // 最多 3 列：再多作者名就挤没了
-        cols = Math.min(cols, 3);
-
-        // 底部留 44px 给按钮组，顶部留 50px 给标题+搜索
-        int top = 50;
-        int bottom = height - 44;
-        rows = Math.max(1, Math.min(3, (bottom - top + GAP_Y) / (cardBgH + GAP_Y)));
+        ModelGridLayout layout = new ModelGridLayout(width, height);
+        cardW = layout.cardWidth;
+        imgH = layout.imageHeight;
+        cardBgH = layout.cardHeight;
+        cols = layout.columns;
+        rows = layout.rows;
         perPage = cols * rows;
-
-        int gridW = cols * cardW + (cols - 1) * GAP_X;
-        int gridH = rows * cardBgH + (rows - 1) * GAP_Y;
-        gridLeft = Math.max(margin, (width - gridW) / 2);
-        gridTop = top + Math.max(0, (bottom - top - gridH) / 2);
+        gridLeft = layout.left;
+        gridTop = layout.top;
     }
 
     private final List<Dtos.WorkCard> cards = new ArrayList<>();
@@ -80,6 +63,8 @@ public class GuiModels extends GuiScreen {
     private long total;
     private String status = "";
     private boolean loading;
+    /** 只接受最后一次查询的结果；调整窗口时旧尺寸的请求可能比新请求晚返回。 */
+    private int requestId;
 
     private GuiTextField searchField;
     /** 高级搜索的条件（作者 / 标签 / 排序） */
@@ -89,6 +74,11 @@ public class GuiModels extends GuiScreen {
 
     @Override
     public void initGui() {
+        // MC 1.12.2 调整窗口 / GUI 缩放时会重新调用 initGui()。先记住旧布局是否在末页，
+        // 新布局算出每页数量后才能将旧末页映射到新末页（仅 clamp 无法处理页数增加）。
+        boolean wasLastPage = page == maxPage();
+        String searchText = searchField == null ? filter.q : searchField.getText();
+        boolean searchFocused = searchField == null || searchField.isFocused();
         buttonList.clear();
         int cx = width / 2;
 
@@ -97,53 +87,42 @@ public class GuiModels extends GuiScreen {
         int topX = cx - topW / 2;
         searchField = new GuiTextField(0, fontRenderer, topX, 24, searchW, 18);
         searchField.setMaxStringLength(64);
-        searchField.setText(filter.q == null ? "" : filter.q);
-        searchField.setFocused(true);
+        searchField.setText(searchText == null ? "" : searchText);
+        searchField.setFocused(searchFocused);
 
-        buttonList.add(new GuiButton(1, topX + searchW + 4, 23, 44, 20, "搜索"));
-        buttonList.add(new GuiButton(2, topX + searchW + 52, 23, 40, 20, "刷新"));
-        buttonList.add(new GuiButton(8, topX + searchW + 96, 23, 56, 20, "高级搜索"));
-        /*
-         * 底部按钮行：上一页 / 下一页 / 登录 / 上传蓝图 / 凭邀请访问 / 关闭。
-         *
-         * 多了一个按钮之后，原来那串写死的左边距会往右溢出去（最窄 320 宽的 GUI 会压到屏幕外），
-         * 所以改成**按总宽居中排**：宽度写小一点、间距固定，整行宽度 ≤ 304，
-         * 320 宽也放得下，按钮之间不会重叠。
-         */
-        int by = height - 26;
-        final int gap = 4;
-        final int[] buttonWidths = {42, 42, 46, 58, 62, 34};
-        int rowWidth = gap * (buttonWidths.length - 1);
-        for (int w : buttonWidths) {
-            rowWidth += w;
-        }
-        int bx = Math.max(4, (width - rowWidth) / 2);
-        buttonList.add(new GuiButton(3, bx, by, buttonWidths[0], 20, "上一页"));
-        bx += buttonWidths[0] + gap;
-        buttonList.add(new GuiButton(4, bx, by, buttonWidths[1], 20, "下一页"));
-        bx += buttonWidths[1] + gap;
-        buttonList.add(new GuiButton(5, bx, by, buttonWidths[2], 20,
-                ModConfig.get().loggedIn() ? "退出登录" : "登录"));
-        bx += buttonWidths[2] + gap;
-        buttonList.add(new GuiButton(7, bx, by, buttonWidths[3], 20, "上传蓝图"));
-        bx += buttonWidths[3] + gap;
-        // 凭邀请访问：unlisted 作品不进列表，只能靠作品 ID + 访问码进来
-        buttonList.add(new GuiButton(9, bx, by, buttonWidths[4], 20, "凭邀请访问"));
-        bx += buttonWidths[4] + gap;
-        buttonList.add(new GuiButton(6, bx, by, buttonWidths[5], 20, "关闭"));
+        buttonList.add(new LocalizedButton(1, topX + searchW + 4, 23, 44, 20, tr("ltsmodelshare.common.search")));
+        buttonList.add(new LocalizedButton(2, topX + searchW + 52, 23, 40, 20, tr("ltsmodelshare.common.refresh")));
+        buttonList.add(new LocalizedButton(8, topX + searchW + 96, 23, 56, 20, tr("ltsmodelshare.search.filters")));
+        // Pagination occupies its own row; page actions leave the fixed bottom-right exit free.
+        int pageY = GuiNavigation.footerY(height) - 26;
+        buttonList.add(new LocalizedButton(3, GuiNavigation.MARGIN, pageY, 42, 20,
+                tr("ltsmodelshare.common.previous")));
+        buttonList.add(new LocalizedButton(4, width - GuiNavigation.MARGIN - 42, pageY, 42, 20,
+                tr("ltsmodelshare.common.next")));
+        int by = GuiNavigation.footerY(height);
+        int actionWidth = GuiNavigation.actionWidth(width, 3, 90);
+        int bx = GuiNavigation.MARGIN;
+        buttonList.add(new LocalizedButton(5, bx, by, actionWidth, 20,
+                ModConfig.get().loggedIn() ? tr("ltsmodelshare.models.logout") : tr("ltsmodelshare.common.login")));
+        bx += actionWidth + GuiNavigation.GAP;
+        buttonList.add(new LocalizedButton(7, bx, by, actionWidth, 20, tr("ltsmodelshare.models.upload")));
+        bx += actionWidth + GuiNavigation.GAP;
+        buttonList.add(new LocalizedButton(9, bx, by, actionWidth, 20, tr("ltsmodelshare.models.invitation")));
+        buttonList.add(GuiNavigation.backButton(6, width, height, tr("ltsmodelshare.common.close")));
 
         computeLayout();
+        page = wasLastPage ? maxPage() : Math.min(page, maxPage());
         reload();
     }
 
     // ==================== 数据 ====================
 
     private void reload() {
-        if (loading) {
-            return;
-        }
+        // 尺寸变化时旧请求可能尚未结束：不能跳过新页查询，更不能让旧响应覆盖新页。
+        final int currentRequest = ++requestId;
         loading = true;
-        status = TextFormatting.GRAY + "加载中…";
+        cards.clear();
+        status = TextFormatting.GRAY + tr("ltsmodelshare.common.loading");
         Dtos.CardQuery query = new Dtos.CardQuery(searchField.getText().trim(),
                 filter.sort == null ? "latest" : filter.sort, page, perPage, languageTag());
         query.authorId = filter.authorId;
@@ -154,19 +133,31 @@ public class GuiModels extends GuiScreen {
             @Override
             public void ok(Dtos.Page<Dtos.WorkCard> value) {
                 ApiClient.post(() -> {
+                    if (currentRequest != requestId) {
+                        return;
+                    }
+                    total = value.total;
+                    // 服务器的数据也可能在请求期间变少，别把空页当作最终结果。
+                    if (page > maxPage()) {
+                        page = maxPage();
+                        reload();
+                        return;
+                    }
                     loading = false;
                     cards.clear();
                     if (value.records != null) {
                         cards.addAll(value.records);
                     }
-                    total = value.total;
-                    status = cards.isEmpty() ? TextFormatting.GRAY + "没有结果" : "";
+                    status = cards.isEmpty() ? TextFormatting.GRAY + tr("ltsmodelshare.search.no_results") : "";
                 });
             }
 
             @Override
             public void fail(String message) {
                 ApiClient.post(() -> {
+                    if (currentRequest != requestId) {
+                        return;
+                    }
                     loading = false;
                     status = TextFormatting.RED + message;
                 });
@@ -191,12 +182,7 @@ public class GuiModels extends GuiScreen {
 
     /** zh-CN 这种给站点用；拿不到就用 en */
     private String languageTag() {
-        try {
-            String code = mc.getLanguageManager().getCurrentLanguage().getLanguageCode();
-            return code == null || code.isEmpty() ? "zh-CN" : code;
-        } catch (Exception e) {
-            return "zh-CN";
-        }
+        return work.inception.ltsmodelshare.client.Translations.siteLocale();
     }
 
     // ==================== 交互 ====================
@@ -228,8 +214,8 @@ public class GuiModels extends GuiScreen {
                     cfg.refreshToken = "";
                     cfg.username = "";
                     cfg.save();
-                    button.displayString = "登录";
-                    status = TextFormatting.YELLOW + "已退出登录";
+                    button.displayString = tr("ltsmodelshare.common.login");
+                    status = TextFormatting.YELLOW + tr("ltsmodelshare.models.logged_out");
                     // 退出后直接回登录界面（登录成功会自动回到浏览页）
                     mc.displayGuiScreen(new GuiLogin(this));
                 } else {
@@ -311,7 +297,7 @@ public class GuiModels extends GuiScreen {
         drawCenteredString(fontRenderer, "Littletiles Model Share", cx, 8, 0xFFFFFF);
         searchField.drawTextBox();
         if (searchField.getText().isEmpty() && !searchField.isFocused()) {
-            drawString(fontRenderer, TextFormatting.DARK_GRAY + "搜索标题…", searchField.x + 4, searchField.y + 5, 0x777777);
+            drawString(fontRenderer, TextFormatting.DARK_GRAY + tr("ltsmodelshare.search.placeholder"), searchField.x + 4, searchField.y + 5, 0x777777);
         }
 
         int hovered = cardAt(mouseX, mouseY);
@@ -319,27 +305,26 @@ public class GuiModels extends GuiScreen {
             drawCard(i, cards.get(i), hovered == i);
         }
 
-        if (cards.isEmpty() && !loading) {
-            drawCenteredString(fontRenderer, TextFormatting.GRAY + "这里没有作品", cx, gridTop + cardBgH / 2, 0xAAAAAA);
-        }
         if (!status.isEmpty()) {
-            drawCenteredString(fontRenderer, status, cx, height - 54, 0xFFFFFF);
+            work.inception.ltsmodelshare.client.TextUtil.drawCenteredFit(fontRenderer, status,
+                    cx, gridTop + cardBgH / 2, width - 20, 0xFFFFFF);
         }
         /*
          * 页脚：页码 + 登录状态 + 筛选摘要。
          * 标签选多了摘要会很长 —— 超出窗口宽度就用 … 收尾（原来是直接画出去，被裁掉半截）。
          */
-        String base = TextFormatting.GRAY + String.format("第 %d / %d 页 · 共 %d 个", page, maxPage(), total)
-                + (ModConfig.get().loggedIn() ? " · 已登录 " + ModConfig.get().username : " · 未登录（只能浏览）");
+        String base = TextFormatting.GRAY + tr("ltsmodelshare.models.pagination", page, maxPage(), total)
+                + (ModConfig.get().loggedIn() ? tr("ltsmodelshare.models.logged_in", ModConfig.get().username) : tr("ltsmodelshare.models.guest"));
         String filterPart = "";
         if (filter != null && !filter.isEmpty()) {
             int baseW = fontRenderer.getStringWidth(stripCodes(base));
-            int room = width - 24 - baseW - fontRenderer.getStringWidth("  []");
+            int room = width - 124 - baseW - fontRenderer.getStringWidth("  []");
             if (room > 18) {
                 filterPart = "  [" + trim(filter.summary(), room) + "]";
             }
         }
-        drawCenteredString(fontRenderer, base + TextFormatting.YELLOW + filterPart, cx, height - 40, 0xAAAAAA);
+        drawCenteredString(fontRenderer, trim(base + TextFormatting.YELLOW + filterPart, width - 124),
+                cx, GuiNavigation.footerY(height) - 20, 0xAAAAAA);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
@@ -360,13 +345,13 @@ public class GuiModels extends GuiScreen {
         int imgW = cardW - 6;
         drawImage(card.cover, imgX, imgY, imgW, imgH, 0x30FFFFFF);
 
-        // 第一行：标题（保持原大小）
+        // Title at 0.8 of the original font size.
         int textY = imgY + imgH + 1;
-        drawString(fontRenderer, trim(card.title == null ? "(无标题)" : card.title, cardW - 6),
-                x + 3, textY, 0xFFFFFF);
+        drawScaled(trim(card.title == null ? tr("ltsmodelshare.common.untitled") : card.title,
+                (int) ((cardW - 6) / 0.8f)), x + 3, textY, 0xFFFFFF, 0.8f);
 
         // 第二行：作者头像 + 名字（0.75 倍字）
-        int ay = textY + 9;
+        int ay = textY + 8;
         int avatarSize = 6;
         Dtos.Author author = card.author;
         int cursor = x + 3;
@@ -380,22 +365,28 @@ public class GuiModels extends GuiScreen {
         drawSmall(trim(name, (int) ((cardW - 6 - (cursor - x - 3)) / SMALL_TEXT)), cursor, ay, 0xCCCCCC);
 
         // 第三行：下载 / 浏览（同样 0.75 倍）
-        drawSmall(trim("下载 " + card.downloadCount + "  浏览 " + card.viewCount,
+        drawSmall(trim(tr("ltsmodelshare.common.work_stats", card.downloadCount, card.viewCount),
                 (int) ((cardW - 6) / SMALL_TEXT)), x + 3, ay + 7, 0xAAAAAA);
     }
 
-    /** 小一号字（0.75 倍）—— 作者与数据用，标题不用 */
+    /** Author and statistics font scale. */
     private static final float SMALL_TEXT = 0.75f;
 
     private void drawSmall(String text, int x, int y, int color) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
+        drawScaled(text, x, y, color, SMALL_TEXT);
+    }
+
+    private void drawScaled(String text, int x, int y, int color, float scale) {
+        if (text == null || text.isEmpty()) return;
         GlStateManager.pushMatrix();
-        GlStateManager.scale(SMALL_TEXT, SMALL_TEXT, 1f);
-        drawString(fontRenderer, text, (int) (x / SMALL_TEXT), (int) (y / SMALL_TEXT), color);
-        GlStateManager.popMatrix();
-        GlStateManager.color(1f, 1f, 1f, 1f);
+        try {
+            GlStateManager.translate(x, y, 0);
+            GlStateManager.scale(scale, scale, 1f);
+            drawString(fontRenderer, text, 0, 0, color);
+        } finally {
+            GlStateManager.popMatrix();
+            GlStateManager.color(1f, 1f, 1f, 1f);
+        }
     }
 
     /**

@@ -1,5 +1,7 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
@@ -52,16 +54,16 @@ public class GuiLogin extends GuiScreen {
         fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
         fieldPass.setMaxStringLength(128);
 
-        buttonList.add(new GuiButton(1, cx - 100, cy + 4, 96, 20, "登录"));
-        buttonList.add(new GuiButton(2, cx + 4, cy + 4, 96, 20, "取消"));
-        buttonList.add(new GuiButton(3, cx - 100, cy + 30, 200, 20, "使用访问令牌"));
-        buttonList.add(new GuiButton(4, cx - 100, cy + 56, 200, 20, "没有账号？去注册 →"));
+        buttonList.add(new LocalizedButton(1, cx - 100, cy + 4, 200, 20, tr("ltsmodelshare.common.login")));
+        buttonList.add(GuiNavigation.backButton(2, width, height, tr("ltsmodelshare.common.back")));
+        buttonList.add(new LocalizedButton(3, cx - 100, cy + 30, 200, 20, tr("ltsmodelshare.login.token_mode")));
+        buttonList.add(new LocalizedButton(4, cx - 100, cy + 56, 200, 20, tr("ltsmodelshare.login.register")));
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
         if (button.id == 2) {
-            mc.displayGuiScreen(null);
+            mc.displayGuiScreen(after);
             return;
         }
         if (button.id == 4) {
@@ -81,12 +83,12 @@ public class GuiLogin extends GuiScreen {
                 try {
                     java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(url);
                     java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, sel);
-                    status = TextFormatting.YELLOW + "打不开浏览器，注册地址已复制：" + url;
+                    status = TextFormatting.YELLOW + tr("ltsmodelshare.login.register_copied", url);
                 } catch (Throwable t) {
-                    status = TextFormatting.RED + "注册地址：" + url;
+                    status = TextFormatting.RED + tr("ltsmodelshare.login.register_url", url);
                 }
             } else {
-                status = TextFormatting.GRAY + "已在浏览器打开：" + url;
+                status = TextFormatting.GRAY + tr("ltsmodelshare.login.browser_open", url);
             }
             return;
         }
@@ -94,7 +96,7 @@ public class GuiLogin extends GuiScreen {
             // 令牌模式：直接在输入框里粘贴 lts_ 开头的令牌，回车即登录
             tokenMode = !tokenMode;
             buttonList.get(2).displayString = tokenMode
-                    ? "返回账号密码登录" : "使用访问令牌";
+                    ? tr("ltsmodelshare.login.password_mode") : tr("ltsmodelshare.login.token_mode");
             // 切换模式时清空输入框：免得把账号名当令牌提交，或者令牌残留在账号框里
             fieldUser.setText("");
             fieldPass.setText("");
@@ -108,7 +110,7 @@ public class GuiLogin extends GuiScreen {
         if (tokenMode) {
             String pat = fieldUser.getText().trim();
             if (!pat.startsWith("lts_")) {
-                status = TextFormatting.RED + "这串文本不像访问令牌，请回到站点整串复制";
+                status = TextFormatting.RED + tr("ltsmodelshare.login.token_invalid");
                 return;
             }
             ModConfig cfg = ModConfig.get();
@@ -118,23 +120,24 @@ public class GuiLogin extends GuiScreen {
             // 看起来就像"输入框里还留着访问令牌"
             cfg.username = "";
             cfg.save();
-            status = TextFormatting.GREEN + "已保存访问令牌，过期时间由站点控制";
+            status = TextFormatting.GREEN + tr("ltsmodelshare.login.token_saved");
             mc.displayGuiScreen(after != null ? after : new GuiModels());
             return;
         }
         String user = fieldUser.getText().trim();
         String pass = fieldPass.getText();
         if (user.isEmpty() || pass.isEmpty()) {
-            status = TextFormatting.RED + "用户名和密码都要填";
+            status = TextFormatting.RED + tr("ltsmodelshare.login.fields_required");
             return;
         }
         busy = true;
-        status = TextFormatting.GRAY + "登录中…";
+        status = TextFormatting.GRAY + tr("ltsmodelshare.login.busy");
         ApiClient.login(user, pass, new ApiClient.Callback<Dtos.LoginPayload>() {
             @Override
             public void ok(Dtos.LoginPayload value) {
                 ApiClient.post(() -> {
                     busy = false;
+                    if (mc.currentScreen != GuiLogin.this) return;
                     mc.displayGuiScreen(after != null ? after : new GuiModels());
                 });
             }
@@ -151,6 +154,10 @@ public class GuiLogin extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (keyCode == 1) {
+            mc.displayGuiScreen(after);
+            return;
+        }
         super.keyTyped(typedChar, keyCode);
         fieldUser.textboxKeyTyped(typedChar, keyCode);
         if (!tokenMode) {
@@ -176,13 +183,13 @@ public class GuiLogin extends GuiScreen {
         int cx = width / 2;
         int cy = height / 2;
 
-        drawCenteredString(fontRenderer, "Littletiles Model Share · 登录", cx, cy - 95, 0xFFFFFF);
+        drawCenteredString(fontRenderer, tr("ltsmodelshare.login.title"), cx, cy - 95, 0xFFFFFF);
         drawCenteredString(fontRenderer, TextFormatting.GRAY + ModConfig.get().baseUrl,
                 cx, cy - 82, 0xAAAAAA);
 
-        drawString(fontRenderer, tokenMode ? "访问令牌" : "账号", cx - 100, cy - 73, 0xCCCCCC);
+        drawString(fontRenderer, tokenMode ? tr("ltsmodelshare.login.token") : tr("ltsmodelshare.login.account"), cx - 100, cy - 73, 0xCCCCCC);
         if (!tokenMode) {
-            drawString(fontRenderer, "密码", cx - 100, cy - 34, 0xCCCCCC);
+            drawString(fontRenderer, tr("ltsmodelshare.login.password"), cx - 100, cy - 34, 0xCCCCCC);
         }
 
         fieldUser.drawTextBox();

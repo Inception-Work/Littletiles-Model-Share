@@ -1,5 +1,8 @@
 package work.inception.ltsmodelshare.gui;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+import work.inception.ltsmodelshare.client.SiteTags;
+
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -66,6 +69,8 @@ public class GuiWorkDetail extends GuiScreen {
     private boolean loading;
     /** 已经生成过蓝图的条目 */
     private final List<Long> madeBlueprint = new ArrayList<>();
+    /** 游戏内 LittleTiles 原生模型预览（按需创建；不改玩家背包）。 */
+    private ModelPreviewPanel modelPreview;
 
     // 布局
     private int colW;
@@ -83,7 +88,7 @@ public class GuiWorkDetail extends GuiScreen {
     private int scroll;
 
     /** 条目行高（左侧放 4:3 缩略图） */
-    private static final int ITEM_ROW_H = 56;
+    private static final int ITEM_ROW_H = 68;
     private static final int THUMB_W = 64;
     private static final int THUMB_H = 48;
     private static final int ARROW_W = 12;
@@ -112,6 +117,13 @@ public class GuiWorkDetail extends GuiScreen {
     private int summaryBoxH;
     private static final int DL_W = 72;   // 「获取蓝图」= 4 个汉字，比原来的「下载」宽
     private static final int DL_H = 18;
+    private static final int PREVIEW_W = 52;
+    private static final int ACTION_GAP = 4;
+
+    private int[] previewBounds(int rowY) {
+        int[] download = downloadBounds(rowY);
+        return new int[]{download[0] - ACTION_GAP - PREVIEW_W, download[1], PREVIEW_W, DL_H};
+    }
 
     public GuiWorkDetail(Dtos.WorkCard card, GuiScreen parent) {
         this(card, null, parent);
@@ -156,8 +168,9 @@ public class GuiWorkDetail extends GuiScreen {
         thumbSize = Math.max(14, Math.min(24, coverW / 5));
         headerH = computeHeaderHeight();
 
-        buttonList.add(new GuiButton(1, cx - 76, height - 24, 70, 20, "返回"));
-        buttonList.add(new GuiButton(2, cx + 6, height - 24, 70, 20, "刷新"));
+        buttonList.add(GuiNavigation.backButton(1, width, height, tr("ltsmodelshare.common.back")));
+        buttonList.add(new LocalizedButton(2, GuiNavigation.MARGIN, GuiNavigation.footerY(height), 80, 20,
+                tr("ltsmodelshare.common.refresh")));
 
         scroll = 0;
         load();
@@ -170,7 +183,7 @@ public class GuiWorkDetail extends GuiScreen {
             return;
         }
         loading = true;
-        status = TextFormatting.GRAY + "加载中…";
+        status = TextFormatting.GRAY + tr("ltsmodelshare.common.loading");
         ApiClient.detail(card.workId, accessCode, new ApiClient.Callback<Dtos.WorkDetail>() {
             @Override
             public void ok(Dtos.WorkDetail value) {
@@ -195,7 +208,7 @@ public class GuiWorkDetail extends GuiScreen {
                     galleryIndex = 0;
                     scroll = 0;
                     headerH = computeHeaderHeight();
-                    status = items.isEmpty() ? TextFormatting.GRAY + "这条作品里没有可直接下载的模型" : "";
+                    status = items.isEmpty() ? TextFormatting.GRAY + tr("ltsmodelshare.detail.no_models") : "";
                 });
             }
 
@@ -213,7 +226,7 @@ public class GuiWorkDetail extends GuiScreen {
 
     private String titleText() {
         return detail != null && detail.title != null
-                ? detail.title : (card.title == null ? "(无标题)" : card.title);
+                ? detail.title : (card.title == null ? tr("ltsmodelshare.common.untitled") : card.title);
     }
 
     /** 标题在右栏折行（按字符断，中文才会换行；最多 2 行） */
@@ -243,7 +256,7 @@ public class GuiWorkDetail extends GuiScreen {
         List<String> current = new ArrayList<>();
         int used = 0;
         for (Dtos.Tag tag : tags()) {
-            String text = "#" + tag.name;
+            String text = "#" + SiteTags.label(tag);
             int w = fontRenderer.getStringWidth(text) + 8;
             if (used + w > rightW && !current.isEmpty()) {
                 rowsArr.add(current);
@@ -264,11 +277,11 @@ public class GuiWorkDetail extends GuiScreen {
         long view = detail != null ? detail.viewCount : card.viewCount;
         long fav = detail != null && detail.favoriteCount != null ? detail.favoriteCount : 0;
         long cmt = detail != null && detail.commentCount != null ? detail.commentCount : 0;
-        String all = "浏览 " + view + "   下载 " + dl + "   收藏 " + fav + "   评论 " + cmt;
+        String all = tr("ltsmodelshare.detail.stats", view, dl, fav, cmt);
         if (fontRenderer.getStringWidth(all) <= rightW) {
             return new String[]{all};
         }
-        return new String[]{"浏览 " + view + "   下载 " + dl, "收藏 " + fav + "   评论 " + cmt};
+        return new String[]{tr("ltsmodelshare.detail.stats_first", view, dl), tr("ltsmodelshare.detail.stats_second", fav, cmt)};
     }
 
     private int rightColumnHeight() {
@@ -279,7 +292,7 @@ public class GuiWorkDetail extends GuiScreen {
         h += 6;                                   // 作者 → 作品数据 的间隔（原来贴着）
         h += statPairs().length * 10;             // 浏览/下载/收藏/评论
         if (hasCollectionDeps()) {
-            h += 6 + detail.dependencies.size() * 10;
+            h += 6 + effectiveDeps().size() * 10;
         }
         int sLines = summaryLineCount();
         if (sLines > 0) {
@@ -369,11 +382,15 @@ public class GuiWorkDetail extends GuiScreen {
         }
     }
 
-    /** ESC：退出整个页面（详情页也直接用 ESC 关掉，不再往上一级退） */
+    /** ESC closes the preview first, then returns to the page that opened this detail. */
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
+        if (keyCode == 1 && modelPreview != null) {
+            closeModelPreview();
+            return;
+        }
         if (keyCode == 1) {
-            mc.displayGuiScreen(null);
+            mc.displayGuiScreen(parent);
             return;
         }
         super.keyTyped(typedChar, keyCode);
@@ -383,6 +400,10 @@ public class GuiWorkDetail extends GuiScreen {
     public void handleMouseInput() throws IOException {
         super.handleMouseInput();
         int wheel = Mouse.getEventDWheel();
+        if (modelPreview != null) {
+            modelPreview.wheel(wheel);
+            return;
+        }
         if (wheel == 0) {
             return;
         }
@@ -399,6 +420,16 @@ public class GuiWorkDetail extends GuiScreen {
         }
     }
 
+    /** Avatar and author names share one hitbox, following the scrolled text layout. */
+    private int[] authorBounds() {
+        int y = bodyTop - scroll + titleLines().size() * 10 + 2 + tagRows().size() * 10 + 2;
+        return new int[]{rightX, y, rightW, 20};
+    }
+
+    private Dtos.Author displayedAuthor() {
+        return detail != null && detail.author != null ? detail.author : card.author;
+    }
+
     private int[] thumbBounds(int index) {
         int y = bodyTop + coverH + 4 - scroll;
         int perRow = Math.max(1, coverW / (thumbSize + 4));
@@ -407,8 +438,39 @@ public class GuiWorkDetail extends GuiScreen {
         return new int[]{left + col * (thumbSize + 4), y + row * (thumbSize + 4), thumbSize, thumbSize};
     }
 
+    void closeModelPreview() {
+        if (modelPreview != null) {
+            modelPreview.close();
+            modelPreview = null;
+        }
+    }
+
+    @Override
+    public void onGuiClosed() {
+        closeModelPreview();
+        super.onGuiClosed();
+    }
+
+    @Override
+    protected void mouseClickMove(int mouseX, int mouseY, int clickedMouseButton, long timeSinceLastClick) {
+        if (modelPreview != null) {
+            modelPreview.drag(mouseX, mouseY, clickedMouseButton);
+            return;
+        }
+        super.mouseClickMove(mouseX, mouseY, clickedMouseButton, timeSinceLastClick);
+    }
+
+    @Override
+    protected void mouseReleased(int mouseX, int mouseY, int state) {
+        if (modelPreview != null) {
+            modelPreview.release();
+            return;
+        }
+        super.mouseReleased(mouseX, mouseY, state);
+    }
+
     private int[] downloadBounds(int rowY) {
-        return new int[]{left + colW - DL_W - 4, rowY + (ITEM_ROW_H - DL_H) / 2, DL_W, DL_H};
+        return new int[]{left + colW - DL_W - 4, rowY + ITEM_ROW_H - DL_H - 9, DL_W, DL_H};
     }
 
     /** 条目缩略图位置（内容坐标转屏幕坐标由调用方加 -scroll） */
@@ -463,8 +525,22 @@ public class GuiWorkDetail extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        if (modelPreview != null) {
+            modelPreview.click(mouseX, mouseY, mouseButton);
+            return;
+        }
         super.mouseClicked(mouseX, mouseY, mouseButton);
         if (mouseButton != 0) {
+            return;
+        }
+        Dtos.Author author = displayedAuthor();
+        if (author != null && author.userId > 0 && mouseY >= bodyTop && mouseY < bodyBottom
+                && hit(mouseX, mouseY, authorBounds())) {
+            if (parent instanceof GuiAuthorHome && ((GuiAuthorHome) parent).isAuthor(author.userId)) {
+                mc.displayGuiScreen(parent);
+            } else {
+                mc.displayGuiScreen(new GuiAuthorHome(author, this));
+            }
             return;
         }
         for (int i = 0; i < Math.min(gallery.size(), 8); i++) {
@@ -495,6 +571,17 @@ public class GuiWorkDetail extends GuiScreen {
                 }
             }
 
+            int[] preview = previewBounds(rowY);
+            if (ModelPreviewPanel.available(item) && hit(mouseX, cy, preview)
+                    && mouseY >= bodyTop && mouseY <= bodyBottom) {
+                if (!ModConfig.get().loggedIn()) {
+                    mc.displayGuiScreen(new GuiLogin(this));
+                } else {
+                    modelPreview = new ModelPreviewPanel(this, item, accessCode);
+                    modelPreview.load();
+                }
+                return;
+            }
             int[] b = downloadBounds(rowY);
             if (mouseX >= b[0] && mouseX <= b[0] + b[2] && cy >= b[1] && cy <= b[1] + b[3]
                     && mouseY >= bodyTop && mouseY <= bodyBottom) {
@@ -525,7 +612,7 @@ public class GuiWorkDetail extends GuiScreen {
             return;
         }
         if (Minecraft.getMinecraft().player == null) {
-            status = TextFormatting.RED + "请先进入一个世界，再获取蓝图";
+            status = TextFormatting.RED + tr("ltsmodelshare.detail.world_required");
             return;
         }
         /*
@@ -536,22 +623,21 @@ public class GuiWorkDetail extends GuiScreen {
             // 文案尽量短：弹窗要小，长了会撑成大对话框
             int need = GridLimits.suggestScale(item.grid);
             java.util.List<String> lines = new java.util.ArrayList<>();
-            lines.add(TextFormatting.RED + "grid " + item.grid + " 超出客户端上限 "
-                    + GridLimits.maxGrid());
+            lines.add(TextFormatting.RED + tr("ltsmodelshare.detail.grid_exceeded", item.grid, GridLimits.maxGrid()));
             lines.add("");
-            lines.add("退出游戏 → 打开 config/littletiles.json");
-            lines.add("把 core.scale 改成 " + need + " → 重启游戏");
+            lines.add(tr("ltsmodelshare.detail.grid_config"));
+            lines.add(tr("ltsmodelshare.detail.grid_scale", need));
             lines.add("");
-            lines.add(TextFormatting.GRAY + "每 +1 上限翻倍：7 → 64，8 → 128");
-            mc.displayGuiScreen(new GuiNotice("grid 不兼容", lines, this, "知道了"));
+            lines.add(TextFormatting.GRAY + tr("ltsmodelshare.detail.grid_doubling"));
+            mc.displayGuiScreen(new GuiNotice(tr("ltsmodelshare.detail.grid_incompatible"), lines, this, tr("ltsmodelshare.common.ok")));
             return;
         }
-        status = TextFormatting.YELLOW + "取结构…";
+        status = TextFormatting.YELLOW + tr("ltsmodelshare.detail.fetching");
         ApiClient.downloadInfo(item.itemId, "1.12", accessCode, new ApiClient.Callback<Dtos.DownloadInfo>() {
             @Override
             public void ok(Dtos.DownloadInfo info) {
-                setStatus(TextFormatting.YELLOW + "解析结构…"
-                        + (info.converted ? "（服务端已转成 1.12）" : ""));
+                setStatus(TextFormatting.YELLOW + tr("ltsmodelshare.detail.parsing")
+                        + (info.converted ? tr("ltsmodelshare.detail.converted") : ""));
                 ApiClient.fetchText(info, new ApiClient.Callback<String>() {
                     @Override
                     public void ok(String text) {
@@ -585,7 +671,7 @@ public class GuiWorkDetail extends GuiScreen {
         final Minecraft mc = Minecraft.getMinecraft();
         final EntityPlayerSP clientPlayer = mc.player;
         if (clientPlayer == null) {
-            status = TextFormatting.RED + "请先进入一个世界，再获取蓝图";
+            status = TextFormatting.RED + tr("ltsmodelshare.detail.world_required");
             return;
         }
 
@@ -598,12 +684,12 @@ public class GuiWorkDetail extends GuiScreen {
                     net.minecraft.entity.player.EntityPlayerMP mp =
                             server.getPlayerList().getPlayerByUUID(uuid);
                     if (mp == null) {
-                        setStatus(TextFormatting.RED + "找不到服务端玩家实体");
+                        setStatus(TextFormatting.RED + tr("ltsmodelshare.detail.player_missing"));
                         return;
                     }
                     ItemStack stack = StructureStringUtils.importStructure(snbt);
                     if (stack == null || stack.isEmpty()) {
-                        setStatus(TextFormatting.RED + "解析失败：结构为空或版本不兼容");
+                        setStatus(TextFormatting.RED + tr("ltsmodelshare.common.parse_incompatible"));
                         return;
                     }
                     if (item.title != null && !item.title.trim().isEmpty()) {
@@ -613,18 +699,17 @@ public class GuiWorkDetail extends GuiScreen {
                     if (!added) {
                         // 背包满了就掉在脚下
                         mp.dropItem(stack, false);
-                        setStatus(TextFormatting.YELLOW + "背包满了，蓝图掉在你脚下：" + stack.getDisplayName());
+                        setStatus(TextFormatting.YELLOW + tr("ltsmodelshare.common.blueprint_dropped", stack.getDisplayName()));
                         work.inception.ltsmodelshare.LtsModelShare.LOG.info(
                                 "背包已满，蓝图已掉落：itemId={}", item.itemId);
                     } else {
-                        setStatus(TextFormatting.GREEN + "已生成蓝图：" + stack.getDisplayName()
-                                + "（" + snbt.length() + " 字符）");
+                        setStatus(TextFormatting.GREEN + tr("ltsmodelshare.server.created", stack.getDisplayName(), snbt.length()));
                         work.inception.ltsmodelshare.LtsModelShare.LOG.info(
                                 "已生成蓝图：itemId={} 字符数={}", item.itemId, snbt.length());
                     }
                     mp.inventory.markDirty();
                 } catch (Throwable t) {
-                    setStatus(TextFormatting.RED + "生成失败：" + t);
+                    setStatus(TextFormatting.RED + tr("ltsmodelshare.common.error_generate", t));
                     work.inception.ltsmodelshare.LtsModelShare.LOG.warn(
                             "生成蓝图失败 itemId={}：{}", item.itemId, t.toString());
                 }
@@ -635,7 +720,7 @@ public class GuiWorkDetail extends GuiScreen {
         // ===== 联机（专用服务端）：交给服务端生成 =====
         // 服务端装了本模组时，它会 importStructure 并把蓝图塞进背包（道具才是权威的）；
         // 6 秒没回执说明对方没装，BlueprintClient 会自动退回「复制 SNBT + /lt-import」。
-        status = TextFormatting.YELLOW + "已请求服务端生成蓝图…";
+        status = TextFormatting.YELLOW + tr("ltsmodelshare.detail.requested");
         work.inception.ltsmodelshare.client.BlueprintClient.request(snbt, item.title);
     }
 
@@ -692,9 +777,17 @@ public class GuiWorkDetail extends GuiScreen {
         }
         y += 2;
 
-        Dtos.Author author = detail != null ? detail.author : card.author;
+        Dtos.Author author = displayedAuthor();
         if (author != null) {
-            work.inception.ltsmodelshare.client.Avatars.draw(fontRenderer, author, rightX, y, 16);
+            boolean authorHovered = author.userId > 0 && mouseY >= bodyTop && mouseY < bodyBottom
+                    && hit(mouseX, mouseY, authorBounds());
+            Gui.drawRect(rightX, y, rightX + rightW, y + 20,
+                    authorHovered ? 0x50FFFFFF : 0x30000000);
+            if (authorHovered) {
+                Gui.drawRect(rightX, y, rightX + rightW, y + 1, 0xFFFFFFFF);
+                Gui.drawRect(rightX, y + 19, rightX + rightW, y + 20, 0xFFFFFFFF);
+            }
+            work.inception.ltsmodelshare.client.Avatars.draw(fontRenderer, author, rightX, y + 2, 16);
             String name = author.displayName != null && !author.displayName.isEmpty()
                     ? author.displayName : (author.username == null ? "" : author.username);
             drawString(fontRenderer, trim(name, rightW - 20), rightX + 20, y + 1, 0xFFFFFF);
@@ -716,7 +809,7 @@ public class GuiWorkDetail extends GuiScreen {
         if (hasCollectionDeps()) {
             y += 6;
             for (Dtos.Dependency dep : effectiveDeps()) {
-                String type = dep != null && dep.type != null ? dep.type : "依赖";
+                String type = dep != null && dep.type != null ? dep.type : tr("ltsmodelshare.detail.dependency");
                 String name = dep != null && dep.name != null ? dep.name : "?";
                 drawString(fontRenderer, TextFormatting.DARK_PURPLE + "[" + type + "] "
                         + trim(name, rightW - 4), rightX, y, 0xAA88CC);
@@ -764,7 +857,7 @@ public class GuiWorkDetail extends GuiScreen {
 
         // ---------- 全宽：模型列表 ----------
         int cy = bodyTop - scroll + headerH;
-        drawString(fontRenderer, TextFormatting.GRAY + "模型（" + items.size() + "）", left, cy, 0xAAAAAA);
+        drawString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.detail.models", items.size()), left, cy, 0xAAAAAA);
         cy += 14;
 
         for (int i = 0; i < items.size(); i++) {
@@ -801,7 +894,7 @@ public class GuiWorkDetail extends GuiScreen {
 
             // ---------- 中：标题 / 元信息 ----------
             int textX = th[0] + th[2] + 6;
-            int textW = left + colW - DL_W - 8 - textX;
+            int textW = Math.max(20, left + colW - 6 - textX);
             drawString(fontRenderer, trim(item.title == null ? ("#" + item.itemId) : item.title,
                     textW), textX, ry + 6, 0xFFFFFF);
 
@@ -818,20 +911,27 @@ public class GuiWorkDetail extends GuiScreen {
                 meta.append("  ").append(gridTooBig ? TextFormatting.RED : TextFormatting.DARK_GRAY)
                         .append("grid ").append(item.grid);
                 if (gridTooBig) {
-                    meta.append("（超上限 ").append(GridLimits.maxGrid()).append("）");
+                    meta.append(tr("ltsmodelshare.detail.limit", GridLimits.maxGrid()));
                 }
             }
             if (item.modNamespaces != null && !item.modNamespaces.isEmpty()) {
-                meta.append("   需要模组: ").append(join(item.modNamespaces));
+                meta.append(tr("ltsmodelshare.detail.mods", join(item.modNamespaces)));
             }
             drawString(fontRenderer, trim(meta.toString(), textW), textX, ry + 18, 0xAAAAAA);
+
+            if (ModelPreviewPanel.available(item)) {
+                int[] pb = previewBounds(ry);
+                Gui.drawRect(pb[0], pb[1], pb[0] + pb[2], pb[1] + pb[3],
+                        hit(mouseX, mouseY, pb) ? 0xFF48718A : 0xFF304858);
+                TextUtil.drawCenteredFit(fontRenderer, tr("ltsmodelshare.detail.preview"), pb[0] + pb[2] / 2, pb[1] + 5, pb[2] - 8, 0xFFFFFF);
+            }
 
             int[] b = downloadBounds(ry);
             boolean done = madeBlueprint.contains(item.itemId);
             boolean hover = hit(mouseX, mouseY, b);
             Gui.drawRect(b[0], b[1], b[0] + b[2], b[1] + b[3],
                     done ? 0xFF2B4A20 : (hover ? 0xFF3E7A2C : 0xFF2F5424));
-            drawCenteredString(fontRenderer, done ? "已生成" : "获取蓝图", b[0] + b[2] / 2, b[1] + 5, 0xFFFFFF);
+            TextUtil.drawCenteredFit(fontRenderer, done ? tr("ltsmodelshare.detail.generated") : tr("ltsmodelshare.detail.get_blueprint"), b[0] + b[2] / 2, b[1] + 5, b[2] - 8, 0xFFFFFF);
         }
 
         disableScissor();
@@ -853,6 +953,9 @@ public class GuiWorkDetail extends GuiScreen {
             int thumbH = Math.max(12, (int) ((long) barH * barH / (barH + maxScroll())));
             int thumbY = bodyTop + (int) ((long) (barH - thumbH) * scroll / maxScroll());
             Gui.drawRect(barX, thumbY, barX + 2, thumbY + thumbH, 0x90FFFFFF);
+        }
+        if (modelPreview != null) {
+            modelPreview.draw(mouseX, mouseY, partialTicks);
         }
     }
 

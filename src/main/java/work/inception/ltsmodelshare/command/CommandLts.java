@@ -1,5 +1,7 @@
 package work.inception.ltsmodelshare.command;
 
+import static work.inception.ltsmodelshare.client.Translations.tr;
+
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
@@ -21,7 +23,7 @@ public class CommandLts extends CommandBase {
 
     @Override
     public String getUsage(ICommandSender sender) {
-        return "/ltsmodels —— 打开模型浏览器";
+        return tr("ltsmodelshare.command.usage");
     }
 
     @Override
