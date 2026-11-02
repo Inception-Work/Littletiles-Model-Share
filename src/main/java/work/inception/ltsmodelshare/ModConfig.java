@@ -2,7 +2,7 @@ package work.inception.ltsmodelshare;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,7 +44,7 @@ public class ModConfig {
     // ==================== 读写 ====================
 
     private static File file() {
-        return new File(Loader.instance().getConfigDir(), "ltsmodelshare.json");
+        return FMLPaths.CONFIGDIR.get().resolve("ltsmodelshare.json").toFile();
     }
 
     private static ModConfig cached;
@@ -110,7 +110,7 @@ public class ModConfig {
     /** 下载目录（不存在就建） */
     public File downloadFolder() {
         File f = downloadDir == null || downloadDir.trim().isEmpty()
-                ? new File(net.minecraft.client.Minecraft.getMinecraft().gameDir, "ltsmodels")
+                ? new File(net.minecraft.client.Minecraft.getInstance().gameDirectory, "ltsmodels")
                 : new File(downloadDir);
         if (!f.isDirectory() && !f.mkdirs()) {
             LtsModelShare.LOG.warn("建不了下载目录：{}", f);

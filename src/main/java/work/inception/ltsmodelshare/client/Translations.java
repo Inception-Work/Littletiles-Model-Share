@@ -1,22 +1,19 @@
 package work.inception.ltsmodelshare.client;
 
-import net.minecraft.client.resources.I18n;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.network.chat.Component;
 
-/** Uses Minecraft's active language and en_us fallback; never cache translated labels. */
-@SideOnly(Side.CLIENT)
+/** Uses Minecraft's active language with English fallback; never cache translated labels. */
 public final class Translations {
     private Translations() { }
 
     public static String tr(String key, Object... args) {
-        return I18n.format(key, args).replace("\\n", "\n");
+        return Component.translatable(key, args).getString().replace("\\n", "\n");
     }
 
     /** Website locale codes differ from Minecraft's region-specific language codes. */
     public static String siteLocale() {
-        String code = Minecraft.getMinecraft().getLanguageManager().getCurrentLanguage().getLanguageCode();
+        String code = Minecraft.getInstance().getLanguageManager().getSelected();
         return siteLocale(code);
     }
 

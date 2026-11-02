@@ -48,7 +48,7 @@ public final class ApiClient {
 
     /** 切回客户端（渲染）线程 */
     public static void post(Runnable r) {
-        net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(r);
+        net.minecraft.client.Minecraft.getInstance().execute(r);
     }
 
     /** 后台线程执行 */

@@ -1,185 +1,77 @@
-/*
- * Littletiles Model Share —— Forge 1.12.2 客户端模组（Java 8）
- *
- * 工具链：ForgeGradle 2.3 + Gradle 4.10.3 + JDK 8 + MCP stable_39
- * （ForgeGradle 3 在这台机器上 runClient 会在 FML 注册网络通道时 NPE，原版 MDK 也一样，故回退到 2.3。）
- *
- * 常用命令：
- *   .\gradlew.bat setupDecompWorkspace   # 首次：反编译 + 建 workspace（几分钟）
- *   .\gradlew.bat build                  # 产出 build/libs/LittletilesModelShare-<version>.jar（已 reobf）
- *   .\gradlew.bat runClient              # 起开发客户端
- */
-buildscript {
-    repositories {
-        maven { url = 'https://maven.minecraftforge.net/' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:2.3-SNAPSHOT'
-    }
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
-
-apply plugin: 'net.minecraftforge.gradle.forge'
 
 version = '0.1.4'
 group = 'work.inception'
-archivesBaseName = 'LittletilesModelShare'
 
-sourceCompatibility = targetCompatibility = '1.8'
+base {
+    archivesName = 'LittletilesModelShare'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 minecraft {
-    version = '1.12.2-14.23.5.2847'
-    runDir = 'run'
-    // 1.12.2 的主流稳定映射
-    mappings = 'stable_39'
+    mappings channel: 'official', version: '1.20.1'
+    copyIdeResources = true
 
-    /*
-     * 游戏 JVM **默认不走代理**：Minecraft 的资源 CDN 直连没问题，
-     * 强塞代理反而会让 Realms/资源下载拿到 HTTP 400（Clash 对某些域名直接拒）。
-     * 真需要代理时显式给：.\gradlew.bat runClient -PltsProxy=127.0.0.1:7890
-     */
-    /*
-     * 关键：显式指定资源目录。
-     *
-     * Minecraft 1.12.2 的"缺资源就下载"走的是 **http://**resources.download.minecraft.net，
-     * 而 Mojang 的 CDN 现在对 http 直接回 400（https 正常）—— 一旦客户端没拿到
-     * forge_gradle 缓存里的资源目录，就会把一千多个资源当成缺失，然后刷出几千条
-     * "HTTP response code: 400"，进游戏也慢一大截。
-     *
-     * ForgeGradle 的 getAssets 已经把 1.12 的 1305 个资源下到
-     * ~/.gradle/caches/forge_gradle/assets（含 indexes/1.12.json），这里直接指过去。
-     */
-    clientRunArgs += [
-            '--assetsDir', new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets').absolutePath,
-            '--assetIndex', '1.12'
-    ]
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', ''
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                ltsmodelshare {
+                    source sourceSets.main
+                }
+            }
+        }
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', ''
+            property 'forge.logging.console.level', 'debug'
+            args '--nogui'
+            mods {
+                ltsmodelshare {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
 
-    if (project.hasProperty('ltsProxy')) {
-        def proxy = project.property('ltsProxy').toString().split(':')
-        clientJvmArgs += [
-                "-Dhttp.proxyHost=${proxy[0]}", "-Dhttp.proxyPort=${proxy[1]}",
-                "-Dhttps.proxyHost=${proxy[0]}", "-Dhttps.proxyPort=${proxy[1]}",
-                '-Dhttp.nonProxyHosts=localhost|127.0.0.1'
-        ]
+repositories {
+    maven {
+        name = 'MinecraftForge'
+        url = 'https://maven.minecraftforge.net/'
+    }
+    flatDir {
+        dirs 'deps'
     }
 }
 
 dependencies {
-    /*
-     * LittleTiles 1.12.2（本地 jar，放在 libs/）。
-     *
-     * 为什么用 provided：它只是**编译期**依赖 —— mod 运行时由玩家自己的 LittleTiles 提供，
-     * 不能打进我们的 jar（会重复类/版本冲突）。
-     *
-     * 用到的 API 只有 com.creativemd.littletiles.common.util.converation.StructureStringUtils：
-     *   ItemStack importStructure(String snbt)  —— 把 SNBT 文本解析成蓝图道具
-     *
-     * 注意：mod jar 里的**成员名**是 SRG（func_xxx），但类名和我们调用的
-     * StructureStringUtils 自己的方法名不是混淆的，所以直接 provided 就能编译。
-     */
-    /*
-     * 编译期依赖（LittleTiles 1.12.2）。
-     *
-     * 两个坑都踩过：
-     *  1. 不能用 provided —— FG2.3 会把 provided 同时放进开发运行期 classpath；
-     *  2. 也不能把 jar 放在 libs/ —— FG2.3 默认把 libs/ 整个加到运行期 classpath。
-     * 两件都做的话，run/mods 里的同名 jar 会撞出 DuplicateModsFoundException。
-     * 所以：jar 放 deps/（只给编译），运行时靠 run/mods（玩家环境靠他们自己的 mods 目录）。
-     */
-    compileOnly files('deps/LittleTiles_v1.5.66_mc1.12.2.jar')
-    // 原生预览会使用 LittleTiles 的 CreativeCore 数据类型；只编译，不打包进本模组。
-    compileOnly files('deps/CreativeCore_v1.10.70_mc1.12.2.jar')
+    minecraft 'net.minecraftforge:forge:1.20.1-47.2.0'
+    // Local LittleTiles / CreativeCore 1.20.1 jars (flatDir names); deobf so compilation sees official names.
+    compileOnly fg.deobf('local:littletiles:1.20.1')
+    compileOnly fg.deobf('local:creativecore:1.20.1')
 }
 
-processResources {
-    inputs.property 'version', project.version
-    inputs.property 'mcversion', project.minecraft.version
-    from(sourceSets.main.resources.srcDirs) {
-        include 'mcmod.info'
-        expand 'version': project.version, 'mcversion': '1.12.2'
-    }
-    from(sourceSets.main.resources.srcDirs) {
-        exclude 'mcmod.info'
-    }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
-
-// Exercise localization behavior without starting the game or adding test libraries.
-task localizationChecks(type: JavaExec, dependsOn: testClasses) {
-    classpath = sourceSets.test.runtimeClasspath
-    main = 'work.inception.ltsmodelshare.client.LocalizationChecks'
-}
-check.dependsOn localizationChecks
-
-// Exercise bounded OBJ parsing without opening a Minecraft window or OpenGL context.
-task objModelChecks(type: JavaExec, dependsOn: testClasses) {
-    classpath = sourceSets.test.runtimeClasspath
-    main = 'work.inception.ltsmodelshare.gui.ObjModelChecks'
-}
-check.dependsOn objModelChecks
 
 jar {
-    /*
-     * 每次构建输出**唯一文件名**。
-     *
-     * 之前踩过的坑：开发客户端正在跑的时候重新 build，gradle 会原地覆盖
-     * build/libs/LittletilesModelShare-0.1.0.jar，而运行中的游戏是懒加载类的 ——
-     * 一旦它去那个文件里取还没加载的类，就会 NoClassDefFoundError 直接崩。
-     * 改成带时间戳的文件名后，旧 jar 原封不动，正在跑的游戏不受影响。
-     */
-    archiveName = "LittletilesModelShare-${project.version}-" + new Date().format('MMdd-HHmmss') + ".jar"
     manifest {
         attributes([
-            'Specification-Title': 'ltsmodelshare',
-            'Specification-Vendor': 'inception.work',
-            'Specification-Version': '1',
-            'Implementation-Title': project.name,
-            'Implementation-Version': "${version}",
-            'Implementation-Vendor': 'inception.work',
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+                'Specification-Title'     : 'ltsmodelshare',
+                'Specification-Vendor'    : 'inception',
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.version,
+                'Implementation-Vendor'   : 'inception'
         ])
     }
 }
-
-/**
- * 修「1.12.2 客户端刷一堆 HTTP 400」。
- *
- * 背景：ForgeGradle 的 makeStart 会把 GradleStart 的默认 assetsDir 写成
- * <gradle home>/caches/minecraft/assets，但资源其实下在 caches/forge_gradle/assets，
- * 于是客户端以为 1305 个资源全缺 → 去 http://resources.download.minecraft.net 拉
- * → Mojang 的 CDN 现在对 http 直接回 400（https 才正常）→ 几千条 400，进游戏还慢。
- *
- * 做法：在 Windows 上给两个目录建 junction（目录软链），让客户端那条默认路径能看到资源。
- * 非 Windows 直接提示手动处理（Linux/macOS 用 ln -s）。
- */
-task fixAssetsDir {
-    group = 'ltsmodelshare'
-    description = '把 forge_gradle 的资源目录链到 GradleStart 默认找的位置（修 1.12.2 资源 400 刷屏）'
-    doLast {
-        def real = new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets')
-        def link = new File(gradle.gradleUserHomeDir, 'caches/minecraft/assets')
-        if (!real.isDirectory()) {
-            println "[fixAssetsDir] 跳过：$real 不存在（先跑一次 getAssets）"
-            return
-        }
-        if (new File(link, 'indexes/1.12.json').isFile()) {
-            println "[fixAssetsDir] 已经指好了：$link"
-            return
-        }
-        if (!System.getProperty('os.name').toLowerCase().contains('windows')) {
-            println "[fixAssetsDir] 非 Windows：请手动 ln -s \"$real\" \"$link\""
-            return
-        }
-        if (link.exists()) {
-            // 半成品/空壳目录：用 rmdir 删（避免误跟符号链接把真实资源删掉）
-            "cmd /c rmdir /s /q \"${link.absolutePath}\"".execute().waitFor()
-        }
-        link.parentFile.mkdirs()
-        def proc = "cmd /c mklink /J \"${link.absolutePath}\" \"${real.absolutePath}\"".execute()
-        proc.waitFor()
-        println "[fixAssetsDir] 已建立链接：$link -> $real"
-    }
-}
-
-// 跑客户端前自动保证资源目录可用
-tasks.getByName('runClient').dependsOn fixAssetsDir
-tasks.getByName('runServer').dependsOn fixAssetsDir
