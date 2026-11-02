@@ -1,5 +1,8 @@
 package work.inception.ltsmodelshare.client;
 
+import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -14,10 +17,8 @@ import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.FileImageInputStream;
 import javax.imageio.stream.ImageInputStream;
-
-import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 import work.inception.ltsmodelshare.LtsModelShare;
@@ -131,16 +132,17 @@ public final class LocalThumbs {
     }
 
     /** Original ImageDraw semantics: centered aspect crop, never stretch. */
-    public void draw(GuiGraphics graphics, File file, int x, int y, int w, int h) {
+    public void draw(PoseStack pose, File file, int x, int y, int w, int h) {
         Entry entry = get(file);
-        if (entry.texture == null) { graphics.fill(x, y, x + w, y + h, 0x40FFFFFF); return; }
+        if (entry.texture == null) { GuiComponent.fill(pose, x, y, x + w, y + h, 0x40FFFFFF); return; }
         int sw = entry.width, sh = entry.height, u = 0, v = 0;
         float target = w / (float) h, source = entry.width / (float) entry.height;
         if (source > target) { sw = Math.round(entry.height * target); u = (entry.width - sw) / 2; }
         else if (source < target) { sh = Math.round(entry.width / target); v = (entry.height - sh) / 2; }
         sw = Math.max(1, Math.min(sw, entry.width));
         sh = Math.max(1, Math.min(sh, entry.height));
-        graphics.blit(entry.texture, x, y, w, h, (float) u, (float) v, sw, sh, entry.width, entry.height);
+        RenderSystem.setShaderTexture(0, entry.texture);
+        GuiComponent.blit(pose, x, y, w, h, (float) u, (float) v, sw, sh, entry.width, entry.height);
     }
 
     /** Drop deleted/changed screenshots, without clearing valid thumbnails on every resize. */

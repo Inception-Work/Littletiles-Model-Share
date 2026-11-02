@@ -2,16 +2,16 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
-import net.minecraft.client.gui.GuiGraphics;
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.TextUtil;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /** My space: own works and collections without avatar/profile chrome. */
 public class GuiMySpace extends Screen {
@@ -82,11 +82,11 @@ public class GuiMySpace extends Screen {
     private FitButton tabButton(int x, String key, int selectedTab) {
         return new FitButton(x, 24, 92, 20, Component.translatable(key), b -> switchTab(selectedTab)) {
             @Override
-            public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-                if (tab != selectedTab) { super.renderWidget(graphics, mouseX, mouseY, partialTick); return; }
-                graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0xFF3F6E8C);
-                graphics.fill(getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(), 0xFFFFFFFF);
-                TextUtil.drawCenteredFit(graphics, font, getMessage().getString(), getX() + getWidth() / 2,
+            public void renderWidget(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+                if (tab != selectedTab) { super.renderWidget(pose, mouseX, mouseY, partialTick); return; }
+                GuiComponent.fill(pose, getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0xFF3F6E8C);
+                GuiComponent.fill(pose, getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(), 0xFFFFFFFF);
+                TextUtil.drawCenteredFit(pose, font, getMessage().getString(), getX() + getWidth() / 2,
                         getY() + (getHeight() - 8) / 2, getWidth() - 8, 0xFFFFFF);
             }
         };
@@ -184,34 +184,34 @@ public class GuiMySpace extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
-        graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
+        GuiComponent.drawCenteredString(pose, font, title, width / 2, 8, 0xFFFFFF);
         if (onlyThisVersion) {
-            graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
+            GuiComponent.fill(pose, versionX, GuiNavigation.footerY(height) + 20,
                     versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
         }
         if (needLogin) {
-            graphics.drawCenteredString(font, status, width / 2, height / 2, 0xFFCCCCCC);
-            super.render(graphics, mouseX, mouseY, partialTick);
+            GuiComponent.drawCenteredString(pose, font, status, width / 2, height / 2, 0xFFCCCCCC);
+            super.render(pose, mouseX, mouseY, partialTick);
             return;
         }
         List<Dtos.WorkCard> items = pageItems();
         for (int i = 0; i < items.size(); i++) {
             int x = gridLeft + (i % cols) * (cardW + GAP);
             int y = gridTop + (i / cols) * (cardH + GAP);
-            WorkCardView.grid(graphics, font, items.get(i), x, y, cardW, cardH, imageH,
+            WorkCardView.grid(pose, font, items.get(i), x, y, cardW, cardH, imageH,
                     mouseX >= x && mouseX <= x + cardW && mouseY >= y && mouseY <= y + cardH);
         }
         if (!status.isEmpty()) {
-            graphics.drawCenteredString(font, TextUtil.trim(font, status, width - 24), width / 2, height / 2, 0xFFFFFF);
+            GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, status, width - 24), width / 2, height / 2, 0xFFFFFF);
         }
         int backX = GuiNavigation.backX(width);
         int midLeft = GuiNavigation.MARGIN + 42 + GAP;
         int midRight = versionX - GAP - 42 - GAP;
-        TextUtil.drawCenteredFit(graphics, font, tr("ltsmodelshare.common.page", page, maxPage()),
+        TextUtil.drawCenteredFit(pose, font, tr("ltsmodelshare.common.page", page, maxPage()),
                 (midLeft + midRight) / 2, GuiNavigation.footerY(height) + 6, Math.max(20, midRight - midLeft), 0xAAAAAA);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override

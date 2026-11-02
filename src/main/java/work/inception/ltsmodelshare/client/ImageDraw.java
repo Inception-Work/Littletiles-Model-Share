@@ -1,6 +1,8 @@
 package work.inception.ltsmodelshare.client;
 
-import net.minecraft.client.gui.GuiGraphics;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.resources.ResourceLocation;
 
 /** Aspect-fill drawing for remote images (cover images, avatars, banners). */
@@ -8,16 +10,16 @@ public final class ImageDraw {
     private ImageDraw() { }
 
     /** Card-sized rendering; uses DogeCloud /thumb (<=480px). */
-    public static void drawThumb(GuiGraphics graphics, String url, int x, int y, int w, int h) {
-        drawCropped(graphics, ImageUrls.thumb(url), x, y, w, h);
+    public static void drawThumb(PoseStack pose, String url, int x, int y, int w, int h) {
+        drawCropped(pose, ImageUrls.thumb(url), x, y, w, h);
     }
 
     /** Large rendering (detail cover, banner); uses DogeCloud /preview (<=1600px). */
-    public static void drawPreview(GuiGraphics graphics, String url, int x, int y, int w, int h) {
-        drawCropped(graphics, ImageUrls.preview(url), x, y, w, h);
+    public static void drawPreview(PoseStack pose, String url, int x, int y, int w, int h) {
+        drawCropped(pose, ImageUrls.preview(url), x, y, w, h);
     }
 
-    public static void drawCropped(GuiGraphics graphics, String url, int x, int y, int w, int h) {
+    public static void drawCropped(PoseStack pose, String url, int x, int y, int w, int h) {
         if (url == null || url.isEmpty() || w <= 0 || h <= 0) return;
         ResourceLocation id = ImageCache.img(url);
         int[] size = ImageCache.size(url);
@@ -35,6 +37,8 @@ public final class ImageDraw {
         }
         int srcX = (texW - srcW) / 2;
         int srcY = (texH - srcH) / 2;
-        graphics.blit(id, x, y, w, h, (float) srcX, (float) srcY, srcW, srcH, texW, texH);
+        // 1.19.4 has no GuiGraphics: bind the texture explicitly, then blit through GuiComponent.
+        RenderSystem.setShaderTexture(0, id);
+        GuiComponent.blit(pose, x, y, w, h, (float) srcX, (float) srcY, srcW, srcH, texW, texH);
     }
 }

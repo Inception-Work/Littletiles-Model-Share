@@ -2,7 +2,10 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
-import net.minecraft.client.gui.GuiGraphics;
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -10,9 +13,6 @@ import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.TextUtil;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /** Model browser: card grid, search, pagination and footer actions. */
 public class GuiModels extends Screen {
@@ -213,16 +213,16 @@ public class GuiModels extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         if (loading && System.currentTimeMillis() - loadStartedAt > 30_000L) {
             loading = false;
             status = tr("ltsmodelshare.common.request_timeout");
         }
         int cx = width / 2;
-        graphics.drawCenteredString(font, title, cx, 8, 0xFFFFFF);
+        GuiComponent.drawCenteredString(pose, font, title, cx, 8, 0xFFFFFF);
         if (onlyThisVersion) {
-            graphics.fill(versionX, versionY + 20, versionX + versionW, versionY + 22, 0xFFFFFFFF);
+            GuiComponent.fill(pose, versionX, versionY + 20, versionX + versionW, versionY + 22, 0xFFFFFFFF);
         }
         search.setHint(search.isFocused() ? Component.empty() : Component.translatable("ltsmodelshare.search.placeholder"));
 
@@ -230,11 +230,11 @@ public class GuiModels extends Screen {
         for (int i = 0; i < Math.min(cards.size(), perPage); i++) {
             int x = gridLeft + (i % columns) * (cardW + GAP);
             int y = gridTop + (i / columns) * (cardH + GAP);
-            WorkCardView.grid(graphics, font, cards.get(i), x, y, cardW, cardH, imageH, hovered == i);
+            WorkCardView.grid(pose, font, cards.get(i), x, y, cardW, cardH, imageH, hovered == i);
         }
 
         if (!status.isEmpty()) {
-            TextUtil.drawCenteredFit(graphics, font, status, cx, gridTop + cardH / 2, width - 20, 0xFFFFFF);
+            TextUtil.drawCenteredFit(pose, font, status, cx, gridTop + cardH / 2, width - 20, 0xFFFFFF);
         }
 
         int midLeft = GuiNavigation.MARGIN + 42 + GAP;
@@ -243,10 +243,10 @@ public class GuiModels extends Screen {
                 + (ModConfig.get().loggedIn()
                 ? tr("ltsmodelshare.models.logged_in", ModConfig.get().username)
                 : tr("ltsmodelshare.models.guest"));
-        TextUtil.drawCenteredFit(graphics, font, TextUtil.trim(font, mid, Math.max(20, midRight - midLeft)),
+        TextUtil.drawCenteredFit(pose, font, TextUtil.trim(font, mid, Math.max(20, midRight - midLeft)),
                 (midLeft + midRight) / 2, GuiNavigation.footerY(height) - 20, Math.max(20, midRight - midLeft), 0xAAAAAA);
 
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     private int cardAt(int mouseX, int mouseY) {

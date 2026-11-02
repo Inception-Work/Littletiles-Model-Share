@@ -1,10 +1,9 @@
 package work.inception.ltsmodelshare.gui;
 
-import static work.inception.ltsmodelshare.client.Translations.tr;
-
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
@@ -65,33 +64,33 @@ public class GuiMessage extends Screen {
         }
     }
 
-    @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
-        graphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF000000);
-        graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF2B2B2B);
-        graphics.fill(panelX, panelY, panelX + panelW, panelY + 2, 0xFF8A8A8A);
-        graphics.fill(panelX, panelY + panelH - 2, panelX + panelW, panelY + panelH, 0xFF8A8A8A);
-        graphics.fill(panelX, panelY, panelX + 2, panelY + panelH, 0xFF8A8A8A);
-        graphics.fill(panelX + panelW - 2, panelY, panelX + panelW, panelY + panelH, 0xFF8A8A8A);
-        graphics.fill(panelX + 2, panelY + 2, panelX + panelW - 2, panelY + TITLE_H, 0xFF3A3A3A);
-        graphics.fill(panelX + 2, panelY + TITLE_H, panelX + panelW - 2, panelY + TITLE_H + 1, 0xFF555555);
-        TextUtil.drawCenteredFit(graphics, font, title.getString(), panelX + panelW / 2,
+    @Override public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
+        GuiComponent.fill(pose, panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF000000);
+        GuiComponent.fill(pose, panelX, panelY, panelX + panelW, panelY + panelH, 0xFF2B2B2B);
+        GuiComponent.fill(pose, panelX, panelY, panelX + panelW, panelY + 2, 0xFF8A8A8A);
+        GuiComponent.fill(pose, panelX, panelY + panelH - 2, panelX + panelW, panelY + panelH, 0xFF8A8A8A);
+        GuiComponent.fill(pose, panelX, panelY, panelX + 2, panelY + panelH, 0xFF8A8A8A);
+        GuiComponent.fill(pose, panelX + panelW - 2, panelY, panelX + panelW, panelY + panelH, 0xFF8A8A8A);
+        GuiComponent.fill(pose, panelX + 2, panelY + 2, panelX + panelW - 2, panelY + TITLE_H, 0xFF3A3A3A);
+        GuiComponent.fill(pose, panelX + 2, panelY + TITLE_H, panelX + panelW - 2, panelY + TITLE_H + 1, 0xFF555555);
+        TextUtil.drawCenteredFit(pose, font, title.getString(), panelX + panelW / 2,
                 panelY + (TITLE_H - 8) / 2, panelW - 12, 0xFFFF55);
         int y = panelY + TITLE_H + PAD;
-        graphics.enableScissor(panelX + PAD, y, panelX + panelW - PAD, y + visibleLines * LINE_H);
+        GuiComponent.enableScissor(panelX + PAD, y, panelX + panelW - PAD, y + visibleLines * LINE_H);
         try {
             for (int i = lineScroll; i < Math.min(lines.size(), lineScroll + visibleLines); i++) {
-                graphics.drawString(font, lines.get(i), panelX + PAD, y + (i - lineScroll) * LINE_H, 0xDDDDDD, true);
+                font.drawShadow(pose, lines.get(i), panelX + PAD, y + (i - lineScroll) * LINE_H, 0xDDDDDD);
             }
-        } finally { graphics.disableScissor(); }
+        } finally { GuiComponent.disableScissor(); }
         if (lines.size() > visibleLines) {
             int barHeight = visibleLines * LINE_H;
             int thumbHeight = Math.max(6, barHeight * visibleLines / lines.size());
             int thumbY = y + (barHeight - thumbHeight) * lineScroll / (lines.size() - visibleLines);
-            graphics.fill(panelX + panelW - 6, y, panelX + panelW - 4, y + barHeight, 0x30FFFFFF);
-            graphics.fill(panelX + panelW - 6, thumbY, panelX + panelW - 4, thumbY + thumbHeight, 0x90FFFFFF);
+            GuiComponent.fill(pose, panelX + panelW - 6, y, panelX + panelW - 4, y + barHeight, 0x30FFFFFF);
+            GuiComponent.fill(pose, panelX + panelW - 6, thumbY, panelX + panelW - 4, thumbY + thumbHeight, 0x90FFFFFF);
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override public boolean mouseScrolled(double mouseX, double mouseY, double delta) {

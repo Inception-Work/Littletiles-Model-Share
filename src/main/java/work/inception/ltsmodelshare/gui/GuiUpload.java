@@ -2,6 +2,7 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,12 +11,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import org.lwjgl.glfw.GLFW;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
 import team.creative.littletiles.common.item.ItemLittleBlueprint;
 import work.inception.ltsmodelshare.LtsModelShare;
@@ -26,7 +27,7 @@ import work.inception.ltsmodelshare.client.LocalThumbs;
 import work.inception.ltsmodelshare.client.SiteTags;
 import work.inception.ltsmodelshare.client.TextUtil;
 
-/** Forge 1.12.2 upload geometry, drawing order and interactions on 1.20.1. */
+/** Forge 1.12.2 upload geometry, drawing order and interactions on 1.19.4. */
 public class GuiUpload extends Screen {
     private static final int MAX_SHOTS = 6;
     private static final int CELL_W = 60;
@@ -35,7 +36,7 @@ public class GuiUpload extends Screen {
     private static final int ROW_H = CELL_H + CELL_GAP;
     private static final int TAG_ROW_H = 14;
     private static final String SOURCE_LOADER = "forge";
-    private static final String GAME_VERSION = "1.20.1";
+    private static final String GAME_VERSION = "1.19.4";
     private final Screen parent;
     private final LocalThumbs thumbs = new LocalThumbs();
     private EditBox titleField;
@@ -307,35 +308,35 @@ public class GuiUpload extends Screen {
     private void updateSubmitButtons() { draftButton.active = !submitted; reviewButton.active = !submitted; }
     private void dismissResult() { busy = false; resultText = null; updateSubmitButtons(); }
 
-    @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
-        graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
-        graphics.drawCenteredString(font, title, width / 2, 22, 0xFFFFFF);
+    @Override public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
+        GuiComponent.fill(pose, panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
+        GuiComponent.drawCenteredString(pose, font, title, width / 2, 22, 0xFFFFFF);
         String state = exportError != null ? exportError : snbt != null ? tr("ltsmodelshare.upload.exported", snbt.length()) : "";
-        if (!state.isEmpty()) graphics.drawCenteredString(font, state, width / 2, 32, exportError != null ? 0xFF5555 : 0x55FF55);
-        graphics.drawString(font, tr("ltsmodelshare.upload.field_title"), panelLeft, titleLabelY, 0xAAAAAA);
-        graphics.drawString(font, tr("ltsmodelshare.upload.summary"), panelLeft, summaryLabelY, 0xAAAAAA);
-        summary.draw(graphics);
-        graphics.drawString(font, tr("ltsmodelshare.upload.screenshots", MAX_SHOTS, picked.size()), shotsBoxX, listsLabelY, 0xAAAAAA);
-        graphics.drawString(font, tags.isEmpty() ? tr("ltsmodelshare.common.tags")
+        if (!state.isEmpty()) GuiComponent.drawCenteredString(pose, font, state, width / 2, 32, exportError != null ? 0xFF5555 : 0x55FF55);
+        font.drawShadow(pose, tr("ltsmodelshare.upload.field_title"), panelLeft, titleLabelY, 0xAAAAAA);
+        font.drawShadow(pose, tr("ltsmodelshare.upload.summary"), panelLeft, summaryLabelY, 0xAAAAAA);
+        summary.draw(pose);
+        font.drawShadow(pose, tr("ltsmodelshare.upload.screenshots", MAX_SHOTS, picked.size()), shotsBoxX, listsLabelY, 0xAAAAAA);
+        font.drawShadow(pose, tags.isEmpty() ? tr("ltsmodelshare.common.tags")
                 : tr("ltsmodelshare.common.tags_count", tags.size()), tagsBoxX, listsLabelY, 0xAAAAAA);
-        drawShots(graphics, mouseX, mouseY);
-        drawTags(graphics, mouseX, mouseY);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        drawShots(pose, mouseX, mouseY);
+        drawTags(pose, mouseX, mouseY);
+        super.render(pose, mouseX, mouseY, partialTick);
         if (busy) {
-            graphics.pose().pushPose();
-            try { graphics.pose().translate(0, 0, 300); drawProgressOverlay(graphics); }
-            finally { graphics.pose().popPose(); }
+            pose.pushPose();
+            try { pose.translate(0, 0, 300); drawProgressOverlay(pose); }
+            finally { pose.popPose(); }
         }
     }
 
-    private void drawShots(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.fill(shotsBoxX, boxY, shotsBoxX + shotsBoxW, boxY + boxH, 0x40000000);
-        if (shots.isEmpty()) graphics.drawString(font, tr("ltsmodelshare.upload.no_shots"), shotsBoxX + 4, boxY + 4, 0x555555);
+    private void drawShots(PoseStack pose, int mouseX, int mouseY) {
+        GuiComponent.fill(pose, shotsBoxX, boxY, shotsBoxX + shotsBoxW, boxY + boxH, 0x40000000);
+        if (shots.isEmpty()) font.drawShadow(pose, tr("ltsmodelshare.upload.no_shots"), shotsBoxX + 4, boxY + 4, 0x555555);
         int perRow = cellsPerRow();
         int hovered = shotIndexAt(mouseX, mouseY);
         // Partial rows must not paint over labels/buttons, unlike the old unscissored renderer.
-        graphics.enableScissor(shotsBoxX, boxY, shotsBoxX + shotsBoxW, boxY + boxH);
+        GuiComponent.enableScissor(shotsBoxX, boxY, shotsBoxX + shotsBoxW, boxY + boxH);
         try {
             for (int index = (shotScrollPx / ROW_H) * perRow; index < shots.size(); index++) {
                 int cellX = shotsBoxX + index % perRow * (CELL_W + CELL_GAP);
@@ -343,62 +344,62 @@ public class GuiUpload extends Screen {
                 if (cellY >= boxY + boxH) break;
                 if (cellY + CELL_H <= boxY) continue;
                 File file = shots.get(index);
-                thumbs.draw(graphics, file, cellX, cellY, CELL_W, CELL_H);
-                if (picked.contains(file)) drawFrame(graphics, cellX - 2, cellY - 2, CELL_W + 4, CELL_H + 4, 0xFF2ECC40);
-                else if (hovered == index) drawFrame(graphics, cellX, cellY, CELL_W, CELL_H, 0x90FFFFFF);
+                thumbs.draw(pose, file, cellX, cellY, CELL_W, CELL_H);
+                if (picked.contains(file)) drawFrame(pose, cellX - 2, cellY - 2, CELL_W + 4, CELL_H + 4, 0xFF2ECC40);
+                else if (hovered == index) drawFrame(pose, cellX, cellY, CELL_W, CELL_H, 0x90FFFFFF);
             }
-        } finally { graphics.disableScissor(); }
-        if (maxShotScrollPx() > 0) drawScrollbarPx(graphics, shotsBoxX + shotsBoxW - 4, boxY, boxH, shotScrollPx, maxShotScrollPx());
+        } finally { GuiComponent.disableScissor(); }
+        if (maxShotScrollPx() > 0) drawScrollbarPx(pose, shotsBoxX + shotsBoxW - 4, boxY, boxH, shotScrollPx, maxShotScrollPx());
     }
 
-    private void drawTags(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.fill(tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + tagsBoxH, 0x40000000);
-        graphics.enableScissor(tagsBoxX, boxY, tagsBoxX + tagsBoxW - 5, boxY + tagsBoxH);
+    private void drawTags(PoseStack pose, int mouseX, int mouseY) {
+        GuiComponent.fill(pose, tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + tagsBoxH, 0x40000000);
+        GuiComponent.enableScissor(tagsBoxX, boxY, tagsBoxX + tagsBoxW - 5, boxY + tagsBoxH);
         try {
-            if (tags.isEmpty() && !loadingTags) graphics.drawString(font, tr("ltsmodelshare.search.no_tags"), tagsBoxX + 4, boxY + 4, 0x555555);
+            if (tags.isEmpty() && !loadingTags) font.drawShadow(pose, tr("ltsmodelshare.search.no_tags"), tagsBoxX + 4, boxY + 4, 0x555555);
             for (int row = 0; row < visibleTagRows(); row++) {
                 int index = tagScroll + row;
                 if (index >= tags.size()) break;
                 Dtos.Tag tag = tags.get(index);
                 int rowY = boxY + row * TAG_ROW_H;
                 boolean on = tagCodes.contains(tag.code);
-                if (tagIndexAt(mouseX, mouseY) == index) graphics.fill(tagsBoxX + 1, rowY, tagsBoxX + tagsBoxW - 5, rowY + TAG_ROW_H - 1, 0x40FFFFFF);
-                graphics.drawString(font, (on ? "✔ " : "·  ") + SiteTags.label(tag), tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xAAAAAA);
+                if (tagIndexAt(mouseX, mouseY) == index) GuiComponent.fill(pose, tagsBoxX + 1, rowY, tagsBoxX + tagsBoxW - 5, rowY + TAG_ROW_H - 1, 0x40FFFFFF);
+                font.drawShadow(pose, (on ? "✔ " : "·  ") + SiteTags.label(tag), tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xAAAAAA);
             }
-        } finally { graphics.disableScissor(); }
+        } finally { GuiComponent.disableScissor(); }
         if (maxTagScroll() > 0) {
             int thumbH = Math.max(8, tagsBoxH * visibleTagRows() / Math.max(visibleTagRows(), tags.size()));
-            drawScrollbar(graphics, tagsBoxX + tagsBoxW - 4, boxY, tagsBoxH, tagScroll, maxTagScroll(), thumbH);
+            drawScrollbar(pose, tagsBoxX + tagsBoxW - 4, boxY, tagsBoxH, tagScroll, maxTagScroll(), thumbH);
         }
     }
 
-    private void drawProgressOverlay(GuiGraphics graphics) {
+    private void drawProgressOverlay(PoseStack pose) {
         int cx = width / 2, cy = height / 2, w = Math.min(300, width - 40);
         List<String> lines = wrap(resultText != null ? resultText : progress, w - 16);
         int h = 26 + lines.size() * 10 + 16;
-        graphics.fill(0, 0, width, height, 0xA0000000);
-        graphics.fill(cx - w / 2 - 2, cy - h / 2 - 2, cx + w / 2 + 2, cy + h / 2 + 2, 0xFF000000);
-        graphics.fill(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, 0xFF2B2B2B);
-        drawFrame(graphics, cx - w / 2, cy - h / 2, w, h, 0xFF8A8A8A);
+        GuiComponent.fill(pose, 0, 0, width, height, 0xA0000000);
+        GuiComponent.fill(pose, cx - w / 2 - 2, cy - h / 2 - 2, cx + w / 2 + 2, cy + h / 2 + 2, 0xFF000000);
+        GuiComponent.fill(pose, cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2, 0xFF2B2B2B);
+        drawFrame(pose, cx - w / 2, cy - h / 2, w, h, 0xFF8A8A8A);
         String heading = resultText == null ? tr("ltsmodelshare.upload.busy") : tr(resultOk ? "ltsmodelshare.upload.done" : "ltsmodelshare.upload.failed");
         int color = resultText == null ? 0xFFFF55 : resultOk ? 0x55FF55 : 0xFF5555;
-        graphics.drawCenteredString(font, heading, cx, cy - h / 2 + 6, color);
+        GuiComponent.drawCenteredString(pose, font, heading, cx, cy - h / 2 + 6, color);
         int y = cy - h / 2 + 20;
-        for (String line : lines) { graphics.drawCenteredString(font, line, cx, y, 0xDDDDDD); y += 10; }
+        for (String line : lines) { GuiComponent.drawCenteredString(pose, font, line, cx, y, 0xDDDDDD); y += 10; }
         String footer = resultText == null ? ".".repeat((int) ((System.currentTimeMillis() / 300L) % 4L)) : tr("ltsmodelshare.upload.dismiss");
-        graphics.drawCenteredString(font, footer, cx, cy + h / 2 - 12, 0xAAAAAA);
+        GuiComponent.drawCenteredString(pose, font, footer, cx, cy + h / 2 - 12, 0xAAAAAA);
     }
-    private void drawFrame(GuiGraphics g, int x, int y, int w, int h, int color) {
-        g.fill(x, y, x + w, y + 2, color); g.fill(x, y + h - 2, x + w, y + h, color);
-        g.fill(x, y, x + 2, y + h, color); g.fill(x + w - 2, y, x + w, y + h, color);
+    private void drawFrame(PoseStack pose, int x, int y, int w, int h, int color) {
+        GuiComponent.fill(pose, x, y, x + w, y + 2, color); GuiComponent.fill(pose, x, y + h - 2, x + w, y + h, color);
+        GuiComponent.fill(pose, x, y, x + 2, y + h, color); GuiComponent.fill(pose, x + w - 2, y, x + w, y + h, color);
     }
-    private void drawScrollbarPx(GuiGraphics g, int x, int y, int h, int scroll, int max) {
-        drawScrollbar(g, x, y, h, scroll, max, Math.max(10, (int) ((long) h * h / (h + max))));
+    private void drawScrollbarPx(PoseStack pose, int x, int y, int h, int scroll, int max) {
+        drawScrollbar(pose, x, y, h, scroll, max, Math.max(10, (int) ((long) h * h / (h + max))));
     }
-    private void drawScrollbar(GuiGraphics g, int x, int y, int h, int scroll, int max, int thumbH) {
-        g.fill(x, y, x + 3, y + h, 0x40000000);
+    private void drawScrollbar(PoseStack pose, int x, int y, int h, int scroll, int max, int thumbH) {
+        GuiComponent.fill(pose, x, y, x + 3, y + h, 0x40000000);
         int thumbY = y + (int) ((long) (h - thumbH) * scroll / max);
-        g.fill(x, thumbY, x + 3, thumbY + thumbH, 0xAAFFFFFF);
+        GuiComponent.fill(pose, x, thumbY, x + 3, thumbY + thumbH, 0xAAFFFFFF);
     }
 
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -493,17 +494,17 @@ public class GuiUpload extends Screen {
             else if (key == GLFW.GLFW_KEY_TAB) { focused = false; setFocused(titleField); titleField.setFocused(true); }
             return true;
         }
-        void draw(GuiGraphics g) {
-            g.fill(x, y, x + w, y + h, 0x60000000);
-            g.fill(x, y, x + w, y + 1, focused ? 0xFFFFFFFF : 0x60FFFFFF);
+        void draw(PoseStack pose) {
+            GuiComponent.fill(pose, x, y, x + w, y + h, 0x60000000);
+            GuiComponent.fill(pose, x, y, x + w, y + 1, focused ? 0xFFFFFFFF : 0x60FFFFFF);
             List<String> lines = wrap(text.toString(), w - 6);
             int visible = Math.max(1, (h - 4) / 10), from = Math.max(0, lines.size() - visible), lineY = y + 3;
-            for (int i = from; i < lines.size(); i++) { g.drawString(font, lines.get(i), x + 3, lineY, 0xDDDDDD); lineY += 10; }
+            for (int i = from; i < lines.size(); i++) { font.drawShadow(pose, lines.get(i), x + 3, lineY, 0xDDDDDD); lineY += 10; }
             if (focused) {
                 int caretY = y + 3 + Math.max(0, Math.min(lines.size(), visible) - 1) * 10;
                 String last = lines.isEmpty() ? "" : lines.get(lines.size() - 1);
                 int caretX = x + 3 + font.width(last);
-                g.fill(caretX + 1, caretY, caretX + 2, caretY + 9, 0xFFFFFFFF);
+                GuiComponent.fill(pose, caretX + 1, caretY, caretX + 2, caretY + 9, 0xFFFFFFFF);
             }
         }
     }
@@ -515,12 +516,12 @@ public class GuiUpload extends Screen {
                     : "ltsmodelshare.upload.visibility_private"), button -> { if (!busy) visibilityPublic = publicTab; });
             this.publicTab = publicTab;
         }
-        @Override public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        @Override public void renderWidget(PoseStack pose, int mouseX, int mouseY, float partialTick) {
             if (visibilityPublic == publicTab) {
-                g.fill(getX(), getY(), getX() + width, getY() + height, 0xFF3F6E8C);
-                g.fill(getX(), getY() + height - 1, getX() + width, getY() + height, 0xFFFFFFFF);
-                TextUtil.drawCenteredFit(g, font, label().getString(), getX() + width / 2, getY() + (height - 8) / 2, width - 8, 0xFFFFFFFF);
-            } else super.renderWidget(g, mouseX, mouseY, partialTick);
+                GuiComponent.fill(pose, getX(), getY(), getX() + width, getY() + height, 0xFF3F6E8C);
+                GuiComponent.fill(pose, getX(), getY() + height - 1, getX() + width, getY() + height, 0xFFFFFFFF);
+                TextUtil.drawCenteredFit(pose, font, label().getString(), getX() + width / 2, getY() + (height - 8) / 2, width - 8, 0xFFFFFFFF);
+            } else super.renderWidget(pose, mouseX, mouseY, partialTick);
         }
     }
 }

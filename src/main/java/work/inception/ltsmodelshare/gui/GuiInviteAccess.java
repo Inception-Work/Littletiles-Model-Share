@@ -2,8 +2,9 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -98,16 +99,15 @@ public class GuiInviteAccess extends Screen {
         return message;
     }
 
-    @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    @Override public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         int cx = width / 2, cy = height / 2;
-        graphics.drawCenteredString(font, title, cx, cy - 95, 0xFFFFFF);
-        graphics.drawCenteredString(font, tr("ltsmodelshare.invite.help"), cx, cy - 82, 0xAAAAAA);
-        graphics.drawString(font, tr("ltsmodelshare.invite.id"), cx - fieldWidth() / 2, cy - 73, 0xCCCCCC, true);
-        graphics.drawString(font, tr("ltsmodelshare.invite.code"), cx - fieldWidth() / 2, cy - 34, 0xCCCCCC, true);
-        if (!status.isEmpty()) graphics.drawCenteredString(font,
-                TextUtil.trim(font, status, width - 24), cx, cy + 34, 0xFFFFFF);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        GuiComponent.drawCenteredString(pose, font, title, cx, cy - 95, 0xFFFFFF);
+        GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.invite.help"), cx, cy - 82, 0xAAAAAA);
+        font.drawShadow(pose, tr("ltsmodelshare.invite.id"), cx - fieldWidth() / 2, cy - 73, 0xCCCCCC);
+        font.drawShadow(pose, tr("ltsmodelshare.invite.code"), cx - fieldWidth() / 2, cy - 34, 0xCCCCCC);
+        if (!status.isEmpty()) GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, status, width - 24), cx, cy + 34, 0xFFFFFF);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {

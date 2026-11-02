@@ -1,13 +1,11 @@
 package work.inception.ltsmodelshare.client;
 
-import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.util.FormattedCharSequence;
 import com.mojang.blaze3d.vertex.PoseStack;
-
 import java.util.List;
+import net.minecraft.client.gui.Font;
+import net.minecraft.util.FormattedCharSequence;
 
-/** Text fitting helpers shared by all 1.20.1 screens. */
+/** Text fitting helpers shared by all 1.19.4 screens. */
 public final class TextUtil {
     private TextUtil() { }
 
@@ -25,7 +23,7 @@ public final class TextUtil {
     }
 
     /** Draw centered, scaling down when the translation is wider than the button. */
-    public static void drawCenteredFit(GuiGraphics graphics, Font font, String text,
+    public static void drawCenteredFit(PoseStack pose, Font font, String text,
                                        int centerX, int y, int maxWidth, int color) {
         if (text == null || text.isEmpty()) return;
         float scale = 1f;
@@ -33,12 +31,12 @@ public final class TextUtil {
         if (width > maxWidth && width > 0) {
             scale = Math.max(0.5f, maxWidth / (float) width);
         }
-        PoseStack pose = graphics.pose();
+
         pose.pushPose();
         try {
             pose.translate(centerX, y + (scale < 1f ? (font.lineHeight * (1f - scale)) / 2f : 0f), 0f);
             pose.scale(scale, scale, 1f);
-            graphics.drawString(font, text, -Math.round(font.width(text) / 2f), 0, color, true);
+            font.drawShadow(pose, text, -Math.round(font.width(text) / 2f), 0, color);
         } finally {
             pose.popPose();
         }

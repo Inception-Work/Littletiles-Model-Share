@@ -2,25 +2,18 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
-import java.util.List;
-
-import org.joml.Matrix4f;
-
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexSorting;
 import com.mojang.math.Axis;
-
+import java.util.List;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.Difficulty;
 import net.minecraft.world.phys.AABB;
+import org.joml.Matrix4f;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
-import team.creative.littletiles.client.level.little.FakeClientLevel;
 import team.creative.littletiles.common.action.LittleActionException;
 import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
 import team.creative.littletiles.common.gui.AnimationPreview;
@@ -62,9 +55,9 @@ public class GuiTilesPreview extends Screen {
         this.parent = parent;
         this.title = title == null ? "" : title;
 
-        FakeClientLevel fake = FakeClientLevel.createFakeWorldClient("ltsmodelshare-preview",
-                new ClientLevel.ClientLevelData(Difficulty.PEACEFUL, false, false));
-        this.preview = new AnimationPreview(fake, null, group);
+        // 1.19.4 (LittleTiles 1.6.0-pre041) takes (LittleStructure, LittleGroup) and builds its own
+        // fake level internally; a null structure falls back to the group's surrounding box.
+        this.preview = new AnimationPreview(null, group);
         AABB box = this.preview.box;
         this.center = new Vec3d(box.getCenter());
         this.longest = Math.max(box.getXsize(), Math.max(box.getYsize(), box.getZsize()));
@@ -93,26 +86,25 @@ public class GuiTilesPreview extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
-        graphics.drawCenteredString(font, TextUtil.trim(font, title, width - 20), width / 2, 10, 0xFFFFFF);
-        graphics.drawCenteredString(font, tr("ltsmodelshare.preview.native_mode"), width / 2, 22, 0xFFCC88);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
+        GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, title, width - 20), width / 2, 10, 0xFFFFFF);
+        GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.preview.native_mode"), width / 2, 22, 0xFFCC88);
 
-        renderScene(graphics, partialTick);
+        renderScene(pose, partialTick);
 
         if (renderFailed) {
-            graphics.drawCenteredString(font, tr("ltsmodelshare.preview.native_failed"), width / 2, height / 2, 0xFF8888);
+            GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.preview.native_failed"), width / 2, height / 2, 0xFF8888);
         }
-        graphics.drawCenteredString(font, tr("ltsmodelshare.preview.controls"), width / 2,
-                height - 34, 0xAAAAAA);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.preview.controls"), width / 2, height - 34, 0xAAAAAA);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     /** LT 的预览实体在透视投影下画；画完把 GUI 的正交投影还回去，别把后面的控件带歪。 */
-    private void renderScene(GuiGraphics graphics, float partialTick) {
+    private void renderScene(PoseStack pose, float partialTick) {
         Minecraft mc = minecraft;
         if (mc == null) return;
-        PoseStack pose = graphics.pose();
+
         RenderSystem.enableDepthTest();
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.enableBlend();
@@ -131,7 +123,7 @@ public class GuiTilesPreview extends Screen {
 
         Matrix4f projection = new Matrix4f().perspective((float) Math.toRadians(90),
                 (float) window.getWidth() / Math.max(1, window.getHeight()), 0.05f, 2048f);
-        RenderSystem.setProjectionMatrix(projection, VertexSorting.DISTANCE_TO_ORIGIN);
+        RenderSystem.setProjectionMatrix(projection);
 
         PoseStack scene = new PoseStack();
         scene.translate(0f, 0f, (float) -distance);
@@ -148,8 +140,7 @@ public class GuiTilesPreview extends Screen {
         modelView.popPose();
         RenderSystem.applyModelViewMatrix();
 
-        RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(0f, width, height, 0f, 1000f, 3000f),
-                VertexSorting.ORTHOGRAPHIC_Z);
+        RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(0f, width, height, 0f, 1000f, 3000f));
         RenderSystem.disableDepthTest();
         GlStateManager._enableBlend();
     }

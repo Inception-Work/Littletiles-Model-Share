@@ -2,8 +2,9 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -137,20 +138,19 @@ public class GuiLogin extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         int cx = width / 2;
         int cy = height / 2;
-        graphics.drawCenteredString(font, title, cx, cy - 95, 0xFFFFFF);
-        graphics.drawCenteredString(font, Component.literal(ModConfig.get().baseUrl), cx, cy - 82, 0xAAAAAA);
-        graphics.drawString(font, tr(tokenMode ? "ltsmodelshare.login.token" : "ltsmodelshare.login.account"),
-                cx - 100, cy - 73, 0xCCCCCC, true);
+        GuiComponent.drawCenteredString(pose, font, title, cx, cy - 95, 0xFFFFFF);
+        GuiComponent.drawCenteredString(pose, font, Component.literal(ModConfig.get().baseUrl), cx, cy - 82, 0xAAAAAA);
+        font.drawShadow(pose, tr(tokenMode ? "ltsmodelshare.login.token" : "ltsmodelshare.login.account"), cx - 100, cy - 73, 0xCCCCCC);
         if (!tokenMode)
-            graphics.drawString(font, tr("ltsmodelshare.login.password"), cx - 100, cy - 34, 0xCCCCCC, true);
+            font.drawShadow(pose, tr("ltsmodelshare.login.password"), cx - 100, cy - 34, 0xCCCCCC);
         // Below the form rather than behind the token-mode button as in the old screen.
         if (!status.isEmpty())
-            graphics.drawCenteredString(font, TextUtil.trim(font, status, width - 24), cx, cy + 84, 0xFFFFFF);
-        super.render(graphics, mouseX, mouseY, partialTick);
+            GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, status, width - 24), cx, cy + 84, 0xFFFFFF);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override

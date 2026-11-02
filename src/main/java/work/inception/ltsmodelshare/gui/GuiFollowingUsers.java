@@ -2,16 +2,16 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
-import net.minecraft.client.gui.GuiGraphics;
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.Avatars;
 import work.inception.ltsmodelshare.client.TextUtil;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /** All followed users with the same pagination row as the following tab. */
 public class GuiFollowingUsers extends Screen {
@@ -84,32 +84,32 @@ public class GuiFollowingUsers extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
-        graphics.drawCenteredString(font, title, width / 2, 20, 0xFFFFFF);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
+        GuiComponent.drawCenteredString(pose, font, title, width / 2, 20, 0xFFFFFF);
         for (int i = 0; i < Math.min(users.size(), pageSize); i++) {
             Dtos.UserCard user = users.get(i);
             int x = GuiNavigation.MARGIN + (i % cols) * (cellW + GAP);
             int y = listTop + (i / cols) * (cellH + GAP);
             boolean hovered = mouseX >= x && mouseX <= x + cellW && mouseY >= y && mouseY <= y + cellH;
-            graphics.fill(x, y, x + cellW, y + cellH - 2, hovered ? 0x55FFFFFF : 0x33000000);
-            Avatars.draw(graphics, font, user.asAuthor(), x + 4, y + 4, 20);
+            GuiComponent.fill(pose, x, y, x + cellW, y + cellH - 2, hovered ? 0x55FFFFFF : 0x33000000);
+            Avatars.draw(pose, font, user.asAuthor(), x + 4, y + 4, 20);
             String name = user.displayName == null || user.displayName.isEmpty() ? user.username : user.displayName;
-            WorkCardView.small(graphics, font, TextUtil.trim(font, name, cellW - 30), x + 27, y + 5, 0xFFFFFF);
-            WorkCardView.small(graphics, font, TextUtil.trim(font, "@" + (user.username == null ? "" : user.username),
+            WorkCardView.small(pose, font, TextUtil.trim(font, name, cellW - 30), x + 27, y + 5, 0xFFFFFF);
+            WorkCardView.small(pose, font, TextUtil.trim(font, "@" + (user.username == null ? "" : user.username),
                     cellW - 32), x + 27, y + 16, 0xAAAAAA);
-            WorkCardView.small(graphics, font, tr("ltsmodelshare.library.follower_count", user.followerCount),
+            WorkCardView.small(pose, font, tr("ltsmodelshare.library.follower_count", user.followerCount),
                     x + 4, y + 32, 0x999999);
         }
         if (!status.isEmpty()) {
-            graphics.drawCenteredString(font, TextUtil.trim(font, status, width - 24), width / 2, height / 2, 0xFFFFFF);
+            GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, status, width - 24), width / 2, height / 2, 0xFFFFFF);
         }
         int backX = GuiNavigation.backX(width);
         int midLeft = GuiNavigation.MARGIN + 42 + GAP;
         int midRight = backX - GAP - 42 - GAP;
-        TextUtil.drawCenteredFit(graphics, font, tr("ltsmodelshare.common.page", page, maxPage()),
+        TextUtil.drawCenteredFit(pose, font, tr("ltsmodelshare.common.page", page, maxPage()),
                 (midLeft + midRight) / 2, GuiNavigation.footerY(height) + 6, Math.max(20, midRight - midLeft), 0xAAAAAA);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override

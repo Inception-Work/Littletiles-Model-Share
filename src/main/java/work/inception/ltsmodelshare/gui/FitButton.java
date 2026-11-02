@@ -1,7 +1,7 @@
 package work.inception.ltsmodelshare.gui;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import work.inception.ltsmodelshare.client.TextUtil;
@@ -19,8 +19,8 @@ public class FitButton extends Button {
     }
 
     @Override
-    public void renderString(GuiGraphics graphics, Font font, int color) {
-        TextUtil.drawCenteredFit(graphics, font, getMessage().getString(),
+    public void renderString(PoseStack pose, Font font, int color) {
+        TextUtil.drawCenteredFit(pose, font, getMessage().getString(),
                 getX() + width / 2, getY() + (height - 8) / 2, width - 8, color);
     }
 

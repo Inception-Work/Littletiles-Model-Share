@@ -2,8 +2,11 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -13,9 +16,6 @@ import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.Avatars;
 import work.inception.ltsmodelshare.client.ImageDraw;
 import work.inception.ltsmodelshare.client.TextUtil;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Author home: identity banner, search, and one kind of work at a time.
@@ -147,12 +147,12 @@ public class GuiAuthorHome extends Screen {
             init();
         }) {
             @Override
-            public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-                if (!selected.getAsBoolean()) { super.renderWidget(graphics, mouseX, mouseY, partialTick); return; }
-                graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0xFF3F6E8C);
-                graphics.fill(getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(),
+            public void renderWidget(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+                if (!selected.getAsBoolean()) { super.renderWidget(pose, mouseX, mouseY, partialTick); return; }
+                GuiComponent.fill(pose, getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0xFF3F6E8C);
+                GuiComponent.fill(pose, getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(),
                         0xFFFFFFFF);
-                TextUtil.drawCenteredFit(graphics, font, getMessage().getString(), getX() + getWidth() / 2,
+                TextUtil.drawCenteredFit(pose, font, getMessage().getString(), getX() + getWidth() / 2,
                         getY() + (getHeight() - 8) / 2, getWidth() - 8, 0xFFFFFF);
             }
         };
@@ -309,69 +309,63 @@ public class GuiAuthorHome extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         if (onlyThisVersion) {
-            graphics.fill(versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
+            GuiComponent.fill(pose, versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
         }
-        graphics.fill(panelX, 14, panelX + panelW, 73, 0xFF303137);
+        GuiComponent.fill(pose, panelX, 14, panelX + panelW, 73, 0xFF303137);
         if (author != null) {
             if (author.bannerUrl != null && !author.bannerUrl.isEmpty()) {
-                ImageDraw.drawPreview(graphics, author.bannerUrl, panelX, 14, panelW, 59);
-                graphics.fill(panelX, 14, panelX + panelW, 73, 0x99000000);
+                ImageDraw.drawPreview(pose, author.bannerUrl, panelX, 14, panelW, 59);
+                GuiComponent.fill(pose, panelX, 14, panelX + panelW, 73, 0x99000000);
             }
-            Avatars.draw(graphics, font, author, panelX + 8, 28, 28);
+            Avatars.draw(pose, font, author, panelX + 8, 28, 28);
             String name = author.displayName == null || author.displayName.isEmpty()
                     ? author.username : author.displayName;
-            graphics.drawString(font, TextUtil.trim(font, name, panelW - 50), panelX + 42, 27, 0xFFFFFF, true);
-            graphics.drawString(font, "@" + TextUtil.trim(font, author.username, panelW - 55),
-                    panelX + 42, 39, 0xCCCCCC, true);
-            graphics.drawString(font, TextUtil.trim(font, author.bio == null ? "" : author.bio, panelW - 52),
-                    panelX + 42, 52, 0xDDDDDD, true);
-            graphics.drawString(font, tr("ltsmodelshare.author.follow_stats",
-                            author.followingCount, author.followerCount), panelX + 42, 64, 0xAAAAAA, true);
+            font.drawShadow(pose, TextUtil.trim(font, name, panelW - 50), panelX + 42, 27, 0xFFFFFF);
+            font.drawShadow(pose, "@" + TextUtil.trim(font, author.username, panelW - 55), panelX + 42, 39, 0xCCCCCC);
+            font.drawShadow(pose, TextUtil.trim(font, author.bio == null ? "" : author.bio, panelW - 52), panelX + 42, 52, 0xDDDDDD);
+            font.drawShadow(pose, tr("ltsmodelshare.author.follow_stats",
+                            author.followingCount, author.followerCount), panelX + 42, 64, 0xAAAAAA);
         }
-        graphics.fill(panelX, listTop, panelX + panelW, listBottom, 0x30000000);
+        GuiComponent.fill(pose, panelX, listTop, panelX + panelW, listBottom, 0x30000000);
         if (!needLogin) {
-            graphics.enableScissor(panelX, listTop, panelX + panelW, listBottom);
+            GuiComponent.enableScissor(panelX, listTop, panelX + panelW, listBottom);
             try {
                 List<Dtos.WorkCard> rows = visible();
                 int y = listTop + 4;
                 for (Dtos.WorkCard card : rows) {
                     boolean hovered = mouseX >= panelX + 3 && mouseX < panelX + panelW - 3
                             && mouseY >= Math.max(listTop, y) && mouseY < Math.min(listBottom, y + ROW_H - 2);
-                    graphics.fill(panelX + 3, y, panelX + panelW - 3, y + ROW_H - 2,
+                    GuiComponent.fill(pose, panelX + 3, y, panelX + panelW - 3, y + ROW_H - 2,
                             hovered ? 0x55FFFFFF : 0x33000000);
-                    ImageDraw.drawThumb(graphics, card.cover, panelX + 6, y + 3, 38, 28);
+                    ImageDraw.drawThumb(pose, card.cover, panelX + 6, y + 3, 38, 28);
                     int textW = Math.max(30, panelW - 56);
-                    graphics.drawString(font, TextUtil.trim(font,
-                            card.title == null ? tr("ltsmodelshare.common.untitled") : card.title, textW),
-                            panelX + 49, y + 4, 0xFFFFFF, true);
-                    graphics.drawString(font, TextUtil.trim(font,
-                            tr("ltsmodelshare.common.work_stats", card.downloadCount, card.viewCount), textW),
-                            panelX + 49, y + 17, 0xAAAAAA, true);
+                    font.drawShadow(pose, TextUtil.trim(font,
+                            card.title == null ? tr("ltsmodelshare.common.untitled") : card.title, textW), panelX + 49, y + 4, 0xFFFFFF);
+                    font.drawShadow(pose, TextUtil.trim(font,
+                            tr("ltsmodelshare.common.work_stats", card.downloadCount, card.viewCount), textW), panelX + 49, y + 17, 0xAAAAAA);
                     y += ROW_H;
                 }
             } finally {
-                graphics.disableScissor();
+                GuiComponent.disableScissor();
             }
         }
         if (!status.isEmpty())
-            graphics.drawCenteredString(font, TextUtil.trim(font, status, panelW - 4), width / 2,
-                    listTop + Math.max(10, (listBottom - listTop) / 2 - 12), 0xFFFFFF);
+            GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, status, panelW - 4), width / 2, listTop + Math.max(10, (listBottom - listTop) / 2 - 12), 0xFFFFFF);
         else if (!needLogin && !loading && visible().isEmpty())
-            graphics.drawCenteredString(font, tr("ltsmodelshare.author.empty"), width / 2,
-                    listTop + Math.max(10, (listBottom - listTop) / 2 - 12), 0xAAAAAA);
+            GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.author.empty"), width / 2, listTop + Math.max(10, (listBottom - listTop) / 2 - 12), 0xAAAAAA);
         if (!needLogin) {
             AuthorFooterLayout footer = new AuthorFooterLayout(width, height);
             int midLeft = footer.previousX() + PAGE_W + GAP;
             int midRight = footer.nextX() - GAP;
             int widthAvailable = Math.max(20, midRight - midLeft);
             String label = tr("ltsmodelshare.common.page", page[kind], maxPage(kind));
-            TextUtil.drawCenteredFit(graphics, font, TextUtil.trim(font, label, widthAvailable),
+            TextUtil.drawCenteredFit(pose, font, TextUtil.trim(font, label, widthAvailable),
                     (midLeft + midRight) / 2, footer.pagY + 6, widthAvailable, 0xAAAAAA);
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override

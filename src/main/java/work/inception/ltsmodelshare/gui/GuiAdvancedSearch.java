@@ -2,8 +2,15 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -12,13 +19,6 @@ import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.Avatars;
 import work.inception.ltsmodelshare.client.SiteTags;
 import work.inception.ltsmodelshare.client.TextUtil;
-
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /** Advanced search: the same author/tag lists and sort controls as the 1.12 screen. */
 public class GuiAdvancedSearch extends Screen {
@@ -208,67 +208,63 @@ public class GuiAdvancedSearch extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         int cx = width / 2;
-        graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
-        graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);
-        graphics.drawCenteredString(font, title, cx, 12, 0xFFFFFF);
-        graphics.drawString(font, tr("ltsmodelshare.search.filter_author"), panelLeft, 40, 0xAAAAAA, true);
+        GuiComponent.fill(pose, panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
+        GuiComponent.fill(pose, panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);
+        GuiComponent.drawCenteredString(pose, font, title, cx, 12, 0xFFFFFF);
+        font.drawShadow(pose, tr("ltsmodelshare.search.filter_author"), panelLeft, 40, 0xAAAAAA);
         String selected = working.authorId == null ? tr("ltsmodelshare.search.no_author")
                 : tr("ltsmodelshare.search.selected", working.authorName);
-        graphics.drawString(font, TextUtil.trim(font, selected, panelW - 110), panelLeft, 75,
-                working.authorId == null ? 0x555555 : 0x55FF55, true);
+        font.drawShadow(pose, TextUtil.trim(font, selected, panelW - 110), panelLeft, 75, working.authorId == null ? 0x555555 : 0x55FF55);
 
         int authorW = authorBoxWidth();
         int tagsX = authorW == 0 ? panelLeft : panelLeft + authorW + 8;
         int tagsW = authorW == 0 ? panelW : panelW - authorW - 8;
         if (authorW > 0) {
-            graphics.fill(panelLeft, boxY, panelLeft + authorW, boxY + boxH, 0x40000000);
-            graphics.drawString(font, tr("ltsmodelshare.search.author_hits", authorHits.size()), panelLeft, 89, 0xAAAAAA, true);
+            GuiComponent.fill(pose, panelLeft, boxY, panelLeft + authorW, boxY + boxH, 0x40000000);
+            font.drawShadow(pose, tr("ltsmodelshare.search.author_hits", authorHits.size()), panelLeft, 89, 0xAAAAAA);
             for (int row = 0; row < visibleRows() && authorScroll + row < authorHits.size(); row++) {
                 Dtos.Author author = authorHits.get(authorScroll + row);
                 int y = boxY + row * ROW_H;
                 boolean on = working.authorId != null && working.authorId == author.userId;
                 if (inBox(mouseX, mouseY, panelLeft, authorW) && (mouseY - boxY) / ROW_H == row)
-                    graphics.fill(panelLeft + 1, y, panelLeft + authorW - 5, y + ROW_H - 1, 0x40FFFFFF);
+                    GuiComponent.fill(pose, panelLeft + 1, y, panelLeft + authorW - 5, y + ROW_H - 1, 0x40FFFFFF);
                 String name = author.displayName == null || author.displayName.isEmpty() ? author.username : author.displayName;
-                Avatars.draw(graphics, font, author, panelLeft + 4, y + 2, AVATAR);
-                graphics.drawString(font, (on ? "✔ " : "· ") + TextUtil.trim(font, name, authorW - 16 - AVATAR),
-                        panelLeft + 4 + AVATAR + 2, y + 3, on ? 0x55FF55 : 0xCCCCCC, true);
+                Avatars.draw(pose, font, author, panelLeft + 4, y + 2, AVATAR);
+                font.drawShadow(pose, (on ? "✔ " : "· ") + TextUtil.trim(font, name, authorW - 16 - AVATAR), panelLeft + 4 + AVATAR + 2, y + 3, on ? 0x55FF55 : 0xCCCCCC);
             }
-            drawScrollbar(graphics, panelLeft + authorW - 4, authorScroll, authorHits.size());
+            drawScrollbar(pose, panelLeft + authorW - 4, authorScroll, authorHits.size());
         }
-        graphics.fill(tagsX, boxY, tagsX + tagsW, boxY + boxH, 0x40000000);
-        graphics.drawString(font, (tags.isEmpty() ? tr("ltsmodelshare.common.tags")
+        GuiComponent.fill(pose, tagsX, boxY, tagsX + tagsW, boxY + boxH, 0x40000000);
+        font.drawShadow(pose, (tags.isEmpty() ? tr("ltsmodelshare.common.tags")
                         : tr("ltsmodelshare.common.tags_count", tags.size()))
-                        + (loadingTags ? ChatFormatting.DARK_GRAY + tr("ltsmodelshare.common.loading_suffix") : ""),
-                tagsX, 89, 0xAAAAAA, true);
+                        + (loadingTags ? ChatFormatting.DARK_GRAY + tr("ltsmodelshare.common.loading_suffix") : ""), tagsX, 89, 0xAAAAAA);
         if (tags.isEmpty() && !loadingTags)
-            graphics.drawString(font, tr("ltsmodelshare.search.no_tags"), tagsX + 4, boxY + 3, 0x777777, true);
+            font.drawShadow(pose, tr("ltsmodelshare.search.no_tags"), tagsX + 4, boxY + 3, 0x777777);
         for (int row = 0; row < visibleRows() && tagScroll + row < tags.size(); row++) {
             Dtos.Tag tag = tags.get(tagScroll + row);
             int y = boxY + row * ROW_H;
             boolean on = working.tagCodes.contains(tag.code);
             if (inBox(mouseX, mouseY, tagsX, tagsW) && (mouseY - boxY) / ROW_H == row)
-                graphics.fill(tagsX + 1, y, tagsX + tagsW - 5, y + ROW_H - 1, 0x40FFFFFF);
-            graphics.drawString(font, TextUtil.trim(font, (on ? "✔ " : "·  ") + SiteTags.label(tag), tagsW - 8),
-                    tagsX + 4, y + 3, on ? 0x55FF55 : 0xCCCCCC, true);
+                GuiComponent.fill(pose, tagsX + 1, y, tagsX + tagsW - 5, y + ROW_H - 1, 0x40FFFFFF);
+            font.drawShadow(pose, TextUtil.trim(font, (on ? "✔ " : "·  ") + SiteTags.label(tag), tagsW - 8), tagsX + 4, y + 3, on ? 0x55FF55 : 0xCCCCCC);
         }
-        drawScrollbar(graphics, tagsX + tagsW - 4, tagScroll, tags.size());
-        graphics.drawString(font, tr("ltsmodelshare.search.sort"), panelLeft, sortY - 12, 0xAAAAAA, true);
+        drawScrollbar(pose, tagsX + tagsW - 4, tagScroll, tags.size());
+        font.drawShadow(pose, tr("ltsmodelshare.search.sort"), panelLeft, sortY - 12, 0xAAAAAA);
         if (!status.isEmpty())
-            graphics.drawCenteredString(font, TextUtil.trim(font, status, width - 24), cx, height - 42, 0xFFFFFF);
-        super.render(graphics, mouseX, mouseY, partialTick);
+            GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, status, width - 24), cx, height - 42, 0xFFFFFF);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
-    private void drawScrollbar(GuiGraphics graphics, int x, int scroll, int total) {
+    private void drawScrollbar(PoseStack pose, int x, int scroll, int total) {
         int max = maxScroll(total);
         if (max == 0) return;
-        graphics.fill(x, boxY, x + 3, boxY + boxH, 0x40000000);
+        GuiComponent.fill(pose, x, boxY, x + 3, boxY + boxH, 0x40000000);
         int thumbH = Math.max(8, boxH * visibleRows() / Math.max(visibleRows(), total));
         int thumbY = boxY + (boxH - thumbH) * scroll / max;
-        graphics.fill(x, thumbY, x + 3, thumbY + thumbH, 0xAAFFFFFF);
+        GuiComponent.fill(pose, x, thumbY, x + 3, thumbY + thumbH, 0xAAFFFFFF);
     }
 
     @Override

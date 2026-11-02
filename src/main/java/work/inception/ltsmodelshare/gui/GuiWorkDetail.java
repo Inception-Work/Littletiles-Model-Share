@@ -2,6 +2,7 @@ package work.inception.ltsmodelshare.gui;
 
 import static work.inception.ltsmodelshare.client.Translations.tr;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -9,8 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
@@ -308,10 +308,10 @@ public class GuiWorkDetail extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         if (onlyThisVersion && isCollection()) {
-            graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
+            GuiComponent.fill(pose, versionX, GuiNavigation.footerY(height) + 20,
                     versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
         }
         PageLayout p = layout();
@@ -322,19 +322,19 @@ public class GuiWorkDetail extends Screen {
         int top = WorkDetailLayout.BODY_TOP - scroll;
         boolean inBody = g.inBody(mouseX, mouseY);
 
-        graphics.enableScissor(g.left - 4, WorkDetailLayout.BODY_TOP, g.left + g.width + 8, g.bodyBottom);
+        GuiComponent.enableScissor(g.left - 4, WorkDetailLayout.BODY_TOP, g.left + g.width + 8, g.bodyBottom);
         try {
             String cover = gallery.isEmpty() ? card.cover : gallery.get(Math.min(galleryIndex, gallery.size() - 1));
-            ImageDraw.drawCropped(graphics, cover, g.left, top, g.coverWidth, g.coverHeight);
+            ImageDraw.drawCropped(pose, cover, g.left, top, g.coverWidth, g.coverHeight);
             if (gallery.size() > 1) for (int i = 0; i < Math.min(8, gallery.size()); i++) {
                 Rect b = galleryBounds(g, i);
-                ImageDraw.drawCropped(graphics, gallery.get(i), b.x, b.y, b.w, b.h);
-                if (i == galleryIndex) graphics.renderOutline(b.x - 1, b.y - 1, b.w + 2, b.h + 2, 0xCCFFFFFF);
+                ImageDraw.drawCropped(pose, gallery.get(i), b.x, b.y, b.w, b.h);
+                if (i == galleryIndex) GuiComponent.renderOutline(pose, b.x - 1, b.y - 1, b.w + 2, b.h + 2, 0xCCFFFFFF);
             }
 
             int y = top;
             for (FormattedCharSequence line : p.titles) {
-                graphics.drawString(font, line, g.rightX, y, 0xFFFFFF, true);
+                font.drawShadow(pose, line, g.rightX, y, 0xFFFFFF);
                 y += 10;
             }
             y = top + h.tagsY();
@@ -342,8 +342,8 @@ public class GuiWorkDetail extends Screen {
                 int tx = g.rightX;
                 for (String text : row) {
                     int w = font.width(text) + 6;
-                    graphics.fill(tx, y - 1, tx + w, y + 9, 0x402080C0);
-                    graphics.drawString(font, text, tx + 3, y, 0x66CCDD, true);
+                    GuiComponent.fill(pose, tx, y - 1, tx + w, y + 9, 0x402080C0);
+                    font.drawShadow(pose, text, tx + 3, y, 0x66CCDD);
                     tx += w + 2;
                 }
                 y += 10;
@@ -353,47 +353,44 @@ public class GuiWorkDetail extends Screen {
             if (author != null) {
                 Rect a = authorBounds(p);
                 boolean hover = inBody && author.userId > 0 && a.contains(mouseX, mouseY);
-                graphics.fill(a.x, a.y, a.x + a.w, a.y + a.h, hover ? 0x50FFFFFF : 0x30000000);
+                GuiComponent.fill(pose, a.x, a.y, a.x + a.w, a.y + a.h, hover ? 0x50FFFFFF : 0x30000000);
                 if (hover) {
-                    graphics.fill(a.x, a.y, a.x + a.w, a.y + 1, 0xFFFFFFFF);
-                    graphics.fill(a.x, a.y + 19, a.x + a.w, a.y + 20, 0xFFFFFFFF);
+                    GuiComponent.fill(pose, a.x, a.y, a.x + a.w, a.y + 1, 0xFFFFFFFF);
+                    GuiComponent.fill(pose, a.x, a.y + 19, a.x + a.w, a.y + 20, 0xFFFFFFFF);
                 }
-                Avatars.draw(graphics, font, author, a.x, a.y + 2, 16);
+                Avatars.draw(pose, font, author, a.x, a.y + 2, 16);
                 String name = author.displayName != null && !author.displayName.isBlank()
                         ? author.displayName : author.username;
-                graphics.drawString(font, TextUtil.trim(font, name, a.w - 20), a.x + 20, a.y + 1, 0xFFFFFF, true);
+                font.drawShadow(pose, TextUtil.trim(font, name, a.w - 20), a.x + 20, a.y + 1, 0xFFFFFF);
                 if (author.username != null && !author.username.isBlank()) {
-                    graphics.drawString(font, TextUtil.trim(font, "@" + author.username, a.w - 20),
-                            a.x + 20, a.y + 10, 0x888888, true);
+                    font.drawShadow(pose, TextUtil.trim(font, "@" + author.username, a.w - 20), a.x + 20, a.y + 10, 0x888888);
                 }
             }
 
             y = top + h.statsY();
             for (String line : p.stats) {
-                graphics.drawString(font, TextUtil.trim(font, line, g.rightWidth), g.rightX, y, 0xAAAAAA, true);
+                font.drawShadow(pose, TextUtil.trim(font, line, g.rightWidth), g.rightX, y, 0xAAAAAA);
                 y += 10;
             }
             y = top + h.dependencyY();
             for (Dtos.Dependency dep : p.dependencies) {
                 String type = dep.type == null || dep.type.isBlank() ? tr("ltsmodelshare.detail.dependency") : dep.type;
-                graphics.drawString(font, TextUtil.trim(font, "[" + type + "] " + dep.name, g.rightWidth),
-                        g.rightX, y, 0xAA88CC, true);
+                font.drawShadow(pose, TextUtil.trim(font, "[" + type + "] " + dep.name, g.rightWidth), g.rightX, y, 0xAA88CC);
                 y += 10;
             }
 
             // Scroll only the work description, not the author's profile bio.
             if (h.summaryLines() > 0) {
                 y = top + h.summaryY();
-                graphics.enableScissor(g.rightX - 1, y - 1, g.rightX + g.rightWidth + 1,
+                GuiComponent.enableScissor(g.rightX - 1, y - 1, g.rightX + g.rightWidth + 1,
                         y + h.summaryLines() * 10 + 1);
                 try {
                     for (int i = summaryScroll; i < Math.min(p.summary.size(), summaryScroll + h.summaryWindow()); i++) {
-                        graphics.drawString(font, p.summary.get(i), g.rightX,
-                                y + (i - summaryScroll) * 10, 0x999999, true);
+                        font.drawShadow(pose, p.summary.get(i), g.rightX, y + (i - summaryScroll) * 10, 0x999999);
                     }
                 } finally {
-                    // GuiGraphics maintains a scissor stack: pop the summary, retain the body.
-                    graphics.disableScissor();
+                    // 1.19.4's GuiComponent scissor stack: pop the summary, retain the body.
+                    GuiComponent.disableScissor();
                 }
                 int maxSummary = h.summaryMaxScroll(p.summary.size());
                 if (maxSummary > 0) {
@@ -401,20 +398,19 @@ public class GuiWorkDetail extends Screen {
                     int barHeight = h.summaryLines() * 10;
                     int thumbHeight = Math.max(8, barHeight * h.summaryLines() / p.summary.size());
                     int thumbY = y + (barHeight - thumbHeight) * summaryScroll / maxSummary;
-                    graphics.fill(barX, y, barX + 2, y + barHeight, 0x30FFFFFF);
-                    graphics.fill(barX, thumbY, barX + 2, thumbY + thumbHeight, 0x90FFFFFF);
+                    GuiComponent.fill(pose, barX, y, barX + 2, y + barHeight, 0x30FFFFFF);
+                    GuiComponent.fill(pose, barX, thumbY, barX + 2, thumbY + thumbHeight, 0x90FFFFFF);
                 }
             }
 
-            graphics.drawString(font, tr("ltsmodelshare.detail.models", items.size()),
-                    g.left, top + h.height(), 0xAAAAAA, true);
+            font.drawShadow(pose, tr("ltsmodelshare.detail.models", items.size()), g.left, top + h.height(), 0xAAAAAA);
             for (int i = 0; i < items.size(); i++) {
                 int rowY = top + h.itemTop() + i * WorkDetailLayout.ROW_HEIGHT;
                 if (rowY >= g.bodyBottom || rowY + WorkDetailLayout.ROW_HEIGHT <= WorkDetailLayout.BODY_TOP) continue;
-                renderItem(graphics, p, items.get(i), rowY, mouseX, mouseY, inBody);
+                renderItem(pose, p, items.get(i), rowY, mouseX, mouseY, inBody);
             }
         } finally {
-            graphics.disableScissor();
+            GuiComponent.disableScissor();
         }
 
         int maxScroll = g.maxScroll(h, items.size());
@@ -422,42 +418,40 @@ public class GuiWorkDetail extends Screen {
             int barHeight = g.bodyBottom - WorkDetailLayout.BODY_TOP;
             int thumbHeight = Math.max(12, barHeight * barHeight / (barHeight + maxScroll));
             int thumbY = WorkDetailLayout.BODY_TOP + (barHeight - thumbHeight) * scroll / maxScroll;
-            graphics.fill(g.left + g.width + 4, WorkDetailLayout.BODY_TOP, g.left + g.width + 6, g.bodyBottom, 0x30FFFFFF);
-            graphics.fill(g.left + g.width + 4, thumbY, g.left + g.width + 6, thumbY + thumbHeight, 0x90FFFFFF);
+            GuiComponent.fill(pose, g.left + g.width + 4, WorkDetailLayout.BODY_TOP, g.left + g.width + 6, g.bodyBottom, 0x30FFFFFF);
+            GuiComponent.fill(pose, g.left + g.width + 4, thumbY, g.left + g.width + 6, thumbY + thumbHeight, 0x90FFFFFF);
         }
         if (loadError != null) {
-            graphics.drawCenteredString(font, TextUtil.trim(font, loadError, Math.max(1, width - 20)),
-                    width / 2, height - 40, 0xFF5555);
+            GuiComponent.drawCenteredString(pose, font, TextUtil.trim(font, loadError, Math.max(1, width - 20)), width / 2, height - 40, 0xFF5555);
         } else if (loading || items.isEmpty()) {
-            graphics.drawCenteredString(font, tr(loading ? "ltsmodelshare.common.loading" : "ltsmodelshare.detail.no_models"),
-                    width / 2, height - 40, 0xAAAAAA);
+            GuiComponent.drawCenteredString(pose, font, tr(loading ? "ltsmodelshare.common.loading" : "ltsmodelshare.detail.no_models"), width / 2, height - 40, 0xAAAAAA);
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
-    private void renderItem(GuiGraphics graphics, PageLayout p, Dtos.Item item, int rowY,
+    private void renderItem(PoseStack pose, PageLayout p, Dtos.Item item, int rowY,
                             int mouseX, int mouseY, boolean inBody) {
         WorkDetailLayout g = p.geometry;
-        graphics.fill(g.left, rowY, g.left + g.width, rowY + WorkDetailLayout.ROW_HEIGHT - 4, 0x28000000);
+        GuiComponent.fill(pose, g.left, rowY, g.left + g.width, rowY + WorkDetailLayout.ROW_HEIGHT - 4, 0x28000000);
         Rect th = itemThumbBounds(g, rowY);
         List<String> images = itemImages(item);
         if (images.isEmpty()) {
-            graphics.fill(th.x, th.y, th.x + th.w, th.y + th.h, 0x30FFFFFF);
-            graphics.drawCenteredString(font, "#" + item.itemId, th.x + th.w / 2, th.y + th.h / 2 - 4, 0x777777);
+            GuiComponent.fill(pose, th.x, th.y, th.x + th.w, th.y + th.h, 0x30FFFFFF);
+            GuiComponent.drawCenteredString(pose, font, "#" + item.itemId, th.x + th.w / 2, th.y + th.h / 2 - 4, 0x777777);
         } else {
             int pos = itemImagePos(item, images.size());
-            ImageDraw.drawCropped(graphics, images.get(pos), th.x, th.y, th.w, th.h);
+            ImageDraw.drawCropped(pose, images.get(pos), th.x, th.y, th.w, th.h);
             if (images.size() > 1) {
                 for (boolean previous : new boolean[] { true, false }) {
                     Rect arrow = arrowBounds(g, rowY, previous);
                     boolean hover = inBody && arrow.grow(2).contains(mouseX, mouseY);
-                    graphics.fill(arrow.x, arrow.y, arrow.x + arrow.w, arrow.y + arrow.h,
+                    GuiComponent.fill(pose, arrow.x, arrow.y, arrow.x + arrow.w, arrow.y + arrow.h,
                             hover ? 0xB0000000 : 0x80000000);
-                    graphics.drawCenteredString(font, previous ? "<" : ">", arrow.x + arrow.w / 2, arrow.y + 2, 0xFFFFFF);
+                    GuiComponent.drawCenteredString(pose, font, previous ? "<" : ">", arrow.x + arrow.w / 2, arrow.y + 2, 0xFFFFFF);
                 }
                 String counter = (pos + 1) + "/" + images.size();
-                graphics.fill(th.x + 1, th.y + 1, th.x + 3 + font.width(counter), th.y + 11, 0x80000000);
-                graphics.drawString(font, counter, th.x + 2, th.y + 2, 0xFFFFFF, true);
+                GuiComponent.fill(pose, th.x + 1, th.y + 1, th.x + 3 + font.width(counter), th.y + 11, 0x80000000);
+                font.drawShadow(pose, counter, th.x + 2, th.y + 2, 0xFFFFFF);
             }
         }
 
@@ -466,7 +460,7 @@ public class GuiWorkDetail extends Screen {
         int ty = rowY + 6;
         for (FormattedCharSequence line : TextUtil.wrap(font,
                 item.title == null ? "#" + item.itemId : item.title, textWidth, 2)) {
-            graphics.drawString(font, line, tx, ty, 0xFFFFFF, true);
+            font.drawShadow(pose, line, tx, ty, 0xFFFFFF);
             ty += 10;
         }
         StringBuilder meta = new StringBuilder("#" + item.itemId);
@@ -478,22 +472,22 @@ public class GuiWorkDetail extends Screen {
             if (item.modNamespaces.size() > 3) mods += "…";
             meta.append(tr("ltsmodelshare.detail.mods", mods));
         }
-        graphics.drawString(font, TextUtil.trim(font, meta.toString(), textWidth), tx, ty + 2, 0xAAAAAA, true);
+        font.drawShadow(pose, TextUtil.trim(font, meta.toString(), textWidth), tx, ty + 2, 0xAAAAAA);
 
-        drawAction(graphics, previewBounds(g, rowY), tr("ltsmodelshare.detail.preview"),
+        drawAction(pose, previewBounds(g, rowY), tr("ltsmodelshare.detail.preview"),
                 mouseX, mouseY, inBody, false, false);
         boolean done = madeBlueprint.contains(item.itemId);
-        drawAction(graphics, downloadBounds(g, rowY), tr(done ? "ltsmodelshare.detail.generated"
+        drawAction(pose, downloadBounds(g, rowY), tr(done ? "ltsmodelshare.detail.generated"
                 : "ltsmodelshare.detail.get_blueprint"), mouseX, mouseY, inBody, true, done);
     }
 
-    private void drawAction(GuiGraphics graphics, Rect b, String label, int mouseX, int mouseY,
+    private void drawAction(PoseStack pose, Rect b, String label, int mouseX, int mouseY,
                             boolean inBody, boolean download, boolean done) {
         boolean hover = inBody && b.contains(mouseX, mouseY);
         int color = download ? done ? 0xFF2B4A20 : hover ? 0xFF3E7A2C : 0xFF2F5424
                 : hover ? 0xFF48718A : 0xFF304858;
-        graphics.fill(b.x, b.y, b.x + b.w, b.y + b.h, color);
-        TextUtil.drawCenteredFit(graphics, font, label, b.x + b.w / 2, b.y + 5, b.w - 8, 0xFFFFFF);
+        GuiComponent.fill(pose, b.x, b.y, b.x + b.w, b.y + b.h, color);
+        TextUtil.drawCenteredFit(pose, font, label, b.x + b.w / 2, b.y + 5, b.w - 8, 0xFFFFFF);
     }
 
     @Override
@@ -547,7 +541,7 @@ public class GuiWorkDetail extends Screen {
         return false;
     }
 
-    // Existing 1.20.1 blueprint/native-preview pipeline; no changes to the preview renderer.
+    // Existing blueprint/native-preview pipeline; no changes to the preview renderer.
     private void fetchBlueprint(Dtos.Item item) {
         if (blueprintPending) return;
         if (!ModConfig.get().loggedIn()) { minecraft.setScreen(new GuiLogin(this)); return; }

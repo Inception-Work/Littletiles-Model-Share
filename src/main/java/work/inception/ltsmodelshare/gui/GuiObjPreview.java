@@ -4,7 +4,7 @@ import static work.inception.ltsmodelshare.client.Translations.tr;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -35,14 +35,13 @@ public class GuiObjPreview extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+    public void render(PoseStack pose, int mouseX, int mouseY, float partialTick) {
+        renderBackground(pose);
         int cx = width / 2;
         int cy = height / 2 - 8;
-        graphics.drawCenteredString(font, workTitle, cx, 10, 0xFFFFFF);
-        graphics.drawCenteredString(font, tr("ltsmodelshare.preview.obj_mode"), cx, 22, 0xFFCC88);
+        GuiComponent.drawCenteredString(pose, font, workTitle, cx, 10, 0xFFFFFF);
+        GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.preview.obj_mode"), cx, 22, 0xFFCC88);
 
-        PoseStack pose = graphics.pose();
         pose.pushPose();
         try {
             pose.translate(cx, cy, 300);
@@ -54,9 +53,8 @@ public class GuiObjPreview extends Screen {
             pose.popPose();
         }
 
-        graphics.drawCenteredString(font, tr("ltsmodelshare.preview.controls"), cx,
-                GuiNavigation.footerY(height) - 14, 0xAAAAAA);
-        super.render(graphics, mouseX, mouseY, partialTick);
+        GuiComponent.drawCenteredString(pose, font, tr("ltsmodelshare.preview.controls"), cx, GuiNavigation.footerY(height) - 14, 0xAAAAAA);
+        super.render(pose, mouseX, mouseY, partialTick);
     }
 
     @Override
