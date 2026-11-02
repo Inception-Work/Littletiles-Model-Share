@@ -13,16 +13,19 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 /** Remote image cache: downloads once, registers a dynamic texture on the render thread. */
 public final class ImageCache {
-    private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
-    private static final Map<String, int[]> SIZES = new HashMap<>();
+    /** Bounded LRU: browsing many pages must not keep every cover texture in RAM/VRAM. */
+    private static final int MAX_TEXTURES = 96;
+    private static final Map<String, ResourceLocation> LOADED =
+            new LinkedHashMap<>(32, 0.75f, true);
+    private static final Map<String, int[]> SIZES = new LinkedHashMap<>(32, 0.75f, true);
     private static final Set<String> LOADING = new HashSet<>();
     private static final Set<String> FAILED = new HashSet<>();
 
@@ -74,18 +77,47 @@ public final class ImageCache {
 
     private static void register(String url, byte[] data) {
         LOADING.remove(url);
-        try (NativeImage image = NativeImage.read(data)) {
+        NativeImage image = null;
+        try {
+            image = NativeImage.read(data);
             int width = image.getWidth();
             int height = image.getHeight();
+            // Screenshots can be 1920x1080 (8 MB decoded); downscale cards to 512 px.
+            int largest = Math.max(width, height);
+            if (largest > 512) {
+                float scale = 512f / largest;
+                int scaledW = Math.max(1, Math.round(width * scale));
+                int scaledH = Math.max(1, Math.round(height * scale));
+                NativeImage scaled = new NativeImage(scaledW, scaledH, false);
+                image.resizeSubRectTo(0, 0, width, height, scaled);
+                image.close();
+                image = scaled;
+                width = scaledW;
+                height = scaledH;
+            }
             DynamicTexture texture = new DynamicTexture(image);
+            image = null; // DynamicTexture owns the pixels now.
             String hash = Integer.toHexString(url.hashCode());
             ResourceLocation id = new ResourceLocation("ltsmodelshare", "remote/" + hash);
             Minecraft.getInstance().getTextureManager().register(id, texture);
             LOADED.put(url, id);
             SIZES.put(url, new int[]{width, height});
+            evictOldest();
         } catch (Exception error) {
+            if (image != null) image.close();
             FAILED.add(url);
             LtsModelShare.LOG.debug("图片解码失败 {}", url, error);
+        }
+    }
+
+    /** Release least-recently-used textures once the cache exceeds its bound. */
+    private static void evictOldest() {
+        Iterator<Map.Entry<String, ResourceLocation>> iterator = LOADED.entrySet().iterator();
+        while (LOADED.size() > MAX_TEXTURES && iterator.hasNext()) {
+            Map.Entry<String, ResourceLocation> entry = iterator.next();
+            Minecraft.getInstance().getTextureManager().release(entry.getValue());
+            SIZES.remove(entry.getKey());
+            iterator.remove();
         }
     }
 }
