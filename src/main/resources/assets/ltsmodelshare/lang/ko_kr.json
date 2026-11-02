@@ -219,5 +219,6 @@
   "ltsmodelshare.library.my_works": "내 작품",
   "ltsmodelshare.library.my_collections": "내 컬렉션",
   "ltsmodelshare.library.follower_count": "팔로워 %s명",
-  "ltsmodelshare.api.user_missing": "로그인한 계정을 확인할 수 없습니다"
+  "ltsmodelshare.api.user_missing": "로그인한 계정을 확인할 수 없습니다",
+  "ltsmodelshare.common.request_timeout": "요청 시간이 초과되었습니다. 네트워크 또는 프록시를 확인한 뒤 다시 시도하세요."
 }

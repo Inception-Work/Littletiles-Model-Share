@@ -219,5 +219,6 @@
   "ltsmodelshare.library.my_works": "Mes œuvres",
   "ltsmodelshare.library.my_collections": "Mes collections",
   "ltsmodelshare.library.follower_count": "%s abonnés",
-  "ltsmodelshare.api.user_missing": "Impossible d'identifier le compte connecté"
+  "ltsmodelshare.api.user_missing": "Impossible d'identifier le compte connecté",
+  "ltsmodelshare.common.request_timeout": "Délai dépassé. Vérifiez le réseau ou le proxy, puis réessayez."
 }

@@ -219,5 +219,6 @@
   "ltsmodelshare.library.my_works": "我的作品",
   "ltsmodelshare.library.my_collections": "我的合集",
   "ltsmodelshare.library.follower_count": "%s 人關注",
-  "ltsmodelshare.api.user_missing": "無法確認目前登入的帳號"
+  "ltsmodelshare.api.user_missing": "無法確認目前登入的帳號",
+  "ltsmodelshare.common.request_timeout": "請求逾時，請檢查網路或代理後重試。"
 }

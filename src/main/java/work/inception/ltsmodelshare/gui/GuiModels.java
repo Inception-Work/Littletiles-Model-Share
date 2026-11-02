@@ -32,6 +32,7 @@ public class GuiModels extends Screen {
     private int gridTop;
     private String status = "";
     private boolean loading;
+    private long loadStartedAt;
     private int requestId;
     private EditBox search;
     private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
@@ -92,6 +93,7 @@ public class GuiModels extends Screen {
                 "ltsmodelshare.common.close", () -> minecraft.setScreen(null)));
 
         computeLayout();
+        work.inception.ltsmodelshare.LtsModelShare.LOG.info("[ui] GuiModels 打开，开始加载列表");
         reload();
     }
 
@@ -113,6 +115,7 @@ public class GuiModels extends Screen {
     private void reload() {
         final int currentRequest = ++requestId;
         loading = true;
+        loadStartedAt = System.currentTimeMillis();
         cards.clear();
         status = tr("ltsmodelshare.common.loading");
         Dtos.CardQuery query = new Dtos.CardQuery(search == null ? "" : search.getValue().trim(),
@@ -175,6 +178,10 @@ public class GuiModels extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
+        if (loading && System.currentTimeMillis() - loadStartedAt > 30_000L) {
+            loading = false;
+            status = tr("ltsmodelshare.common.request_timeout");
+        }
         int cx = width / 2;
         graphics.drawCenteredString(font, title, cx, 8, 0xFFFFFF);
 

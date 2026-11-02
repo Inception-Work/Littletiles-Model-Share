@@ -219,5 +219,6 @@
   "ltsmodelshare.library.my_works": "Meine Werke",
   "ltsmodelshare.library.my_collections": "Meine Sammlungen",
   "ltsmodelshare.library.follower_count": "%s Follower",
-  "ltsmodelshare.api.user_missing": "Angemeldetes Konto konnte nicht ermittelt werden"
+  "ltsmodelshare.api.user_missing": "Angemeldetes Konto konnte nicht ermittelt werden",
+  "ltsmodelshare.common.request_timeout": "Zeitüberschreitung. Netzwerk oder Proxy prüfen und erneut versuchen."
 }

@@ -219,5 +219,6 @@
   "ltsmodelshare.library.my_works": "自分の作品",
   "ltsmodelshare.library.my_collections": "自分のコレクション",
   "ltsmodelshare.library.follower_count": "フォロワー %s 人",
-  "ltsmodelshare.api.user_missing": "ログイン中のアカウントを確認できません"
+  "ltsmodelshare.api.user_missing": "ログイン中のアカウントを確認できません",
+  "ltsmodelshare.common.request_timeout": "リクエストがタイムアウトしました。ネットワークまたはプロキシを確認して再試行してください。"
 }

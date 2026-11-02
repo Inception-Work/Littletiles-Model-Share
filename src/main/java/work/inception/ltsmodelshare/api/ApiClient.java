@@ -182,14 +182,20 @@ public final class ApiClient {
                 if (query.size <= 0) query.size = 12;
                 if (query.current <= 0) query.current = 1;
                 String body = GSON.toJson(query);
+                LtsModelShare.LOG.info("[cards] 请求 page={} size={} sort={} author={} tags={}",
+                        query.current, query.size, query.sort, query.authorId, query.tagCodes);
                 Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"), body,
                         Dtos.CardsResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
+                    LtsModelShare.LOG.warn("[cards] 失败：{}", describe(resp));
                     cb.fail(describe(resp));
                     return;
                 }
+                LtsModelShare.LOG.info("[cards] 返回 {} 条，total={}",
+                        resp.payload.records == null ? 0 : resp.payload.records.size(), resp.payload.total);
                 cb.ok(resp.payload);
             } catch (Exception e) {
+                LtsModelShare.LOG.warn("[cards] 异常", e);
                 cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
             }
         });
