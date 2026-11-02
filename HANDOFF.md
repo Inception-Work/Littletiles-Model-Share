@@ -105,3 +105,11 @@
 - 发布文件 `build/releases/0.1.3-beta/LittletilesModelShare-0.1.3.jar`，222174 字节，SHA256 `6e98a043c9d9a423f9dcc2cc0e697b9a831c2746ce41c417b8ddc3821e076efa`。网站下载入口 `/api/public/mod/download?releaseId=4`；已实际下载并校验文件名、大小和哈希一致。
 - 服务器按已有发布文件目录规范存放 JAR；发布前版本表备份 `/www/backup/ltsmodelshare-0.1.3-beta/mod_release-before.sql`。本地发布元数据及验证记录在 `build/releases/0.1.3-beta/`。发布检查确认旧版仍启用。
 - 离线 Gradle 构建及现有行为检查通过；核对发布包版本与七份语言资源。尚未实机验收游戏画面。
+
+## 10. 0.1.4 测试版发布（2026-11-02）
+
+- 版本升至 `0.1.4`，网站新增 `releaseId=5`、`channel=beta`、`loader=forge`、`mc_version=1.12.2`，旧版本保持启用。
+- 更新说明位于 [releases/0.1.4.md](releases/0.1.4.md) 与 [releases/0.1.4.i18n.json](releases/0.1.4.i18n.json)，七种语言已随版本表写入并通过 `/api/public/mod/latest` 校验。
+- 发布文件 `build/releases/0.1.4-beta/LittletilesModelShare-0.1.4.jar`，283158 字节，SHA256 `3af1bd760c9e4971547ce0eb01fe65bb37038f22b769541a3661148ec838d02a`；已从 `/api/public/mod/download?releaseId=5` 实际下载并核对哈希与大小一致。
+- 源码提交 `a2d6fe6`（`release: 0.1.4 beta`），本地与远端分支 `forge/1.12.2`、tag `v0.1.4` 均已推送；发布前数据库表备份在 `/www/backup/ltsmodelshare-0.1.4-beta/mod_release-before.sql`。
+- 构建、七语言键检查、OBJ 解析检查通过；游戏内界面与联机流程尚未作最终实机验收。
