@@ -32,6 +32,11 @@ public class GuiModels extends Screen {
     private boolean loading;
     private long loadStartedAt;
     private int requestId;
+    private int socialW1;
+    private int socialW2;
+    private int social1X;
+    private int social2X;
+    private int nextX;
     private EditBox search;
     private FitButton sessionButton;
     private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
@@ -65,17 +70,28 @@ public class GuiModels extends Screen {
 
         int pageY = GuiNavigation.footerY(height) - 26;
         int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GAP) / 4);
-        int socialW = Math.max(28, (footerW - GAP) / 2);
-        int social2X = width - GuiNavigation.MARGIN - socialW;
-        int social1X = social2X - GAP - socialW;
-        int nextX = social1X - GAP - 42;
+        // Grow these two buttons per language; "Favorites & Following" does not fit the
+        // equal-width grid used by the footer buttons.
+        int baseSocial = Math.max(28, (footerW - GAP) / 2);
+        socialW1 = Math.max(baseSocial, font.width(tr("ltsmodelshare.library.title")) + 10);
+        socialW2 = Math.max(baseSocial, font.width(tr("ltsmodelshare.library.my_space")) + 10);
+        int minNextX = GuiNavigation.MARGIN + 42 + GAP;
+        int socialRoom = width - GuiNavigation.MARGIN - (minNextX + 42 + GAP);
+        if (socialW1 + socialW2 > socialRoom) {
+            float scale = socialRoom / (float) (socialW1 + socialW2);
+            socialW1 = Math.max(24, (int) Math.floor(socialW1 * scale));
+            socialW2 = Math.max(24, socialRoom - socialW1);
+        }
+        social2X = width - GuiNavigation.MARGIN - socialW2;
+        social1X = social2X - GAP - socialW1;
+        nextX = social1X - GAP - 42;
         addRenderableWidget(GuiNavigation.button(GuiNavigation.MARGIN, pageY, 42, 20,
                 "ltsmodelshare.common.previous", () -> { if (page > 1) { page--; reload(); } }));
         addRenderableWidget(GuiNavigation.button(nextX, pageY, 42, 20,
                 "ltsmodelshare.common.next", () -> { if (page < maxPage()) { page++; reload(); } }));
-        addRenderableWidget(GuiNavigation.button(social1X, pageY, socialW, 20,
+        addRenderableWidget(GuiNavigation.button(social1X, pageY, socialW1, 20,
                 "ltsmodelshare.library.title", () -> openLibrary()));
-        addRenderableWidget(GuiNavigation.button(social2X, pageY, socialW, 20,
+        addRenderableWidget(GuiNavigation.button(social2X, pageY, socialW2, 20,
                 "ltsmodelshare.library.my_space", () -> openMySpace()));
 
         int by = GuiNavigation.footerY(height);
@@ -201,9 +217,6 @@ public class GuiModels extends Screen {
             TextUtil.drawCenteredFit(graphics, font, status, cx, gridTop + cardH / 2, width - 20, 0xFFFFFF);
         }
 
-        int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GAP) / 4);
-        int socialW = Math.max(28, (footerW - GAP) / 2);
-        int nextX = width - GuiNavigation.MARGIN - socialW * 2 - GAP * 2 - 42;
         int midLeft = GuiNavigation.MARGIN + 42 + GAP;
         int midRight = nextX - GAP;
         String mid = (loading ? "" : tr("ltsmodelshare.common.page", page, maxPage()))
