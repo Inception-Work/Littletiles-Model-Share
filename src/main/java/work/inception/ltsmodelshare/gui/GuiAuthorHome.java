@@ -169,7 +169,7 @@ public class GuiAuthorHome extends Screen {
         graphics.fill(panelX, 14, panelX + panelW, 73, 0xFF303137);
         if (author != null) {
             if (author.bannerUrl != null && !author.bannerUrl.isEmpty()) {
-                ImageDraw.drawCropped(graphics, author.bannerUrl, panelX, 14, panelW, 59);
+                ImageDraw.drawPreview(graphics, author.bannerUrl, panelX, 14, panelW, 59);
                 graphics.fill(panelX, 14, panelX + panelW, 73, 0x99000000);
             }
             Avatars.draw(graphics, font, author, panelX + 8, 28, 28);
@@ -189,7 +189,7 @@ public class GuiAuthorHome extends Screen {
             if (y + rowHeight > listTop && y < listBottom) {
                 graphics.fill(panelX + 3, y, panelX + panelW - 3, y + rowHeight - 2,
                         mouseX >= panelX + 3 && mouseY >= y && mouseY < y + rowHeight - 2 ? 0x55FFFFFF : 0x33000000);
-                ImageDraw.drawCropped(graphics, card.cover, panelX + 6, y + 2, 38, rowHeight - 6);
+                ImageDraw.drawThumb(graphics, card.cover, panelX + 6, y + 2, 38, rowHeight - 6);
                 String title = card.title == null ? tr("ltsmodelshare.common.untitled") : card.title;
                 graphics.drawString(font, TextUtil.trim(font, title, panelW - 60), panelX + 49, y + 4, 0xFFFFFF, true);
                 graphics.drawString(font, tr("ltsmodelshare.common.work_stats", card.downloadCount, card.viewCount),

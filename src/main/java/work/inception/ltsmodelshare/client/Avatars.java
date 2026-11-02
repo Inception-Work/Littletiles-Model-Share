@@ -11,8 +11,8 @@ public final class Avatars {
     public static void draw(GuiGraphics graphics, Font font, Dtos.Author author, int x, int y, int size) {
         if (author == null || size <= 0) return;
         String url = author.avatarUrl;
-        if (url != null && !url.isEmpty() && ImageCache.img(url) != null) {
-            ImageDraw.drawCropped(graphics, url, x, y, size, size);
+        if (url != null && !url.isEmpty() && ImageCache.img(ImageUrls.thumb(url)) != null) {
+            ImageDraw.drawThumb(graphics, url, x, y, size, size);
             return;
         }
         String seed = author.username == null || author.username.isEmpty() ? "?" : author.username;

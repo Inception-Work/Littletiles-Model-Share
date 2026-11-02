@@ -7,6 +7,16 @@ import net.minecraft.resources.ResourceLocation;
 public final class ImageDraw {
     private ImageDraw() { }
 
+    /** Card-sized rendering; uses DogeCloud /thumb (<=480px). */
+    public static void drawThumb(GuiGraphics graphics, String url, int x, int y, int w, int h) {
+        drawCropped(graphics, ImageUrls.thumb(url), x, y, w, h);
+    }
+
+    /** Large rendering (detail cover, banner); uses DogeCloud /preview (<=1600px). */
+    public static void drawPreview(GuiGraphics graphics, String url, int x, int y, int w, int h) {
+        drawCropped(graphics, ImageUrls.preview(url), x, y, w, h);
+    }
+
     public static void drawCropped(GuiGraphics graphics, String url, int x, int y, int w, int h) {
         if (url == null || url.isEmpty() || w <= 0 || h <= 0) return;
         ResourceLocation id = ImageCache.img(url);

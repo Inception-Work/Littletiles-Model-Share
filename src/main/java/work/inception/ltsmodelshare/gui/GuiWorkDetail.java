@@ -197,7 +197,7 @@ public class GuiWorkDetail extends Screen {
         int coverH = coverW * 3 / 4;
         String cover = detail != null && detail.images != null && !detail.images.isEmpty()
                 ? detail.images.get(0) : card.cover;
-        ImageDraw.drawCropped(graphics, cover, left, 28, coverW, coverH);
+        ImageDraw.drawPreview(graphics, cover, left, 28, coverW, coverH);
 
         int textX = left + coverW + 10;
         int textW = Math.max(60, colW - coverW - 10);
