@@ -81,13 +81,14 @@ public final class BlueprintServer {
                 reply(player, false, Component.translatable("ltsmodelshare.server.too_large", snbt.length()));
                 return;
             }
-            // A 1.12 door converted without the "fixed" downgrade still says id:"door"
-            // but has no states; LittleTiles would crash the client when placing it.
-            if (snbt.contains("id:\"door\"") && !snbt.contains("states:")) {
+            CompoundTag tag = TagParser.parseTag(snbt);
+            // A converted 1.12 door/axis still says e.g. id:"door" but has no "states";
+            // LittleTiles would crash the client when placing it. Check every structure
+            // (including nested children), not just the top-level one.
+            if (hasStatelessStateStructure(tag)) {
                 reply(player, false, Component.translatable("ltsmodelshare.blueprint.legacy_door"));
                 return;
             }
-            CompoundTag tag = TagParser.parseTag(snbt);
             LittleGroup group = LittleGroup.load(tag);
             if (group == null || group.size() == 0) {
                 reply(player, false, Component.translatable("ltsmodelshare.common.parse_incompatible"));
@@ -115,6 +116,28 @@ public final class BlueprintServer {
             LtsModelShare.LOG.warn("服务端生成蓝图失败：{}", error.toString());
             reply(player, false, Component.translatable("ltsmodelshare.server.failed", error.toString()));
         }
+    }
+
+    /** 1.20 animation structures all require a non-empty "states" list. */
+    private static final java.util.Set<String> STATE_IDS = java.util.Set.of(
+            "door", "advancedDoor", "slidingDoor", "sliding", "doorActivator", "activator", "axis");
+
+    private static boolean hasStatelessStateStructure(net.minecraft.nbt.Tag tag) {
+        if (tag instanceof CompoundTag compound) {
+            if (compound.contains("id", net.minecraft.nbt.Tag.TAG_STRING)
+                    && STATE_IDS.contains(compound.getString("id"))
+                    && !compound.contains("states")) {
+                return true;
+            }
+            for (String key : compound.getAllKeys()) {
+                if (hasStatelessStateStructure(compound.get(key))) return true;
+            }
+        } else if (tag instanceof net.minecraft.nbt.ListTag list) {
+            for (net.minecraft.nbt.Tag child : list) {
+                if (hasStatelessStateStructure(child)) return true;
+            }
+        }
+        return false;
     }
 
     private static void reply(ServerPlayer player, boolean ok, Component message) {
