@@ -81,6 +81,12 @@ public final class BlueprintServer {
                 reply(player, false, Component.translatable("ltsmodelshare.server.too_large", snbt.length()));
                 return;
             }
+            // A 1.12 door converted without the "fixed" downgrade still says id:"door"
+            // but has no states; LittleTiles would crash the client when placing it.
+            if (snbt.contains("id:\"door\"") && !snbt.contains("states:")) {
+                reply(player, false, Component.translatable("ltsmodelshare.blueprint.legacy_door"));
+                return;
+            }
             CompoundTag tag = TagParser.parseTag(snbt);
             LittleGroup group = LittleGroup.load(tag);
             if (group == null || group.size() == 0) {

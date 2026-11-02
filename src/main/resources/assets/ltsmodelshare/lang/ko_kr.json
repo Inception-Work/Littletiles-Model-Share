@@ -233,5 +233,6 @@
   "ltsmodelshare.upload.no_screenshots": "screenshots/ 에 스크린샷이 없습니다",
   "ltsmodelshare.upload.tags": "태그",
   "ltsmodelshare.upload.tags_empty": "태그를 불러오지 못했습니다",
-  "ltsmodelshare.common.request_timeout": "요청 시간이 초과되었습니다. 네트워크 또는 프록시를 확인한 뒤 다시 시도하세요."
+  "ltsmodelshare.common.request_timeout": "요청 시간이 초과되었습니다. 네트워크 또는 프록시를 확인한 뒤 다시 시도하세요.",
+  "ltsmodelshare.blueprint.legacy_door": "이 작품에는 변환되지 않은 1.12 문이 있습니다. 다시 다운로드하세요(이전 청사진은 설치할 수 없습니다)."
 }

@@ -233,5 +233,6 @@
   "ltsmodelshare.upload.no_screenshots": "screenshots/ 里没有截图",
   "ltsmodelshare.upload.tags": "标签",
   "ltsmodelshare.upload.tags_empty": "标签还没加载出来",
-  "ltsmodelshare.common.request_timeout": "请求超时，请检查网络或代理后重试。"
+  "ltsmodelshare.common.request_timeout": "请求超时，请检查网络或代理后重试。",
+  "ltsmodelshare.blueprint.legacy_door": "这个作品里的 1.12 门尚未转换，请重新下载；旧蓝图不能放置。"
 }

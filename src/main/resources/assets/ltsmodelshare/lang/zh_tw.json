@@ -233,5 +233,6 @@
   "ltsmodelshare.upload.no_screenshots": "screenshots/ 裡沒有截圖",
   "ltsmodelshare.upload.tags": "標籤",
   "ltsmodelshare.upload.tags_empty": "標籤還沒載入",
-  "ltsmodelshare.common.request_timeout": "請求逾時，請檢查網路或代理後重試。"
+  "ltsmodelshare.common.request_timeout": "請求逾時，請檢查網路或代理後重試。",
+  "ltsmodelshare.blueprint.legacy_door": "這個作品裡的 1.12 門尚未轉換，請重新下載；舊藍圖不能放置。"
 }

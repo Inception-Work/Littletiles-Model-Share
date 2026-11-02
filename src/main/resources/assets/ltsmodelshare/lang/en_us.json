@@ -233,5 +233,6 @@
   "ltsmodelshare.upload.no_screenshots": "No screenshots found in screenshots/",
   "ltsmodelshare.upload.tags": "Tags",
   "ltsmodelshare.upload.tags_empty": "No tags loaded",
-  "ltsmodelshare.common.request_timeout": "Request timed out. Check your network or proxy, then retry."
+  "ltsmodelshare.common.request_timeout": "Request timed out. Check your network or proxy, then retry.",
+  "ltsmodelshare.blueprint.legacy_door": "This work still contains an unconverted 1.12 door; please download it again (old blueprints cannot be placed)."
 }
