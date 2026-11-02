@@ -79,24 +79,19 @@ public final class ImageCache {
         LOADING.remove(url);
         NativeImage image = null;
         try {
-            // read(byte[]) copies the whole file onto LWJGL's small per-thread stack and
-            // overflows ("Out of stack space") for multi-megabyte screenshots. The stream
-            // overload uses a fixed 8 KB buffer instead.
-            image = NativeImage.read(new java.io.ByteArrayInputStream(data));
-            int width = image.getWidth();
-            int height = image.getHeight();
-            // Screenshots can be 1920x1080 (8 MB decoded); downscale cards to 512 px.
-            int largest = Math.max(width, height);
-            if (largest > 512) {
-                float scale = 512f / largest;
-                int scaledW = Math.max(1, Math.round(width * scale));
-                int scaledH = Math.max(1, Math.round(height * scale));
-                NativeImage scaled = new NativeImage(scaledW, scaledH, false);
-                image.resizeSubRectTo(0, 0, width, height, scaled);
-                image.close();
-                image = scaled;
-                width = scaledW;
-                height = scaledH;
+            // Decode with ImageIO so the compressed/decoded data lives on the heap, not on
+            // LWJGL's small direct stack. NativeImage.read(byte[]) crashed with
+            // "Out of stack space" and huge images also exhausted direct buffer memory.
+            java.awt.image.BufferedImage source = decodeAndScale(data);
+            int width = source.getWidth();
+            int height = source.getHeight();
+            image = new NativeImage(width, height, false);
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int argb = source.getRGB(x, y);
+                    int rgba = (argb & 0xFF00FF00) | ((argb & 0xFF) << 16) | ((argb >> 16) & 0xFF);
+                    image.setPixelRGBA(x, y, rgba);
+                }
             }
             DynamicTexture texture = new DynamicTexture(image);
             image = null; // DynamicTexture owns the pixels now.
@@ -110,6 +105,48 @@ public final class ImageCache {
             if (image != null) image.close();
             FAILED.add(url);
             LtsModelShare.LOG.warn("图片解码失败 {}", url, error);
+        }
+    }
+
+    /**
+     * Decode on the heap and downscale before creating a NativeImage.
+     * Header dimensions are checked first so decompression bombs never allocate direct memory.
+     */
+    private static java.awt.image.BufferedImage decodeAndScale(byte[] data) throws java.io.IOException {
+        if (data.length > 16 * 1024 * 1024) throw new java.io.IOException("image file too large");
+        try (javax.imageio.stream.ImageInputStream input =
+                     javax.imageio.ImageIO.createImageInputStream(new java.io.ByteArrayInputStream(data))) {
+            java.util.Iterator<javax.imageio.ImageReader> readers = javax.imageio.ImageIO.getImageReaders(input);
+            if (!readers.hasNext()) throw new java.io.IOException("unsupported image format");
+            javax.imageio.ImageReader reader = readers.next();
+            try {
+                reader.setInput(input, true, true);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                if (width <= 0 || height <= 0 || width > 8192 || height > 8192
+                        || (long) width * height > 16_000_000L) {
+                    throw new java.io.IOException("image dimensions rejected: " + width + "x" + height);
+                }
+                java.awt.image.BufferedImage source = reader.read(0);
+                int largest = Math.max(width, height);
+                if (largest <= 512) return source;
+                float scale = 512f / largest;
+                int scaledW = Math.max(1, Math.round(width * scale));
+                int scaledH = Math.max(1, Math.round(height * scale));
+                java.awt.image.BufferedImage scaled = new java.awt.image.BufferedImage(
+                        scaledW, scaledH, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                java.awt.Graphics2D graphics = scaled.createGraphics();
+                try {
+                    graphics.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                            java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    graphics.drawImage(source, 0, 0, scaledW, scaledH, null);
+                } finally {
+                    graphics.dispose();
+                }
+                return scaled;
+            } finally {
+                reader.dispose();
+            }
         }
     }
 

@@ -26,8 +26,7 @@ minecraft {
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             // More headroom for remote cover textures, OBJ models and blueprint parsing.
-            jvmArgs '-Xms1G', '-Xmx6G', '-XX:+UseG1GC',
-                    '-Dorg.lwjgl.system.stackSize=1048576'
+            jvmArgs '-Xms1G', '-Xmx6G', '-XX:+UseG1GC'
             mods {
                 ltsmodelshare {
                     source sourceSets.main
