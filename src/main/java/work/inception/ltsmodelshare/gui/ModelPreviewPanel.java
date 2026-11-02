@@ -21,6 +21,7 @@ import org.lwjgl.opengl.GL11;
 import org.lwjgl.util.glu.Project;
 import net.minecraftforge.fml.relauncher.ReflectionHelper;
 import work.inception.ltsmodelshare.LtsModelShare;
+import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
 import work.inception.ltsmodelshare.client.GridLimits;
@@ -31,12 +32,23 @@ import java.nio.IntBuffer;
 import java.util.Arrays;
 
 /**
- * 详情页内的原生 LittleTiles 模型窗口。仅在点击后取 1.12 SNBT，不向背包或世界放置。
- * FakeWorld / EntityAnimation 由 LittleTiles 自己的 AnimationPreview 构建。
+ * 详情页模型窗口：优先使用原生 LittleTiles；不可用或失败时展示网站提供的 OBJ 白模。
+ * 仅在点击后取资源，不向背包或世界放置。FakeWorld / EntityAnimation 由 LittleTiles 构建。
  */
 final class ModelPreviewPanel {
     private static final long MAX_SNBT_BYTES = 2L * 1024 * 1024;
     private static final int MAX_BOXES = 6000;
+    private static final long MAX_OBJ_BYTES = 8L * 1024 * 1024;
+
+    static boolean canOpen(Dtos.Item item) {
+        return available(item) || hasObj(item);
+    }
+
+    private static boolean hasObj(Dtos.Item item) {
+        return item != null && item.preview != null && item.preview.available
+                && item.preview.assetUrl != null && !item.preview.assetUrl.trim().isEmpty()
+                && (item.preview.sizeBytes == null || item.preview.sizeBytes <= MAX_OBJ_BYTES);
+    }
 
     /** 上传时统计的 SNBT 属性决定入口能否显示；白模 OBJ 的 preview.available 与此无关。 */
     static boolean available(Dtos.Item item) {
@@ -103,6 +115,8 @@ final class ModelPreviewPanel {
     private final Dtos.Item item;
     private final String accessCode;
     private AnimationPreview preview;
+    private ObjModel obj;
+    private boolean objAttempted;
     private boolean closed;
     private String message = tr("ltsmodelshare.preview.fetching");
     private double distance;
@@ -119,8 +133,13 @@ final class ModelPreviewPanel {
     }
 
     void load() {
+        if (!ModConfig.get().loggedIn()) {
+            message = tr("ltsmodelshare.api.login_required");
+            return;
+        }
         if (!available(item)) {
-            message = tr("ltsmodelshare.preview.limit");
+            if (hasObj(item)) loadObj(tr("ltsmodelshare.preview.limit"));
+            else message = tr("ltsmodelshare.preview.limit");
             return;
         }
         // 接口按文件内容检测真实方言；非 1.12 原件会在服务端先转换并缓存为 1.12。
@@ -134,7 +153,7 @@ final class ModelPreviewPanel {
                     return;
                 }
                 if (info.sizeBytes > MAX_SNBT_BYTES) {
-                    ApiClient.post(() -> { if (!closed) message = tr("ltsmodelshare.preview.too_large"); });
+                    fallback(tr("ltsmodelshare.preview.too_large"));
                     return;
                 }
                 ApiClient.fetchText(info, new ApiClient.Callback<String>() {
@@ -152,16 +171,57 @@ final class ModelPreviewPanel {
     }
 
     private void fail(String error) {
-        ApiClient.post(() -> { if (!closed) message = tr("ltsmodelshare.preview.load_failed", error); });
+        fallback(tr("ltsmodelshare.preview.load_failed", error));
+    }
+
+    private void fallback(String error) {
+        ApiClient.post(() -> {
+            if (closed || Minecraft.getMinecraft().currentScreen != owner) return;
+            releasePreview();
+            if (hasObj(item)) loadObj(error);
+            else message = error;
+        });
+    }
+
+    private void loadObj(String nativeError) {
+        if (closed || objAttempted || !hasObj(item)) {
+            message = nativeError;
+            return;
+        }
+        objAttempted = true;
+        message = tr("ltsmodelshare.preview.obj_loading");
+        ApiClient.fetchObj(item.preview.assetUrl, MAX_OBJ_BYTES, new ApiClient.Callback<String>() {
+            @Override public void ok(String text) {
+                try {
+                    ObjModel model = ObjModel.parse(text);
+                    ApiClient.post(() -> {
+                        if (closed || Minecraft.getMinecraft().currentScreen != owner) return;
+                        obj = model;
+                        distance = 3.5;
+                        message = tr("ltsmodelshare.preview.obj_mode");
+                    });
+                } catch (Exception error) {
+                    objFail(nativeError, error.getMessage());
+                }
+            }
+            @Override public void fail(String error) { objFail(nativeError, error); }
+        });
+    }
+
+    private void objFail(String nativeError, String error) {
+        ApiClient.post(() -> {
+            if (!closed && Minecraft.getMinecraft().currentScreen == owner)
+                message = tr("ltsmodelshare.preview.obj_failed", nativeError, error);
+        });
     }
 
     private void accept(String text) {
         if (text == null || text.isEmpty() || text.length() > MAX_SNBT_BYTES) {
-            message = tr("ltsmodelshare.preview.empty_large");
+            fallback(tr("ltsmodelshare.preview.empty_large"));
             return;
         }
         if (Minecraft.getMinecraft().world == null || Minecraft.getMinecraft().getRenderViewEntity() == null) {
-            message = tr("ltsmodelshare.preview.world_required");
+            fallback(tr("ltsmodelshare.preview.world_required"));
             return;
         }
         try {
@@ -178,7 +238,7 @@ final class ModelPreviewPanel {
         } catch (Exception error) {
             LtsModelShare.LOG.warn("LittleTiles 原生预览构建失败 itemId={}", item.itemId, error);
             releasePreview();
-            message = tr("ltsmodelshare.preview.parse_failed", error.getClass().getSimpleName());
+            fallback(tr("ltsmodelshare.preview.parse_failed", error.getClass().getSimpleName()));
         }
     }
 
@@ -209,24 +269,39 @@ final class ModelPreviewPanel {
             } catch (Exception error) {
                 LtsModelShare.LOG.warn("LittleTiles 原生预览绘制失败 itemId={}", item.itemId, error);
                 releasePreview();
+                fallback(tr("ltsmodelshare.preview.render_failed", error.getClass().getSimpleName()));
+            }
+        } else if (obj != null) {
+            try {
+                renderNative(x + 4, y + 23, w - 8, h - 47);
+            } catch (Exception error) {
+                LtsModelShare.LOG.warn("OBJ 预览绘制失败 itemId={}", item.itemId, error);
+                obj.release();
+                obj = null;
                 message = tr("ltsmodelshare.preview.render_failed", error.getClass().getSimpleName());
             }
         }
         if (!message.isEmpty()) {
-            mc.fontRenderer.drawStringWithShadow(mc.fontRenderer.trimStringToWidth(message, w - 18),
-                    x + 8, y + h / 2, 0xFFCCCCCC);
+            int lineY = obj != null ? y + 27 : y + h / 2;
+            for (String line : mc.fontRenderer.listFormattedStringToWidth(message, w - 18)) {
+                if (lineY > y + h - 38) break;
+                mc.fontRenderer.drawStringWithShadow(line, x + 8, lineY, 0xFFCCCCCC);
+                lineY += mc.fontRenderer.FONT_HEIGHT + 2;
+            }
         }
         mc.fontRenderer.drawStringWithShadow(tr("ltsmodelshare.preview.controls"), x + 7, y + h - 16, 0xFFAAAAAA);
     }
 
     private void renderNative(int px, int py, int pw, int ph) {
         Minecraft mc = Minecraft.getMinecraft();
-        if (preview == null || mc.world == null || mc.getRenderViewEntity() == null) return;
+        if (obj == null && (preview == null || mc.world == null || mc.getRenderViewEntity() == null)) return;
         IntBuffer oldViewport = BufferUtils.createIntBuffer(16);
         IntBuffer oldScissor = BufferUtils.createIntBuffer(16);
         GL11.glGetInteger(GL11.GL_VIEWPORT, oldViewport);
         GL11.glGetInteger(GL11.GL_SCISSOR_BOX, oldScissor);
         boolean wasScissored = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
+        boolean wasCulled = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+        boolean wasLit = GL11.glIsEnabled(GL11.GL_LIGHTING);
         int oldMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
         ScaledResolution sr = new ScaledResolution(mc);
         float sx = (float) mc.displayWidth / sr.getScaledWidth();
@@ -249,25 +324,35 @@ final class ModelPreviewPanel {
             GlStateManager.translate(0, 0, -distance);
             GlStateManager.rotate(pitch, 1, 0, 0);
             GlStateManager.rotate(yaw, 0, 1, 0);
-            Vector3d center = new Vector3d(preview.animation.center.rotationCenter);
-            center.y -= 75;
-            GlStateManager.translate(-preview.entireBox.getMinVec().getPosX(preview.context),
-                    -preview.entireBox.getMinVec().getPosY(preview.context),
-                    -preview.entireBox.getMinVec().getPosZ(preview.context));
-            GlStateManager.translate(-center.x, -center.y, -center.z);
-            GlStateManager.translate(TileEntityRendererDispatcher.staticPlayerX,
-                    TileEntityRendererDispatcher.staticPlayerY, TileEntityRendererDispatcher.staticPlayerZ);
-            GlStateManager.translate(0, -75, 0);
-            GlStateManager.enableDepth();
-            GlStateManager.enableRescaleNormal();
-            GlStateManager.enableBlend();
-            GlStateManager.color(1, 1, 1, 1);
-            mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
-            BrightLightmap bright = brighten(mc);
-            try {
-                LittleAnimationHandlerClient.render.doRender(preview.animation, 0, 0, 0, 0, mc.getRenderPartialTicks());
-            } finally {
-                if (bright != null) bright.close();
+            if (obj != null) {
+                GlStateManager.enableDepth();
+                GlStateManager.disableTexture2D();
+                GlStateManager.disableCull();
+                GlStateManager.disableLighting();
+                GlStateManager.disableBlend();
+                GL11.glScaled(2.0 / obj.size, 2.0 / obj.size, 2.0 / obj.size);
+                obj.render();
+            } else {
+                Vector3d center = new Vector3d(preview.animation.center.rotationCenter);
+                center.y -= 75;
+                GlStateManager.translate(-preview.entireBox.getMinVec().getPosX(preview.context),
+                        -preview.entireBox.getMinVec().getPosY(preview.context),
+                        -preview.entireBox.getMinVec().getPosZ(preview.context));
+                GlStateManager.translate(-center.x, -center.y, -center.z);
+                GlStateManager.translate(TileEntityRendererDispatcher.staticPlayerX,
+                        TileEntityRendererDispatcher.staticPlayerY, TileEntityRendererDispatcher.staticPlayerZ);
+                GlStateManager.translate(0, -75, 0);
+                GlStateManager.enableDepth();
+                GlStateManager.enableRescaleNormal();
+                GlStateManager.enableBlend();
+                GlStateManager.color(1, 1, 1, 1);
+                mc.getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+                BrightLightmap bright = brighten(mc);
+                try {
+                    LittleAnimationHandlerClient.render.doRender(preview.animation, 0, 0, 0, 0, mc.getRenderPartialTicks());
+                } finally {
+                    if (bright != null) bright.close();
+                }
             }
         } finally {
             GL11.glMatrixMode(GL11.GL_MODELVIEW);
@@ -282,6 +367,8 @@ final class ModelPreviewPanel {
             GlStateManager.disableDepth();
             GlStateManager.disableBlend();
             GlStateManager.enableTexture2D();
+            if (wasCulled) GlStateManager.enableCull(); else GlStateManager.disableCull();
+            if (wasLit) GlStateManager.enableLighting(); else GlStateManager.disableLighting();
             GlStateManager.color(1, 1, 1, 1);
             mc.entityRenderer.setupOverlayRendering();
         }
@@ -312,8 +399,9 @@ final class ModelPreviewPanel {
     void release() { dragging = false; }
 
     void wheel(int delta) {
-        if (delta == 0 || preview == null) return;
-        double base = Math.max(2, preview.context.toVanillaGrid(preview.entireBox.getLongestSide()) / 2D + 2);
+        if (delta == 0 || (preview == null && obj == null)) return;
+        double base = obj != null ? 3.5
+                : Math.max(2, preview.context.toVanillaGrid(preview.entireBox.getLongestSide()) / 2D + 2);
         distance = Math.max(base * 0.3, Math.min(base * 12, distance * (delta > 0 ? 0.84 : 1.19)));
     }
 
@@ -332,6 +420,10 @@ final class ModelPreviewPanel {
     void close() {
         closed = true; // 网络回调晚到也不能再把旧预览装进界面
         releasePreview();
+        if (obj != null) {
+            obj.release();
+            obj = null;
+        }
         dragging = false;
     }
 }

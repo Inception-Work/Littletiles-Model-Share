@@ -44,6 +44,10 @@ public class GuiAdvancedSearch extends GuiScreen {
         public String q = "";
         public Long authorId;
         public String authorName = "";
+        /** 上一次的作者搜索输入；用于重新打开高级搜索时回填。 */
+        public String authorQuery = "";
+        /** 上一次搜索到的作者候选；有结果时重新打开仍保留列表。 */
+        public final List<Dtos.Author> authorCandidates = new ArrayList<>();
         public final Set<String> tagCodes = new LinkedHashSet<>();
         public final java.util.Map<String, Dtos.Tag> tagLabels = new java.util.LinkedHashMap<>();
         public String sort = "latest";
@@ -53,6 +57,8 @@ public class GuiAdvancedSearch extends GuiScreen {
             f.q = q;
             f.authorId = authorId;
             f.authorName = authorName;
+            f.authorQuery = authorQuery;
+            f.authorCandidates.addAll(authorCandidates);
             f.tagCodes.addAll(tagCodes);
             f.tagLabels.putAll(tagLabels);
             f.sort = sort;
@@ -127,16 +133,19 @@ public class GuiAdvancedSearch extends GuiScreen {
         authorLabelY = y;
         y += 11;
 
+        // 输入框优先回填上一次搜索词，而不是已选作者名。
+        if (authorHits.isEmpty() && !working.authorCandidates.isEmpty()) {
+            authorHits.addAll(working.authorCandidates);
+        }
         fieldAuthor = new GuiTextField(0, fontRenderer, panelLeft, y, Math.max(80, panelW - 106), 18);
         fieldAuthor.setMaxStringLength(32);
-        fieldAuthor.setText(working.authorName == null ? "" : working.authorName);
+        fieldAuthor.setText(working.authorQuery != null && !working.authorQuery.isEmpty()
+                ? working.authorQuery
+                : (working.authorName == null ? "" : working.authorName));
         buttonList.add(new LocalizedButton(1, panelLeft + panelW - 102, y - 1, 102, 20, tr("ltsmodelshare.search.author")));
         y += 24;
 
         selectedY = y;
-        if (working.authorId != null) {
-            buttonList.add(new LocalizedButton(2, panelLeft + panelW - 102, y - 2, 102, 18, tr("ltsmodelshare.search.clear_author")));
-        }
         y += 14;
 
         listsLabelY = y;
@@ -272,6 +281,10 @@ public class GuiAdvancedSearch extends GuiScreen {
                         }
                     }
                     authorScroll = 0;
+                    // 记录搜索词和候选，重新打开高级搜索时保持。
+                    working.authorQuery = q;
+                    working.authorCandidates.clear();
+                    working.authorCandidates.addAll(authorHits);
                     // 成功不弹提示（列表本身就是提示），只有没找到才说一句
                     status = authorHits.isEmpty() ? TextFormatting.RED + tr("ltsmodelshare.search.author_missing") : "";
                     initGui();
@@ -315,12 +328,6 @@ public class GuiAdvancedSearch extends GuiScreen {
             searchAuthors();
             return;
         }
-        if (id == 2) {
-            working.authorId = null;
-            working.authorName = "";
-            initGui();
-            return;
-        }
         if (id == 3) {
             working.sort = "latest";
             initGui();
@@ -332,6 +339,7 @@ public class GuiAdvancedSearch extends GuiScreen {
             return;
         }
         if (id == 5) {
+            working.authorQuery = fieldAuthor.getText().trim();
             parent.applyFilter(working);
             mc.displayGuiScreen(parent);
             return;
@@ -340,6 +348,8 @@ public class GuiAdvancedSearch extends GuiScreen {
             // 立刻清空并生效（原来只清工作副本、还要再点应用，容易被当成"没清掉"）
             working.authorId = null;
             working.authorName = "";
+            working.authorQuery = "";
+            working.authorCandidates.clear();
             working.tagCodes.clear();
             working.sort = "latest";
             authorHits.clear();
@@ -352,6 +362,7 @@ public class GuiAdvancedSearch extends GuiScreen {
             return;
         }
         if (id == 7) {
+            working.authorQuery = fieldAuthor.getText().trim();
             mc.displayGuiScreen(parent);
         }
     }
@@ -359,11 +370,13 @@ public class GuiAdvancedSearch extends GuiScreen {
     @Override
     protected void keyTyped(char typedChar, int keyCode) throws IOException {
         if (keyCode == 1) {
+            working.authorQuery = fieldAuthor.getText().trim();
             mc.displayGuiScreen(parent);
             return;
         }
         if (fieldAuthor.isFocused()) {
             fieldAuthor.textboxKeyTyped(typedChar, keyCode);
+            working.authorQuery = fieldAuthor.getText().trim();
             if (keyCode == 28) {
                 searchAuthors();
             }
@@ -383,10 +396,17 @@ public class GuiAdvancedSearch extends GuiScreen {
         int authorIndex = authorIndexAt(mouseX, mouseY);
         if (authorIndex >= 0) {
             Dtos.Author a = authorHits.get(authorIndex);
-            working.authorId = a.userId;
-            working.authorName = a.displayName != null && !a.displayName.isEmpty()
-                    ? a.displayName : a.username;
-            status = TextFormatting.GREEN + tr("ltsmodelshare.search.author_selected", working.authorName);
+            if (working.authorId != null && working.authorId == a.userId) {
+                // 再点一次已选作者 = 取消选择。
+                working.authorId = null;
+                working.authorName = "";
+                status = "";
+            } else {
+                working.authorId = a.userId;
+                working.authorName = a.displayName != null && !a.displayName.isEmpty()
+                        ? a.displayName : a.username;
+                status = TextFormatting.GREEN + tr("ltsmodelshare.search.author_selected", working.authorName);
+            }
             initGui();
             return;
         }

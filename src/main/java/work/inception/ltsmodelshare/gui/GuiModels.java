@@ -93,22 +93,36 @@ public class GuiModels extends GuiScreen {
         buttonList.add(new LocalizedButton(1, topX + searchW + 4, 23, 44, 20, tr("ltsmodelshare.common.search")));
         buttonList.add(new LocalizedButton(2, topX + searchW + 52, 23, 40, 20, tr("ltsmodelshare.common.refresh")));
         buttonList.add(new LocalizedButton(8, topX + searchW + 96, 23, 56, 20, tr("ltsmodelshare.search.filters")));
-        // Pagination occupies its own row; page actions leave the fixed bottom-right exit free.
+        /*
+         * 底栏四个按钮平均铺满一整行；关闭按钮宽度同时决定分页行里
+         * 「收藏与关注 + 我的空间」的总宽，保证右侧两处对齐。
+         */
+        int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GuiNavigation.GAP) / 4);
+        int by = GuiNavigation.footerY(height);
+        int bx = GuiNavigation.MARGIN;
+        buttonList.add(new LocalizedButton(5, bx, by, footerW, 20,
+                ModConfig.get().loggedIn() ? tr("ltsmodelshare.models.logout") : tr("ltsmodelshare.common.login")));
+        bx += footerW + GuiNavigation.GAP;
+        buttonList.add(new LocalizedButton(7, bx, by, footerW, 20, tr("ltsmodelshare.models.upload")));
+        bx += footerW + GuiNavigation.GAP;
+        buttonList.add(new LocalizedButton(9, bx, by, footerW, 20, tr("ltsmodelshare.models.invitation")));
+        bx += footerW + GuiNavigation.GAP;
+        buttonList.add(new LocalizedButton(6, bx, by, footerW, 20, tr("ltsmodelshare.common.close")));
+
+        // 分页行：上一页在最左，下一页紧挨收藏与关注；中间只放页码等状态。
         int pageY = GuiNavigation.footerY(height) - 26;
+        int socialW = Math.max(28, (footerW - GuiNavigation.GAP) / 2);
+        int social2X = width - GuiNavigation.MARGIN - socialW;
+        int social1X = social2X - GuiNavigation.GAP - socialW;
+        int nextX = social1X - GuiNavigation.GAP - 42;
         buttonList.add(new LocalizedButton(3, GuiNavigation.MARGIN, pageY, 42, 20,
                 tr("ltsmodelshare.common.previous")));
-        buttonList.add(new LocalizedButton(4, width - GuiNavigation.MARGIN - 42, pageY, 42, 20,
+        buttonList.add(new LocalizedButton(4, nextX, pageY, 42, 20,
                 tr("ltsmodelshare.common.next")));
-        int by = GuiNavigation.footerY(height);
-        int actionWidth = GuiNavigation.actionWidth(width, 3, 90);
-        int bx = GuiNavigation.MARGIN;
-        buttonList.add(new LocalizedButton(5, bx, by, actionWidth, 20,
-                ModConfig.get().loggedIn() ? tr("ltsmodelshare.models.logout") : tr("ltsmodelshare.common.login")));
-        bx += actionWidth + GuiNavigation.GAP;
-        buttonList.add(new LocalizedButton(7, bx, by, actionWidth, 20, tr("ltsmodelshare.models.upload")));
-        bx += actionWidth + GuiNavigation.GAP;
-        buttonList.add(new LocalizedButton(9, bx, by, actionWidth, 20, tr("ltsmodelshare.models.invitation")));
-        buttonList.add(GuiNavigation.backButton(6, width, height, tr("ltsmodelshare.common.close")));
+        buttonList.add(new LocalizedButton(10, social1X, pageY, socialW, 20,
+                tr("ltsmodelshare.library.title")));
+        buttonList.add(new LocalizedButton(11, social2X, pageY, socialW, 20,
+                tr("ltsmodelshare.library.my_space")));
 
         computeLayout();
         page = wasLastPage ? maxPage() : Math.min(page, maxPage());
@@ -159,6 +173,11 @@ public class GuiModels extends GuiScreen {
                         return;
                     }
                     loading = false;
+                    if (!ModConfig.get().loggedIn()) {
+                        for (GuiButton action : buttonList) {
+                            if (action.id == 5) action.displayString = tr("ltsmodelshare.common.login");
+                        }
+                    }
                     status = TextFormatting.RED + message;
                 });
             }
@@ -210,8 +229,8 @@ public class GuiModels extends GuiScreen {
             case 5:
                 if (ModConfig.get().loggedIn()) {
                     ModConfig cfg = ModConfig.get();
-                    cfg.token = "";
-                    cfg.refreshToken = "";
+                    ApiClient.revokeRefreshQuietly(cfg.refreshToken);
+                    cfg.clearSession();
                     cfg.username = "";
                     cfg.save();
                     button.displayString = tr("ltsmodelshare.common.login");
@@ -230,6 +249,20 @@ public class GuiModels extends GuiScreen {
                 break;
             case 9:
                 mc.displayGuiScreen(new GuiInviteAccess(this));
+                break;
+            case 10:
+                if (!ModConfig.get().loggedIn()) {
+                    mc.displayGuiScreen(new GuiLogin(this));
+                } else {
+                    mc.displayGuiScreen(new GuiLibrary(this));
+                }
+                break;
+            case 11:
+                if (!ModConfig.get().loggedIn()) {
+                    mc.displayGuiScreen(new GuiLogin(this));
+                } else {
+                    mc.displayGuiScreen(new GuiMySpace(this));
+                }
                 break;
             case 6:
                 mc.displayGuiScreen(null);
@@ -310,21 +343,21 @@ public class GuiModels extends GuiScreen {
                     cx, gridTop + cardBgH / 2, width - 20, 0xFFFFFF);
         }
         /*
-         * 页脚：页码 + 登录状态 + 筛选摘要。
-         * 标签选多了摘要会很长 —— 超出窗口宽度就用 … 收尾（原来是直接画出去，被裁掉半截）。
+         * 分页行中间：页码与登录状态。筛选摘要不再显示，中间宽度由
+         * 「上一页」右缘到「下一页」左缘决定。
          */
-        String base = TextFormatting.GRAY + tr("ltsmodelshare.models.pagination", page, maxPage(), total)
-                + (ModConfig.get().loggedIn() ? tr("ltsmodelshare.models.logged_in", ModConfig.get().username) : tr("ltsmodelshare.models.guest"));
-        String filterPart = "";
-        if (filter != null && !filter.isEmpty()) {
-            int baseW = fontRenderer.getStringWidth(stripCodes(base));
-            int room = width - 124 - baseW - fontRenderer.getStringWidth("  []");
-            if (room > 18) {
-                filterPart = "  [" + trim(filter.summary(), room) + "]";
-            }
-        }
-        drawCenteredString(fontRenderer, trim(base + TextFormatting.YELLOW + filterPart, width - 124),
-                cx, GuiNavigation.footerY(height) - 20, 0xAAAAAA);
+        int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GuiNavigation.GAP) / 4);
+        int socialW = Math.max(28, (footerW - GuiNavigation.GAP) / 2);
+        int nextX = width - GuiNavigation.MARGIN - socialW * 2 - GuiNavigation.GAP * 2 - 42;
+        int midLeft = GuiNavigation.MARGIN + 42 + GuiNavigation.GAP;
+        int midRight = nextX - GuiNavigation.GAP;
+        String mid = (loading ? "" : tr("ltsmodelshare.common.page", page, maxPage()))
+                + (ModConfig.get().loggedIn()
+                ? tr("ltsmodelshare.models.logged_in", ModConfig.get().username)
+                : tr("ltsmodelshare.models.guest"));
+        drawCenteredString(fontRenderer, trim(TextFormatting.GRAY + mid,
+                Math.max(20, midRight - midLeft)),
+                (midLeft + midRight) / 2, GuiNavigation.footerY(height) - 20, 0xAAAAAA);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
@@ -399,11 +432,6 @@ public class GuiModels extends GuiScreen {
             Gui.drawRect(x, y, x + w, y + h, placeholderColor);
         }
         ImageDraw.drawCropped(url, x, y, w, h);
-    }
-
-    /** 去掉 §x 颜色码（算宽度时要排除，不然会被算成两个字符） */
-    private String stripCodes(String text) {
-        return text == null ? "" : text.replaceAll("\u00A7.", "");
     }
 
     private String trim(String text, int maxWidth) {

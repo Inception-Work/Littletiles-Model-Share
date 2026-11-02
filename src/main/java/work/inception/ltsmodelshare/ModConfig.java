@@ -32,7 +32,7 @@ public class ModConfig {
     /** 登录令牌（Bearer）；为空 = 未登录 */
     public String token = "";
 
-    /** 刷新令牌（暂时没用到，留着给后台续期用） */
+    /** 密码登录的刷新令牌（服务端滑动两小时，每次续期轮换）；个人访问令牌模式留空。 */
     public String refreshToken = "";
 
     /** 上次登录的用户名（只用于回显，不存密码） */
@@ -120,5 +120,12 @@ public class ModConfig {
 
     public boolean loggedIn() {
         return token != null && !token.isEmpty();
+    }
+
+    /** 服务器确认密码会话过期时清除本地双令牌（保留用户名供重新登录）。 */
+    public void clearSession() {
+        token = "";
+        refreshToken = "";
+        save();
     }
 }

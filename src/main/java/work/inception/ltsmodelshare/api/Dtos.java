@@ -72,6 +72,8 @@ public final class Dtos {
         public List<Dependency> dependencies;
         /** 这条作品里的模型条目 */
         public List<Item> items;
+        /** 当前登录用户是否收藏过（未登录缺省 false） */
+        public Boolean favorited;
     }
 
     /** 依赖（合集声明用） */
@@ -146,6 +148,27 @@ public final class Dtos {
         public Page<WorkCard> works;
     }
 
+    /** 关注 / 粉丝列表里的用户卡（/public/work/stats/following） */
+    public static class UserCard {
+        public long userId;
+        public String username;
+        public String displayName;
+        public String avatarUrl;
+        public String bio;
+        public long followerCount;
+
+        public Dtos.Author asAuthor() {
+            Dtos.Author author = new Dtos.Author();
+            author.userId = userId;
+            author.username = username;
+            author.displayName = displayName;
+            author.avatarUrl = avatarUrl;
+            author.bio = bio;
+            author.followerCount = followerCount;
+            return author;
+        }
+    }
+
     /** 下载 SNBT 的结果 */
     public static class DownloadInfo {
         public String assetUrl;
@@ -197,6 +220,45 @@ public final class Dtos {
     }
 
     public static class AuthorHomeResp extends Resp<AuthorHome> {
+    }
+
+    public static class FavoriteResp extends Resp<Page<WorkCard>> {
+    }
+
+    public static class FollowingUsersResp extends Resp<Page<UserCard>> {
+    }
+
+    /** POST /api/account/info：当前登录用户的最小上下文 */
+    public static class UserContext {
+        public long userId;
+        public String username;
+        public String displayName;
+        public String avatarUrl;
+        /** 账号设置的惯用语言；没设置过为 null */
+        public String preferredLocale;
+    }
+
+    public static class UserContextResp extends Resp<UserContext> {
+    }
+
+    /** 收藏 / 关注切换结果 */
+    public static class SocialToggle {
+        public Boolean favorited;
+        public Boolean following;
+        public Long favoriteCount;
+        public Long followerCount;
+        public Long followingCount;
+    }
+
+    public static class SocialToggleResp extends Resp<SocialToggle> {
+    }
+
+    /** /public/work/stats 里只取与关注按钮有关的字段 */
+    public static class ProfileStats {
+        public Boolean following;
+    }
+
+    public static class ProfileStatsResp extends Resp<ProfileStats> {
     }
 
     public static class DetailResp extends Resp<WorkDetail> {
@@ -254,6 +316,12 @@ public final class Dtos {
          * 出现在 /models（市场列表要求 visibility=public）。所以模组上传默认给 public。</p>
          */
         public String visibility = "public";
+        /** 来源加载器：forge / neoforge（模组按版本发布，上传时固定） */
+        public String sourceLoader;
+        /** 来源游戏版本，如 1.12.2（模组按版本发布，上传时固定） */
+        public String sourceGameVersion;
+        /** 正文原文语言（zh-Hans / zh-Hant / en / ja / ko / de / fr） */
+        public String sourceLocale;
         public String title;
         public String summary;
         /** 受控标签 code */

@@ -71,6 +71,9 @@ public class GuiWorkDetail extends GuiScreen {
     private final List<Long> madeBlueprint = new ArrayList<>();
     /** 游戏内 LittleTiles 原生模型预览（按需创建；不改玩家背包）。 */
     private ModelPreviewPanel modelPreview;
+    /** 收藏按钮状态（详情接口返回 favorited 后回填） */
+    private boolean favorited;
+    private boolean favoriteBusy;
 
     // 布局
     private int colW;
@@ -169,8 +172,10 @@ public class GuiWorkDetail extends GuiScreen {
         headerH = computeHeaderHeight();
 
         buttonList.add(GuiNavigation.backButton(1, width, height, tr("ltsmodelshare.common.back")));
-        buttonList.add(new LocalizedButton(2, GuiNavigation.MARGIN, GuiNavigation.footerY(height), 80, 20,
-                tr("ltsmodelshare.common.refresh")));
+        // 收藏按钮放在返回旁边。
+        int favoriteW = 64;
+        buttonList.add(new LocalizedButton(20, GuiNavigation.backX(width) - GuiNavigation.GAP - favoriteW,
+                GuiNavigation.footerY(height), favoriteW, 20, favoriteLabel()));
 
         scroll = 0;
         load();
@@ -208,6 +213,8 @@ public class GuiWorkDetail extends GuiScreen {
                     galleryIndex = 0;
                     scroll = 0;
                     headerH = computeHeaderHeight();
+                    favorited = Boolean.TRUE.equals(value.favorited);
+                    refreshFavoriteButton();
                     status = items.isEmpty() ? TextFormatting.GRAY + tr("ltsmodelshare.detail.no_models") : "";
                 });
             }
@@ -216,6 +223,42 @@ public class GuiWorkDetail extends GuiScreen {
             public void fail(String message) {
                 ApiClient.post(() -> {
                     loading = false;
+                    status = TextFormatting.RED + message;
+                });
+            }
+        });
+    }
+
+    private String favoriteLabel() {
+        return tr(favorited ? "ltsmodelshare.common.favorited" : "ltsmodelshare.common.favorite");
+    }
+
+    private void refreshFavoriteButton() {
+        for (GuiButton button : buttonList) {
+            if (button.id == 20) button.displayString = favoriteLabel();
+        }
+    }
+
+    private void toggleFavorite() {
+        if (!ModConfig.get().loggedIn()) {
+            mc.displayGuiScreen(new GuiLogin(this));
+            return;
+        }
+        if (favoriteBusy) return;
+        favoriteBusy = true;
+        ApiClient.toggleFavorite(card.workId, new ApiClient.Callback<Dtos.SocialToggle>() {
+            @Override public void ok(Dtos.SocialToggle value) {
+                ApiClient.post(() -> {
+                    favoriteBusy = false;
+                    if (value != null && value.favorited != null) {
+                        favorited = value.favorited;
+                        refreshFavoriteButton();
+                    }
+                });
+            }
+            @Override public void fail(String message) {
+                ApiClient.post(() -> {
+                    favoriteBusy = false;
                     status = TextFormatting.RED + message;
                 });
             }
@@ -377,8 +420,8 @@ public class GuiWorkDetail extends GuiScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == 1) {
             mc.displayGuiScreen(parent);
-        } else if (button.id == 2) {
-            load();
+        } else if (button.id == 20) {
+            toggleFavorite();
         }
     }
 
@@ -572,7 +615,7 @@ public class GuiWorkDetail extends GuiScreen {
             }
 
             int[] preview = previewBounds(rowY);
-            if (ModelPreviewPanel.available(item) && hit(mouseX, cy, preview)
+            if (ModelPreviewPanel.canOpen(item) && hit(mouseX, cy, preview)
                     && mouseY >= bodyTop && mouseY <= bodyBottom) {
                 if (!ModConfig.get().loggedIn()) {
                     mc.displayGuiScreen(new GuiLogin(this));
@@ -919,7 +962,7 @@ public class GuiWorkDetail extends GuiScreen {
             }
             drawString(fontRenderer, trim(meta.toString(), textW), textX, ry + 18, 0xAAAAAA);
 
-            if (ModelPreviewPanel.available(item)) {
+            if (ModelPreviewPanel.canOpen(item)) {
                 int[] pb = previewBounds(ry);
                 Gui.drawRect(pb[0], pb[1], pb[0] + pb[2], pb[1] + pb[3],
                         hit(mouseX, mouseY, pb) ? 0xFF48718A : 0xFF304858);

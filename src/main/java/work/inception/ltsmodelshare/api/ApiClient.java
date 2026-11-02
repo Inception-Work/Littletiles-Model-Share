@@ -67,11 +67,13 @@ public final class ApiClient {
                 String body = GSON.toJson(new Dtos.LoginRequest(username, password));
                 Dtos.LoginResp resp = post(cfg.url("/api/account/login/password-login"), body,
                         null, Dtos.LoginResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
+                if (resp == null || !resp.success || resp.payload == null
+                        || resp.payload.token == null || resp.payload.token.isEmpty()
+                        || resp.payload.refreshToken == null || resp.payload.refreshToken.isEmpty()) {
                     cb.fail(describe(resp));
                     return;
                 }
-                cfg.token = nullToEmpty(resp.payload.token);
+                cfg.token = resp.payload.token;
                 cfg.refreshToken = nullToEmpty(resp.payload.refreshToken);
                 cfg.username = username;
                 cfg.save();
@@ -82,32 +84,48 @@ public final class ApiClient {
         });
     }
 
+    /** 登出时尽力通知网站撤销刷新令牌；本地退出不能依赖网络成功。 */
+    public static void revokeRefreshQuietly(String refreshToken) {
+        if (refreshToken == null || refreshToken.isEmpty()) return;
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                post(cfg.url("/api/account/auth/logout"),
+                        GSON.toJson(new Dtos.RefreshRequest(refreshToken)), null, Dtos.Resp.class);
+            } catch (Exception error) {
+                LtsModelShare.LOG.debug("登出时撤销刷新令牌未成功", error);
+            }
+        });
+    }
+
     /**
      * 静默续期：用 refreshToken 换新的 access token（滑动窗口，服务端每次轮换）。
      *
-     * <p>服务端方案：access 30 分钟、refresh 2 小时且**每次续期重新计时**，
-     * 所以只要两小时内用过一次（打开面板/取结构都算），就一直不用重新登录。</p>
+     * <p>服务端方案：access 30 分钟、refresh 滑动 2 小时；与网站一致，
+     * 只有请求遇到失效 access 才尝试轮换双令牌，打开面板本身不会延长会话。</p>
      *
      * @return true = 续期成功（cfg 里的 token/refreshToken 已更新并落盘）
      */
     public static boolean refreshBlocking() {
         ModConfig cfg = ModConfig.get();
-        if (cfg.refreshToken == null || cfg.refreshToken.isEmpty()) {
+        String previousRefresh = cfg.refreshToken;
+        if (previousRefresh == null || previousRefresh.isEmpty()) {
             return false;
         }
         try {
-            String body = GSON.toJson(new Dtos.RefreshRequest(cfg.refreshToken));
+            String body = GSON.toJson(new Dtos.RefreshRequest(previousRefresh));
             Dtos.RefreshResp resp = post(cfg.url("/api/account/auth/refresh"), body, null,
                     Dtos.RefreshResp.class);
             if (resp == null || !resp.success || resp.payload == null
-                    || resp.payload.token == null || resp.payload.token.isEmpty()) {
+                    || resp.payload.token == null || resp.payload.token.isEmpty()
+                    || resp.payload.refreshToken == null || resp.payload.refreshToken.isEmpty()) {
                 LtsModelShare.LOG.warn("续期失败：{}", describe(resp));
                 return false;
             }
+            // 登录或登出可能在网络请求期间发生；不能把旧会话写回新用户的配置。
+            if (!previousRefresh.equals(cfg.refreshToken)) return false;
             cfg.token = resp.payload.token;
-            if (resp.payload.refreshToken != null && !resp.payload.refreshToken.isEmpty()) {
-                cfg.refreshToken = resp.payload.refreshToken;
-            }
+            cfg.refreshToken = resp.payload.refreshToken;
             cfg.save();
             LtsModelShare.LOG.info("登录已续期（access + refresh 都换了新的）");
             return true;
@@ -117,31 +135,34 @@ public final class ApiClient {
         }
     }
 
-    /** 后台线程里静默续期一次（打开面板时调用，顺便把过期时间往后推） */
-    public static void refreshQuietly() {
-        io(() -> {
-            if (ModConfig.get().loggedIn()) {
-                refreshBlocking();
-            }
-        });
-    }
-
     /**
      * 需要登录的请求：401 / 失败时先续期再重试一次。
      */
     private static <T extends Dtos.Resp<?>> T postAuthed(String url, String body, Class<T> type) throws IOException {
         ModConfig cfg = ModConfig.get();
-        T resp = post(url, body, cfg.token, type);
-        if (needsRefresh(resp) && refreshBlocking()) {
-            resp = post(url, body, cfg.token, type);
+        String tokenUsed = cfg.token;
+        T resp = post(url, body, tokenUsed, type);
+        if (!needsRefresh(resp)) return resp;
+        if (refreshBlocking()) {
+            return post(url, body, cfg.token, type);
+        }
+        // 网站只在明确的 HTTP 401 且无法续期时清空会话；权限不足与网络错误不能误登出。
+        if (resp != null && "401".equals(resp.error_code) && tokenUsed.equals(cfg.token)) {
+            cfg.clearSession();
         }
         return resp;
+    }
+
+    /** 公共接口也会携带登录令牌：过期时应按网站规则续期后重试。 */
+    private static <T extends Dtos.Resp<?>> T postWithSession(String url, String body, Class<T> type) throws IOException {
+        ModConfig cfg = ModConfig.get();
+        return cfg.loggedIn() ? postAuthed(url, body, type) : post(url, body, null, type);
     }
 
     /** 响应看起来像「令牌过期/未登录」就给一次续期机会 */
     private static boolean needsRefresh(Dtos.Resp<?> resp) {
         if (resp == null) {
-            return true;
+            return false; // 空响应不能证明是认证过期，不为网络/网关异常轮换令牌。
         }
         if (resp.success) {
             return false;
@@ -161,8 +182,8 @@ public final class ApiClient {
                 if (query.size <= 0) query.size = 12;
                 if (query.current <= 0) query.current = 1;
                 String body = GSON.toJson(query);
-                Dtos.CardsResp resp = post(cfg.url("/api/public/work/cards"), body,
-                        cfg.token, Dtos.CardsResp.class);
+                Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"), body,
+                        Dtos.CardsResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
                     return;
@@ -197,12 +218,213 @@ public final class ApiClient {
         });
     }
 
+    /** 我的收藏：POST /api/studio/work/favorites（kind=collection/single，省略为全部） */
+    public static void favorites(final String kind, final int current, final int size,
+                                 final Callback<Dtos.Page<Dtos.WorkCard>> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String url = cfg.url("/api/studio/work/favorites?current=" + Math.max(1, current)
+                        + "&size=" + Math.max(1, Math.min(size, 48))
+                        + (kind == null || kind.isEmpty() ? "" : "&kind=" + encode(kind))
+                        + "&locale=" + encode(siteLocale()));
+                Dtos.FavoriteResp resp = postAuthed(url, "{}", Dtos.FavoriteResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** 关注列表：POST /api/public/work/stats/following（需登录，最多 50 个/页） */
+    public static void followingUsers(final long userId, final int current, final int size,
+                                      final Callback<Dtos.Page<Dtos.UserCard>> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                String url = cfg.url("/api/public/work/stats/following?userId=" + userId
+                        + "&current=" + Math.max(1, current)
+                        + "&size=" + Math.max(1, Math.min(size, 50)));
+                Dtos.FollowingUsersResp resp = postAuthed(url, "{}", Dtos.FollowingUsersResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /**
+     * 关注动态：公开卡片流按更新时间倒序，过滤出已关注作者的作品。
+     * 站点目前没有专门的「关注作品流」接口，这里只回看最近若干页，避免逐作者并发请求。
+     */
+    public static void followingFeed(final java.util.Set<Long> authorIds, final int pages,
+                                     final Callback<java.util.List<Dtos.WorkCard>> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                java.util.List<Dtos.WorkCard> out = new java.util.ArrayList<>();
+                java.util.Set<Long> seen = new java.util.HashSet<>();
+                int max = Math.max(1, Math.min(pages, 8));
+                for (int page = 1; page <= max; page++) {
+                    Dtos.CardQuery query = new Dtos.CardQuery("", "latest", page, 48, siteLocale());
+                    Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"),
+                            GSON.toJson(query), Dtos.CardsResp.class);
+                    if (resp == null || !resp.success || resp.payload == null) break;
+                    java.util.List<Dtos.WorkCard> records = resp.payload.records;
+                    if (records == null || records.isEmpty()) break;
+                    for (Dtos.WorkCard card : records) {
+                        if (card != null && card.author != null && authorIds.contains(card.author.userId)
+                                && seen.add(card.workId)) {
+                            out.add(card);
+                        }
+                    }
+                    if (records.size() < 48) break;
+                    if (out.size() >= 192) break;
+                }
+                cb.ok(out);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** 解析当前登录用户 ID：密码登录的 JWT 里带 sub；个人访问令牌回退到按用户名精确搜索。 */
+    public static void resolveUserId(final Callback<Long> cb) {
+        io(() -> {
+            Long fromToken = jwtSubject(ModConfig.get().token);
+            if (fromToken != null) {
+                cb.ok(fromToken);
+                return;
+            }
+            try {
+                ModConfig cfg = ModConfig.get();
+                Dtos.UserContextResp resp = postAuthed(cfg.url("/api/account/info"), "{}",
+                        Dtos.UserContextResp.class);
+                if (resp == null || !resp.success || resp.payload == null || resp.payload.userId <= 0) {
+                    cb.fail(tr("ltsmodelshare.api.user_missing"));
+                    return;
+                }
+                cb.ok(resp.payload.userId);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.user_missing"));
+            }
+        });
+    }
+
+    private static Long jwtSubject(String token) {
+        try {
+            if (token == null) return null;
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) return null;
+            byte[] raw = java.util.Base64.getUrlDecoder().decode(parts[1]);
+            com.google.gson.JsonObject json = GSON.fromJson(
+                    new String(raw, StandardCharsets.UTF_8), com.google.gson.JsonObject.class);
+            if (json == null || !json.has("sub")) return null;
+            return Long.parseLong(json.get("sub").getAsString());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /** 收藏 / 取消收藏：POST /api/work/social/favorite?workId=（点一下切一次） */
+    public static void toggleFavorite(final long workId, final Callback<Dtos.SocialToggle> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (!cfg.loggedIn()) {
+                    cb.fail(tr("ltsmodelshare.api.login_required"));
+                    return;
+                }
+                Dtos.SocialToggleResp resp = postAuthed(
+                        cfg.url("/api/work/social/favorite?workId=" + workId), "{}",
+                        Dtos.SocialToggleResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.common.action_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** 关注 / 取消关注：POST /api/work/social/follow?userId= */
+    public static void toggleFollow(final long userId, final Callback<Dtos.SocialToggle> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (!cfg.loggedIn()) {
+                    cb.fail(tr("ltsmodelshare.api.login_required"));
+                    return;
+                }
+                Dtos.SocialToggleResp resp = postAuthed(
+                        cfg.url("/api/work/social/follow?userId=" + userId), "{}",
+                        Dtos.SocialToggleResp.class);
+                if (resp == null || !resp.success || resp.payload == null) {
+                    cb.fail(describe(resp));
+                    return;
+                }
+                cb.ok(resp.payload);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.common.action_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** 关注按钮的初始状态：POST /api/public/work/stats?userId= */
+    public static void followingState(final long userId, final Callback<Boolean> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (!cfg.loggedIn()) {
+                    cb.ok(false);
+                    return;
+                }
+                Dtos.ProfileStatsResp resp = postAuthed(
+                        cfg.url("/api/public/work/stats?userId=" + userId), "{}",
+                        Dtos.ProfileStatsResp.class);
+                cb.ok(resp != null && resp.success && resp.payload != null
+                        && Boolean.TRUE.equals(resp.payload.following));
+            } catch (Exception e) {
+                cb.ok(false);
+            }
+        });
+    }
+
+    /** 账号设置的惯用语言（没设置过返回 null，由调用方回退到游戏语言）。 */
+    public static void accountLocale(final Callback<String> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (!cfg.loggedIn()) {
+                    cb.ok(null);
+                    return;
+                }
+                Dtos.UserContextResp resp = postAuthed(cfg.url("/api/account/info"), "{}",
+                        Dtos.UserContextResp.class);
+                cb.ok(resp != null && resp.success && resp.payload != null
+                        ? resp.payload.preferredLocale : null);
+            } catch (Exception e) {
+                cb.ok(null);
+            }
+        });
+    }
+
     /** 标签列表：POST /api/public/work/tags */
     public static void listTags(final Callback<java.util.List<Dtos.Tag>> cb) {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                Dtos.TagsResp resp = post(cfg.url("/api/public/work/tags"), "{}", cfg.token,
+                Dtos.TagsResp resp = postWithSession(cfg.url("/api/public/work/tags"), "{}",
                         Dtos.TagsResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
@@ -222,7 +444,7 @@ public final class ApiClient {
                 ModConfig cfg = ModConfig.get();
                 String q = keyword == null ? "" : keyword.trim();
                 String url = cfg.url("/api/public/work/authors?q=" + encode(q) + "&exact=false");
-                Dtos.AuthorsResp resp = post(url, "{}", cfg.token, Dtos.AuthorsResp.class);
+                Dtos.AuthorsResp resp = postWithSession(url, "{}", Dtos.AuthorsResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
                     return;
@@ -263,8 +485,8 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 String tail = code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim());
-                Dtos.DetailResp resp = post(cfg.url("/api/public/work/detail?workId=" + workId + "&locale=" + encode(siteLocale()) + tail),
-                        "{}", cfg.token, Dtos.DetailResp.class);
+                Dtos.DetailResp resp = postWithSession(cfg.url("/api/public/work/detail?workId=" + workId + "&locale=" + encode(siteLocale()) + tail),
+                        "{}", Dtos.DetailResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
                     return;
@@ -391,6 +613,40 @@ public final class ApiClient {
             }
         });
     }
+    /** 读取站点生成的 OBJ 白模，限制响应字节数，防止恶意资源耗尽客户端内存。 */
+    public static void fetchObj(final String assetUrl, final long maxBytes, final Callback<String> cb) {
+        io(() -> {
+            try {
+                ModConfig cfg = ModConfig.get();
+                if (assetUrl == null || assetUrl.trim().isEmpty()) throw new IOException("OBJ URL is empty");
+                URL url = new URL(new URL(cfg.baseUrl + "/"), assetUrl.startsWith("//") ? "https:" + assetUrl : assetUrl);
+                if (!"https".equalsIgnoreCase(url.getProtocol()) && !"http".equalsIgnoreCase(url.getProtocol())) {
+                    throw new IOException("Unsupported OBJ URL scheme");
+                }
+                HttpURLConnection conn = open(url.toExternalForm(), "GET", null, null);
+                try {
+                    AssetHeaders.apply(conn, cfg.baseUrl);
+                    if (conn.getResponseCode() / 100 != 2) throw new IOException("OBJ HTTP " + conn.getResponseCode());
+                    if (conn.getContentLengthLong() > maxBytes) throw new IOException("OBJ exceeds size limit");
+                    java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+                    try (InputStream stream = conn.getInputStream()) {
+                        byte[] buffer = new byte[8192];
+                        int n;
+                        while ((n = stream.read(buffer)) != -1) {
+                            if (bytes.size() + (long) n > maxBytes) throw new IOException("OBJ exceeds size limit");
+                            bytes.write(buffer, 0, n);
+                        }
+                    }
+                    cb.ok(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+                } finally {
+                    conn.disconnect();
+                }
+            } catch (Exception error) {
+                cb.fail(error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
+            }
+        });
+    }
+
     // ==================== 上传 ====================
 
     /**
@@ -418,29 +674,8 @@ public final class ApiClient {
                 byte[] body = text.getBytes(StandardCharsets.UTF_8);
                 byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
 
-                HttpURLConnection conn = (HttpURLConnection) new URL(cfg.url("/api/studio/work/upload-snbt"))
-                        .openConnection();
-                conn.setRequestMethod("POST");
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(120000);
-                conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-                if (!cfg.token.isEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer " + cfg.token);
-                }
-                try (OutputStream out = conn.getOutputStream()) {
-                    out.write(head);
-                    out.write(body);
-                    out.write(tail);
-                }
-                int code = conn.getResponseCode();
-                String respText = readAll(code / 100 == 2 ? conn.getInputStream() : conn.getErrorStream());
-                conn.disconnect();
-
-                Dtos.SnbtUploadResp resp = respText == null || respText.trim().isEmpty() ? null
-                        : GSON.fromJson(respText, Dtos.SnbtUploadResp.class);
+                Dtos.SnbtUploadResp resp = multipartWithSession(cfg.url("/api/studio/work/upload-snbt"),
+                        boundary, head, body, tail, 120000, Dtos.SnbtUploadResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
                     return;
@@ -479,27 +714,8 @@ public final class ApiClient {
                         .getBytes(StandardCharsets.UTF_8);
                 byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
 
-                HttpURLConnection conn = (HttpURLConnection) new URL(cfg.url("/api/studio/work/upload-image"))
-                        .openConnection();
-                conn.setRequestMethod("POST");
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(60000);
-                conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-                conn.setRequestProperty("Authorization", "Bearer " + cfg.token);
-                try (OutputStream out = conn.getOutputStream()) {
-                    out.write(head);
-                    out.write(data);
-                    out.write(tail);
-                }
-                int code = conn.getResponseCode();
-                String respText = readAll(code / 100 == 2 ? conn.getInputStream() : conn.getErrorStream());
-                conn.disconnect();
-
-                Dtos.ImageUploadResp resp = respText == null || respText.trim().isEmpty() ? null
-                        : GSON.fromJson(respText, Dtos.ImageUploadResp.class);
+                Dtos.ImageUploadResp resp = multipartWithSession(cfg.url("/api/studio/work/upload-image"),
+                        boundary, head, data, tail, 60000, Dtos.ImageUploadResp.class);
                 if (resp == null || !resp.success || resp.payload == null) {
                     cb.fail(describe(resp));
                     return;
@@ -572,6 +788,54 @@ public final class ApiClient {
         });
     }
     // ==================== 底层 ====================
+
+    private static final class MultipartResponse {
+        final int status;
+        final String text;
+        MultipartResponse(int status, String text) { this.status = status; this.text = text; }
+    }
+
+    /** 多段上传与网站 authFetch 一样仅在 401 时续期并重试整个请求一次。 */
+    private static <T extends Dtos.Resp<?>> T multipartWithSession(String url, String boundary,
+            byte[] head, byte[] data, byte[] tail, int timeout, Class<T> type) throws IOException {
+        ModConfig cfg = ModConfig.get();
+        String tokenUsed = cfg.token;
+        MultipartResponse response = multipart(url, boundary, head, data, tail, timeout, tokenUsed);
+        if (response.status == 401) {
+            if (refreshBlocking()) {
+                response = multipart(url, boundary, head, data, tail, timeout, cfg.token);
+            } else if (tokenUsed.equals(cfg.token)) {
+                cfg.clearSession();
+            }
+        }
+        return response.text == null || response.text.trim().isEmpty()
+                ? null : GSON.fromJson(response.text, type);
+    }
+
+    private static MultipartResponse multipart(String url, String boundary, byte[] head,
+            byte[] data, byte[] tail, int timeout, String token) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        try {
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(timeout);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
+            if (token != null && !token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
+            try (OutputStream out = conn.getOutputStream()) {
+                out.write(head);
+                out.write(data);
+                out.write(tail);
+            }
+            int status = conn.getResponseCode();
+            return new MultipartResponse(status,
+                    readAll(status / 100 == 2 ? conn.getInputStream() : conn.getErrorStream()));
+        } finally {
+            conn.disconnect();
+        }
+    }
 
     private static <T> T post(String url, String body, String token, Class<T> type) throws IOException {
         HttpURLConnection conn = open(url, "POST", body, token);

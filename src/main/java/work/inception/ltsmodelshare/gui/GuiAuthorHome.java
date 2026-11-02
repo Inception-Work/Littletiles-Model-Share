@@ -44,6 +44,10 @@ public class GuiAuthorHome extends GuiScreen {
     private int panelW;
     private int listTop;
     private int listBottom;
+    /** 关注按钮状态 */
+    private boolean following;
+    private boolean followBusy;
+    private boolean ownProfile;
 
     public GuiAuthorHome(Dtos.Author author, GuiScreen parent) {
         this.author = author;
@@ -82,6 +86,11 @@ public class GuiAuthorHome extends GuiScreen {
         buttonList.add(new LocalizedButton(4, GuiNavigation.MARGIN + 56 + GuiNavigation.GAP,
                 GuiNavigation.footerY(height), 56, 20, tr("ltsmodelshare.common.next")));
         buttonList.add(GuiNavigation.backButton(5, width, height, tr("ltsmodelshare.common.back")));
+        // 关注按钮放在返回旁边；自己的主页不显示。
+        int followW = 64;
+        buttonList.add(new LocalizedButton(7, GuiNavigation.backX(width) - GuiNavigation.GAP - followW,
+                GuiNavigation.footerY(height), followW, 20, followLabel()));
+        loadFollowState();
 
         if (!ModConfig.get().loggedIn()) {
             ++requestId; // 让旧会话的异步响应失效
@@ -152,6 +161,74 @@ public class GuiAuthorHome extends GuiScreen {
                 });
     }
 
+    private String followLabel() {
+        return tr(following ? "ltsmodelshare.common.following" : "ltsmodelshare.common.follow");
+    }
+
+    private void refreshFollowButton() {
+        for (GuiButton button : buttonList) {
+            if (button.id == 7) button.displayString = followLabel();
+        }
+    }
+
+    private void loadFollowState() {
+        if (!ModConfig.get().loggedIn()) return;
+        ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
+            @Override public void ok(Long myId) {
+                ApiClient.post(() -> {
+                    if (myId != null && myId == userId) {
+                        ownProfile = true;
+                        removeButton(7);
+                        return;
+                    }
+                    ApiClient.followingState(userId, new ApiClient.Callback<Boolean>() {
+                        @Override public void ok(Boolean value) {
+                            ApiClient.post(() -> {
+                                following = Boolean.TRUE.equals(value);
+                                refreshFollowButton();
+                            });
+                        }
+                        @Override public void fail(String message) { }
+                    });
+                });
+            }
+            @Override public void fail(String message) { }
+        });
+    }
+
+    private void removeButton(int id) {
+        buttonList.removeIf(button -> button.id == id);
+    }
+
+    private void toggleFollow() {
+        if (ownProfile || followBusy) return;
+        if (!ModConfig.get().loggedIn()) {
+            mc.displayGuiScreen(new GuiLogin(this));
+            return;
+        }
+        followBusy = true;
+        ApiClient.toggleFollow(userId, new ApiClient.Callback<Dtos.SocialToggle>() {
+            @Override public void ok(Dtos.SocialToggle value) {
+                ApiClient.post(() -> {
+                    followBusy = false;
+                    if (value != null && value.following != null) {
+                        following = value.following;
+                        refreshFollowButton();
+                        if (value.followerCount != null && author != null) {
+                            author.followerCount = value.followerCount;
+                        }
+                    }
+                });
+            }
+            @Override public void fail(String message) {
+                ApiClient.post(() -> {
+                    followBusy = false;
+                    status = TextFormatting.RED + message;
+                });
+            }
+        });
+    }
+
     private void newSearch() {
         page = 1;
         scroll = 0;
@@ -188,6 +265,9 @@ public class GuiAuthorHome extends GuiScreen {
                 break;
             case 6:
                 mc.displayGuiScreen(new GuiLogin(this));
+                break;
+            case 7:
+                toggleFollow();
                 break;
             default:
                 break;
@@ -345,7 +425,7 @@ public class GuiAuthorHome extends GuiScreen {
                     listTop + Math.max(10, (listBottom - listTop) / 2 - 12), 0xFFFFFF);
         }
         if (!needLogin) {
-            drawCenteredString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.author.pagination", page, maxPage(), total), width / 2, height - 40, 0xAAAAAA);
+            drawCenteredString(fontRenderer, TextFormatting.GRAY + tr("ltsmodelshare.common.page", page, maxPage()), width / 2, height - 40, 0xAAAAAA);
         }
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

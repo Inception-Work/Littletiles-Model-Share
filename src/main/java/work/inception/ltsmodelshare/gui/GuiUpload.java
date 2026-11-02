@@ -59,6 +59,9 @@ public class GuiUpload extends GuiScreen {
     private static final int CELL_H = 34;        // 约 16:9
     private static final int CELL_GAP = 4;
     private static final int TAG_ROW_H = 14;
+    /** 当前模组构建固定支持 Forge 1.12.2，上传时自动带上，不需要玩家选择。 */
+    private static final String SOURCE_LOADER = "forge";
+    private static final String GAME_VERSION = "1.12.2";
 
     private final GuiScreen parent;
 
@@ -104,7 +107,14 @@ public class GuiUpload extends GuiScreen {
     private int shotsBoxW;
     private int tagsBoxX;
     private int tagsBoxW;
+    private int tagsBoxH;
+    private int visibilityY;
     private int actionY;
+    /** 可见性：默认公开；另一个选项是私有。 */
+    private boolean visibilityPublic = true;
+    /** 账号惯用语言；null = 没设置过，上传时回退到游戏语言。 */
+    private String accountLocale;
+    private boolean localeRequested;
 
     public GuiUpload(GuiScreen parent) {
         this.parent = parent;
@@ -143,7 +153,11 @@ public class GuiUpload extends GuiScreen {
         boxY = y;
 
         actionY = GuiNavigation.footerY(height);
-        boxH = Math.max(CELL_H, actionY - 36 - boxY);
+        // 底部只留一个按钮高度的间距，让标签列表多出约一行按钮的高度。
+        boxH = Math.max(CELL_H, actionY - 20 - boxY);
+        // 标签列底部留一行可见性按钮。
+        tagsBoxH = Math.max(TAG_ROW_H, boxH - 24);
+        visibilityY = boxY + boxH - 20;
 
         // 左截图（更宽）/ 右标签（窄一些，标签本身不长）
         // 3 张/行需要 3*CELL_W + 2*CELL_GAP，再留 8px 余量（之前 -4 的算法会少算一格）
@@ -153,7 +167,11 @@ public class GuiUpload extends GuiScreen {
         tagsBoxX = panelLeft + leftW + 8;
         tagsBoxW = Math.max(90, panelW - leftW - 8);
 
-        buttonList.add(new LocalizedButton(3, panelLeft + panelW - 78, listsLabelY - 3, 78, 18, tr("ltsmodelshare.upload.refresh_shots")));
+        int half = Math.max(30, (tagsBoxW - 6) / 2);
+        buttonList.add(new TabButton(10, tagsBoxX, visibilityY, half, 18,
+                tr("ltsmodelshare.upload.visibility_public"), visibilityPublic));
+        buttonList.add(new TabButton(11, tagsBoxX + half + 6, visibilityY, tagsBoxW - half - 6, 18,
+                tr("ltsmodelshare.upload.visibility_private"), !visibilityPublic));
 
         int bw = GuiNavigation.actionWidth(width, 2, 110);
         buttonList.add(new LocalizedButton(1, GuiNavigation.MARGIN, actionY, bw, 20, tr("ltsmodelshare.upload.draft")));
@@ -170,6 +188,15 @@ public class GuiUpload extends GuiScreen {
         }
         if (tags.isEmpty() && !loadingTags) {
             loadTags();
+        }
+        if (!localeRequested) {
+            localeRequested = true;
+            ApiClient.accountLocale(new ApiClient.Callback<String>() {
+                @Override public void ok(String value) {
+                    ApiClient.post(() -> accountLocale = value);
+                }
+                @Override public void fail(String message) { }
+            });
         }
     }
 
@@ -282,7 +309,7 @@ public class GuiUpload extends GuiScreen {
     }
 
     private int tagsVisible() {
-        return Math.max(1, boxH / TAG_ROW_H);
+        return Math.max(1, tagsBoxH / TAG_ROW_H);
     }
 
     private int maxTagScroll() {
@@ -291,7 +318,7 @@ public class GuiUpload extends GuiScreen {
 
     private int tagIndexAt(int mouseX, int mouseY) {
         if (tagsBoxW <= 0 || mouseX < tagsBoxX || mouseX > tagsBoxX + tagsBoxW
-                || mouseY < boxY || mouseY > boxY + boxH) {
+                || mouseY < boxY || mouseY > boxY + tagsBoxH) {
             return -1;
         }
         int index = tagScroll + (mouseY - boxY) / TAG_ROW_H;
@@ -320,7 +347,7 @@ public class GuiUpload extends GuiScreen {
             shotScrollPx = Math.max(0, Math.min(shotScrollPx - Integer.signum(wheel) * step, maxShotScrollPx()));
             return;
         }
-        if (mx >= tagsBoxX && mx <= tagsBoxX + tagsBoxW && my >= boxY && my <= boxY + boxH) {
+        if (mx >= tagsBoxX && mx <= tagsBoxX + tagsBoxW && my >= boxY && my <= boxY + tagsBoxH) {
             tagScroll = Math.max(0, Math.min(tagScroll - Integer.signum(wheel), maxTagScroll()));
         }
     }
@@ -334,8 +361,13 @@ public class GuiUpload extends GuiScreen {
             mc.displayGuiScreen(parent);
             return;
         }
-        if (button.id == 3) {
-            loadShots();
+        if (button.id == 10 || button.id == 11) {
+            visibilityPublic = button.id == 10;
+            for (GuiButton tab : buttonList) {
+                if (tab instanceof TabButton && (tab.id == 10 || tab.id == 11)) {
+                    ((TabButton) tab).setSelected((tab.id == 10) == visibilityPublic);
+                }
+            }
             return;
         }
         if (button.id == 1) {
@@ -411,10 +443,15 @@ public class GuiUpload extends GuiScreen {
         setProgress(tr("ltsmodelshare.upload.saving"));
         final Dtos.WorkSaveRequest req = new Dtos.WorkSaveRequest();
         req.kind = "single";
-        // 站点保存时不带 visibility 会默认存成 private —— 那样审核通过也不会出现在
-        // /models（市场只列 visibility=public 的），所以模组上传默认公开。
+        // 站点保存时不带 visibility 会默认存成 private；界面默认公开。
         // 草稿（status=draft）仍然不会对外显示，只是把可见性先定好。
-        req.visibility = "public";
+        req.visibility = visibilityPublic ? "public" : "private";
+        // 来源加载器/游戏版本由当前模组构建决定，不需要玩家选择。
+        req.sourceLoader = SOURCE_LOADER;
+        req.sourceGameVersion = GAME_VERSION;
+        // 目标语言：账号设置优先，没有设置则跟随游戏当前语言。
+        req.sourceLocale = accountLocale != null && !accountLocale.trim().isEmpty()
+                ? accountLocale : work.inception.ltsmodelshare.client.Translations.siteLocale();
         req.title = title;
         req.summary = summaryText.isEmpty() ? null : summaryText;
         req.tagCodes = new ArrayList<>(tagCodes);
@@ -423,7 +460,7 @@ public class GuiUpload extends GuiScreen {
         // 不带这些字段的话，详情页的依赖会一直显示「原版」。
         final DependencyScan.Result deps = DependencyScan.scan(snbt);
         final Dtos.WorkSaveRequest.SaveItem item =
-                new Dtos.WorkSaveRequest.SaveItem(blob.blobId, title, "1.12.2");
+                new Dtos.WorkSaveRequest.SaveItem(blob.blobId, title, GAME_VERSION);
         if (deps.hasModBlocks) {
             item.hasModBlocks = 1;
         }
@@ -634,7 +671,7 @@ public class GuiUpload extends GuiScreen {
         }
 
         // ---------- 右：标签列表 ----------
-        Gui.drawRect(tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + boxH, 0x40000000);
+        Gui.drawRect(tagsBoxX, boxY, tagsBoxX + tagsBoxW, boxY + tagsBoxH, 0x40000000);
         if (tags.isEmpty() && !loadingTags) {
             drawString(fontRenderer, TextFormatting.DARK_GRAY + tr("ltsmodelshare.search.no_tags"), tagsBoxX + 4, boxY + 4, 0x777777);
         }
@@ -653,7 +690,7 @@ public class GuiUpload extends GuiScreen {
                     + SiteTags.label(tag), tagsBoxX + 4, rowY + 3, on ? 0x55FF55 : 0xCCCCCC);
         }
         if (maxTagScroll() > 0) {
-            drawScrollbar(tagsBoxX + tagsBoxW - 4, boxY, boxH, tagScroll, maxTagScroll(),
+            drawScrollbar(tagsBoxX + tagsBoxW - 4, boxY, tagsBoxH, tagScroll, maxTagScroll(),
                     tags.size(), tagsVisible());
         }
 
