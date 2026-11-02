@@ -49,8 +49,13 @@ minecraft {
      * ForgeGradle 的 getAssets 已经把 1.12 的 1305 个资源下到
      * ~/.gradle/caches/forge_gradle/assets（含 indexes/1.12.json），这里直接指过去。
      */
+    def assetsDirs = ['caches/minecraft/assets', 'caches/forge_gradle/assets'].collect {
+        new File(gradle.gradleUserHomeDir, it)
+    }
+    def assetsDir = assetsDirs.find { new File(it, 'indexes/1.12.json').isFile() } ?: assetsDirs[0]
+
     clientRunArgs += [
-            '--assetsDir', new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets').absolutePath,
+            '--assetsDir', assetsDir.absolutePath,
             '--assetIndex', '1.12'
     ]
 
