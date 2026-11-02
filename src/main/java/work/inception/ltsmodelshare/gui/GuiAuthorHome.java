@@ -30,9 +30,7 @@ public class GuiAuthorHome extends Screen {
     private static final int PAGE_W = AuthorFooterLayout.PAGE_W;
     private static final int FOLLOW_W = AuthorFooterLayout.FOLLOW_W;
     private static final int GAP = AuthorFooterLayout.GAP;
-    /** The endpoint returns at most 100 rows per request and has no kind filter. */
-    private static final int SERVER_PAGE_SIZE = 100;
-    private static final int MAX_SERVER_PAGES = 5;
+    /** The endpoint now filters by kind and pages server-side (size <= 100). */
 
     private final Screen parent;
     private final long userId;
@@ -47,12 +45,14 @@ public class GuiAuthorHome extends Screen {
     private boolean ownProfile;
     private boolean loading;
     private boolean needLogin;
+    private boolean onlyThisVersion;
+    private int versionX;
     private String status = "";
     private int requestId;
     private int followRequestId;
     private int kind;
     private final int[] page = {1, 1};
-    private long total;
+    private final long[] totals = {0, 0};
     private int perPage = 4;
     private int panelX, panelW;
     private int listTop = 108;
@@ -81,17 +81,17 @@ public class GuiAuthorHome extends Screen {
         int pagY = footer.pagY;
         listBottom = footer.listBottom;
         perPage = Math.max(1, (listBottom - listTop) / ROW_H);
-        for (int i = 0; i < page.length; i++) page[i] = Math.min(page[i], maxPage(i));
+        page[kind] = Math.min(page[kind], maxPage(kind));
 
-        search = new EditBox(font, panelX, 80, Math.max(55, panelW - 114), 18,
+        search = new EditBox(font, panelX, 80, Math.max(55, panelW - 166), 18,
                 Component.translatable("ltsmodelshare.search.placeholder"));
         search.setMaxLength(64);
         search.setValue(keyword);
         addRenderableWidget(search);
         if (focused) setInitialFocus(search);
-        addRenderableWidget(GuiNavigation.button(panelX + panelW - 110, 79, 44, 20,
+        addRenderableWidget(GuiNavigation.button(panelX + panelW - 162, 79, 44, 20,
                 "ltsmodelshare.common.search", this::newSearch));
-        addRenderableWidget(new FitButton(panelX + panelW - 62, 79, 62, 20,
+        addRenderableWidget(new FitButton(panelX + panelW - 114, 79, 62, 20,
                 Component.translatable(exact ? "ltsmodelshare.search.exact" : "ltsmodelshare.search.fuzzy"),
                 b -> {
                     exact = !exact;
@@ -99,6 +99,13 @@ public class GuiAuthorHome extends Screen {
                             : "ltsmodelshare.search.fuzzy"));
                     newSearch();
                 }));
+        versionX = panelX + panelW - 48;
+        addRenderableWidget(new FitButton(versionX, 79, 48, 20,
+                Component.literal(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION), b -> {
+            onlyThisVersion = !onlyThisVersion;
+            page[kind] = 1;
+            load();
+        }));
 
         // Bottom row: kind switch on the left, back on the right.
         addRenderableWidget(tabButton(footer.kindX(0), footerY, footer.kindWidth(), "ltsmodelshare.library.single",
@@ -151,31 +158,20 @@ public class GuiAuthorHome extends Screen {
         };
     }
 
-    private List<Dtos.WorkCard> singles = new ArrayList<>();
-    private List<Dtos.WorkCard> collections = new ArrayList<>();
-
-    private List<Dtos.WorkCard> of(int type) {
-        return type == 1 ? collections : singles;
-    }
-
-    private void split() {
-        singles = new ArrayList<>();
-        collections = new ArrayList<>();
-        for (Dtos.WorkCard card : all) {
-            if (card == null) continue;
-            ("collection".equals(card.kind) ? collections : singles).add(card);
-        }
+    private static boolean matchesThisVersion(Dtos.WorkCard card) {
+        if (card == null) return false;
+        if (card.sourceLoader != null && !"forge".equalsIgnoreCase(card.sourceLoader)) return false;
+        if (card.sourceGameVersion == null) return false;
+        String version = card.sourceGameVersion.trim();
+        return version.startsWith("1.20");
     }
 
     private int maxPage(int type) {
-        return (int) Math.max(1, (of(type).size() + perPage - 1) / perPage);
+        return (int) Math.max(1, (totals[type] + perPage - 1) / perPage);
     }
 
     private List<Dtos.WorkCard> visible() {
-        List<Dtos.WorkCard> items = of(kind);
-        int from = Math.min(items.size(), (page[kind] - 1) * perPage);
-        int to = Math.min(items.size(), from + perPage);
-        return items.subList(from, to);
+        return all;
     }
 
     private void turn(int delta) {
@@ -200,14 +196,11 @@ public class GuiAuthorHome extends Screen {
         if (needLogin) return;
         final int request = ++requestId;
         loading = true;
+        all.clear();
         status = ChatFormatting.GRAY + tr("ltsmodelshare.common.loading");
-        fetch(request, 1, new ArrayList<>());
-    }
-
-    /** The author endpoint pages and does not filter by kind, so gather the rows once and page here. */
-    private void fetch(int request, int serverPage, List<Dtos.WorkCard> collected) {
         ApiClient.authorHome(userId, keyword(), exact,
-                work.inception.ltsmodelshare.client.Translations.siteLocale(), serverPage, SERVER_PAGE_SIZE,
+                work.inception.ltsmodelshare.client.Translations.siteLocale(),
+                kind == 1 ? "collection" : "single", "top", page[kind], perPage,
                 new ApiClient.Callback<Dtos.AuthorHome>() {
                     @Override public void ok(Dtos.AuthorHome value) {
                         ApiClient.post(() -> {
@@ -215,16 +208,17 @@ public class GuiAuthorHome extends Screen {
                             if (value != null && value.author != null) author = value.author;
                             List<Dtos.WorkCard> records = value == null || value.works == null
                                     || value.works.records == null ? List.of() : value.works.records;
-                            total = value == null || value.works == null ? 0 : value.works.total;
-                            collected.addAll(records);
-                            boolean more = !records.isEmpty() && collected.size() < total
-                                    && serverPage < MAX_SERVER_PAGES;
-                            if (more) { fetch(request, serverPage + 1, collected); return; }
+                            if (onlyThisVersion) {
+                                records = records.stream().filter(GuiAuthorHome::matchesThisVersion)
+                                        .collect(java.util.stream.Collectors.toList());
+                            }
+                            totals[kind] = onlyThisVersion
+                                    ? records.size()
+                                    : (value == null || value.works == null ? 0 : value.works.total);
                             loading = false;
                             all.clear();
-                            all.addAll(collected);
-                            split();
-                            for (int i = 0; i < page.length; i++) page[i] = Math.min(page[i], maxPage(i));
+                            all.addAll(records);
+                            page[kind] = Math.min(page[kind], maxPage(kind));
                             status = all.isEmpty() ? tr("ltsmodelshare.author.empty") : "";
                         });
                     }
@@ -317,6 +311,9 @@ public class GuiAuthorHome extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
+        if (onlyThisVersion) {
+            graphics.fill(versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
+        }
         graphics.fill(panelX, 14, panelX + panelW, 73, 0xFF303137);
         if (author != null) {
             if (author.bannerUrl != null && !author.bannerUrl.isEmpty()) {

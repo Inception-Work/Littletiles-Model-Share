@@ -32,6 +32,10 @@ public class GuiModels extends Screen {
     private boolean loading;
     private long loadStartedAt;
     private int requestId;
+    private boolean onlyThisVersion;
+    private int versionX;
+    private int versionY;
+    private int versionW;
     private int socialW1;
     private int socialW2;
     private int social1X;
@@ -52,8 +56,8 @@ public class GuiModels extends Screen {
         String keyword = search == null ? filter.q : search.getValue();
         boolean focused = search == null || search.isFocused();
         clearWidgets();
-        int topW = Math.min(360, width - 16);
-        int searchW = Math.max(70, topW - 152);
+        int topW = Math.min(440, width - 16);
+        int searchW = Math.max(60, topW - 202);
         int topX = width / 2 - topW / 2;
         search = new EditBox(font, topX, 24, searchW, 18, Component.translatable("ltsmodelshare.search.placeholder"));
         search.setMaxLength(64);
@@ -65,8 +69,17 @@ public class GuiModels extends Screen {
                 "ltsmodelshare.common.search", () -> { page = 1; reload(); }));
         addRenderableWidget(GuiNavigation.button(topX + searchW + 52, 23, 40, 20,
                 "ltsmodelshare.common.refresh", () -> { page = 1; reload(); }));
-        addRenderableWidget(GuiNavigation.button(topX + searchW + 96, 23, 56, 20,
+        addRenderableWidget(GuiNavigation.button(topX + searchW + 96, 23, 50, 20,
                 "ltsmodelshare.search.filters", () -> minecraft.setScreen(new GuiAdvancedSearch(this, filter))));
+        versionX = topX + searchW + 150;
+        versionY = 23;
+        versionW = 48;
+        addRenderableWidget(new FitButton(versionX, versionY, versionW, 20,
+                Component.literal(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION), b -> {
+            onlyThisVersion = !onlyThisVersion;
+            page = 1;
+            reload();
+        }));
 
         int pageY = GuiNavigation.footerY(height) - 26;
         int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GAP) / 4);
@@ -141,6 +154,10 @@ public class GuiModels extends Screen {
                 work.inception.ltsmodelshare.client.Translations.siteLocale());
         query.authorId = filter.authorId;
         if (!filter.tagCodes.isEmpty()) query.tagCodes = new ArrayList<>(filter.tagCodes);
+        if (onlyThisVersion) {
+            query.sourceLoader = "forge";
+            query.sourceGameVersions = java.util.List.of(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION);
+        }
         ApiClient.listCards(query, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {
             @Override public void ok(Dtos.Page<Dtos.WorkCard> value) {
                 ApiClient.post(() -> {
@@ -204,6 +221,9 @@ public class GuiModels extends Screen {
         }
         int cx = width / 2;
         graphics.drawCenteredString(font, title, cx, 8, 0xFFFFFF);
+        if (onlyThisVersion) {
+            graphics.fill(versionX, versionY + 20, versionX + versionW, versionY + 22, 0xFFFFFFFF);
+        }
         search.setHint(search.isFocused() ? Component.empty() : Component.translatable("ltsmodelshare.search.placeholder"));
 
         int hovered = cardAt(mouseX, mouseY);

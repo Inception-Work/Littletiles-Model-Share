@@ -21,6 +21,7 @@ public class GuiMySpace extends Screen {
     private final List<Dtos.WorkCard> all = new ArrayList<>();
     private final List<Dtos.WorkCard> shown = new ArrayList<>();
     private int page = 1;
+    private long total;
     private int perPage = 8;
     private int cols = 4;
     private int cardW = 70;
@@ -31,6 +32,8 @@ public class GuiMySpace extends Screen {
     private int gridBottom;
     private boolean loading;
     private boolean needLogin;
+    private boolean onlyThisVersion;
+    private int versionX;
     private String status = "";
     private int requestId;
 
@@ -50,9 +53,16 @@ public class GuiMySpace extends Screen {
         int footerY = GuiNavigation.footerY(height);
         int backX = GuiNavigation.backX(width);
         addRenderableWidget(GuiNavigation.button(GuiNavigation.MARGIN, footerY, 42, 20,
-                "ltsmodelshare.common.previous", () -> { if (page > 1) page--; }));
-        addRenderableWidget(GuiNavigation.button(backX - GAP - 42, footerY, 42, 20,
-                "ltsmodelshare.common.next", () -> { if (page < maxPage()) page++; }));
+                "ltsmodelshare.common.previous", () -> { if (page > 1) { page--; load(); } }));
+        versionX = backX - GAP - 64;
+        addRenderableWidget(new FitButton(versionX, footerY, 64, 20,
+                Component.literal(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION), b -> {
+            onlyThisVersion = !onlyThisVersion;
+            page = 1;
+            load();
+        }));
+        addRenderableWidget(GuiNavigation.button(versionX - GAP - 42, footerY, 42, 20,
+                "ltsmodelshare.common.next", () -> { if (page < maxPage()) { page++; load(); } }));
         addRenderableWidget(GuiNavigation.button(backX, footerY, GuiNavigation.BACK_WIDTH, 20,
                 "ltsmodelshare.common.back", () -> minecraft.setScreen(parent)));
 
@@ -97,7 +107,7 @@ public class GuiMySpace extends Screen {
         if (tab != next) {
             tab = next;
             page = 1;
-            rebuild();
+            load();
         }
     }
 
@@ -118,14 +128,22 @@ public class GuiMySpace extends Screen {
                     return;
                 }
                 ApiClient.authorHome(id, "", false,
-                        work.inception.ltsmodelshare.client.Translations.siteLocale(), 1, 100,
+                        work.inception.ltsmodelshare.client.Translations.siteLocale(),
+                        tab == 1 ? "collection" : "single", "latest", page, perPage,
                         new ApiClient.Callback<Dtos.AuthorHome>() {
                             @Override public void ok(Dtos.AuthorHome value) {
                                 ApiClient.post(() -> {
                                     if (currentRequest != requestId) return;
                                     loading = false;
                                     all.clear();
-                                    if (value.works != null && value.works.records != null) all.addAll(value.works.records);
+                                    if (value.works != null && value.works.records != null) {
+                                        for (Dtos.WorkCard card : value.works.records) {
+                                            if (!onlyThisVersion || matchesThisVersion(card)) all.add(card);
+                                        }
+                                    }
+                                    total = onlyThisVersion ? all.size()
+                                            : (value.works == null ? 0 : value.works.total);
+                                    page = Math.min(page, maxPage());
                                     rebuild();
                                 });
                             }
@@ -142,18 +160,21 @@ public class GuiMySpace extends Screen {
         });
     }
 
+    private static boolean matchesThisVersion(Dtos.WorkCard card) {
+        if (card == null) return false;
+        if (card.sourceLoader != null && !"forge".equalsIgnoreCase(card.sourceLoader)) return false;
+        if (card.sourceGameVersion == null) return false;
+        return card.sourceGameVersion.trim().startsWith("1.20");
+    }
+
     private void rebuild() {
         shown.clear();
-        boolean wantCollection = tab == 1;
-        for (Dtos.WorkCard card : all) {
-            if (card != null && wantCollection == "collection".equals(card.kind)) shown.add(card);
-        }
-        if (page > maxPage()) page = maxPage();
+        shown.addAll(all);
         status = shown.isEmpty() ? tr("ltsmodelshare.library.empty_my") : "";
     }
 
     private int maxPage() {
-        return Math.max(1, (shown.size() + perPage - 1) / perPage);
+        return (int) Math.max(1, (total + perPage - 1) / perPage);
     }
 
     private List<Dtos.WorkCard> pageItems() {
@@ -166,6 +187,10 @@ public class GuiMySpace extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
+        if (onlyThisVersion) {
+            graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
+                    versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
+        }
         if (needLogin) {
             graphics.drawCenteredString(font, status, width / 2, height / 2, 0xFFCCCCCC);
             super.render(graphics, mouseX, mouseY, partialTick);
@@ -183,7 +208,7 @@ public class GuiMySpace extends Screen {
         }
         int backX = GuiNavigation.backX(width);
         int midLeft = GuiNavigation.MARGIN + 42 + GAP;
-        int midRight = backX - GAP - 42 - GAP;
+        int midRight = versionX - GAP - 42 - GAP;
         TextUtil.drawCenteredFit(graphics, font, tr("ltsmodelshare.common.page", page, maxPage()),
                 (midLeft + midRight) / 2, GuiNavigation.footerY(height) + 6, Math.max(20, midRight - midLeft), 0xAAAAAA);
         super.render(graphics, mouseX, mouseY, partialTick);

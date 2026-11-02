@@ -49,6 +49,9 @@ public final class Dtos {
         public long viewCount;
         public long downloadCount;
         public String publishedAt;
+        /** 来源加载器 / 游戏版本（作者接口与卡片流都会返回） */
+        public String sourceLoader;
+        public String sourceGameVersion;
     }
 
     /** 作品详情（详情/下载用） */
@@ -184,6 +187,9 @@ public final class Dtos {
         public String q;
         public boolean exact;
         public List<String> tagCodes;
+        /** 来源加载器 + 精确版本组（两者必须同时给，服务端才做版本过滤） */
+        public String sourceLoader;
+        public List<String> sourceGameVersions;
         public Long authorId;
         public String sort;
         public String locale;

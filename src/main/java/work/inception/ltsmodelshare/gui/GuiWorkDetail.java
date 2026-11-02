@@ -41,6 +41,9 @@ public class GuiWorkDetail extends Screen {
     private final String accessCode;
     private Dtos.WorkDetail detail;
     private final List<Dtos.Item> items = new ArrayList<>();
+    private final List<Dtos.Item> allItems = new ArrayList<>();
+    private boolean onlyThisVersion;
+    private int versionX;
     private final List<String> gallery = new ArrayList<>();
     private final Map<Long, Integer> itemImageIndex = new HashMap<>();
     private final Set<Long> madeBlueprint = new LinkedHashSet<>();
@@ -77,7 +80,34 @@ public class GuiWorkDetail extends Screen {
         favoriteButton = addRenderableWidget(new FitButton(backX - GuiNavigation.GAP - 64,
                 GuiNavigation.footerY(height), 64, 20, Component.translatable(favoriteKey()), b -> toggleFavorite()));
         favoriteButton.active = !favoriteBusy;
+        if (isCollection()) {
+            versionX = backX - GuiNavigation.GAP - 64 - GuiNavigation.GAP - 64;
+            addRenderableWidget(new FitButton(versionX, GuiNavigation.footerY(height), 64, 20,
+                    Component.literal(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION), b -> {
+                onlyThisVersion = !onlyThisVersion;
+                applyItemFilter();
+                init();
+            }));
+        }
         load();
+    }
+
+    private boolean isCollection() {
+        if ("collection".equals(card.kind)) return true;
+        return detail != null && "collection".equals(detail.kind);
+    }
+
+    private void applyItemFilter() {
+        items.clear();
+        for (Dtos.Item item : allItems) {
+            if (!onlyThisVersion || matchesThisVersion(item)) items.add(item);
+        }
+    }
+
+    private static boolean matchesThisVersion(Dtos.Item item) {
+        if (item == null || item.mcVersion == null) return false;
+        String version = item.mcVersion.trim();
+        return version.startsWith("1.20");
     }
 
     private String favoriteKey() {
@@ -225,8 +255,9 @@ public class GuiWorkDetail extends Screen {
                     loading = false;
                     if (value == null) return;
                     detail = value;
-                    items.clear();
-                    if (value.items != null) items.addAll(value.items.stream().filter(it -> it != null).toList());
+                    allItems.clear();
+                    if (value.items != null) allItems.addAll(value.items.stream().filter(it -> it != null).toList());
+                    applyItemFilter();
                     gallery.clear();
                     if (value.images != null) for (String image : value.images) {
                         if (image != null && !image.isBlank()) gallery.add(image);
@@ -279,6 +310,10 @@ public class GuiWorkDetail extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
+        if (onlyThisVersion && isCollection()) {
+            graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
+                    versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
+        }
         PageLayout p = layout();
         WorkDetailLayout g = p.geometry;
         WorkDetailLayout.Header h = p.header;
