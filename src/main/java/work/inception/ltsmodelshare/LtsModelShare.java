@@ -16,6 +16,7 @@ public final class LtsModelShare {
 
     public LtsModelShare() {
         MinecraftForge.EVENT_BUS.register(this);
+        work.inception.ltsmodelshare.network.Network.register();
         LOG.info("LittleTiles Model Share 1.20.1 初始化");
     }
 }

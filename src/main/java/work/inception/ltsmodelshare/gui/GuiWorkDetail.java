@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
+import work.inception.ltsmodelshare.client.BlueprintClient;
 import work.inception.ltsmodelshare.client.ImageDraw;
 import work.inception.ltsmodelshare.client.TextUtil;
 
@@ -46,7 +47,82 @@ public class GuiWorkDetail extends Screen {
         int favoriteW = 64;
         addRenderableWidget(new FitButton(backX - GuiNavigation.GAP - favoriteW, GuiNavigation.footerY(height),
                 favoriteW, 20, Component.translatable(favoriteKey()), b -> toggleFavorite()));
+        addItemButtons();
         load();
+    }
+
+    private void addItemButtons() {
+        int colW = Math.min(340, width - 20);
+        int left = width / 2 - colW / 2;
+        int coverW = Math.max(80, colW * 42 / 100);
+        int coverH = coverW * 3 / 4;
+        int listTop = 28 + coverH + 12;
+        int rowY = listTop + 12;
+        int maxRows = Math.max(0, (GuiNavigation.footerY(height) - 8 - rowY) / 34);
+        for (int i = 0; i < Math.min(items.size(), maxRows); i++) {
+            final Dtos.Item item = items.get(i);
+            addRenderableWidget(new FitButton(left + colW - 76, rowY + 2, 72, 14,
+                    Component.translatable("ltsmodelshare.detail.get_blueprint"), b -> fetchBlueprint(item)));
+            if (item.preview != null && item.preview.available
+                    && item.preview.assetUrl != null && !item.preview.assetUrl.isEmpty()) {
+                addRenderableWidget(new FitButton(left + colW - 128, rowY + 2, 48, 14,
+                        Component.translatable("ltsmodelshare.detail.preview"), b -> openPreview(item)));
+            }
+            rowY += 34;
+        }
+    }
+
+    private void fetchBlueprint(Dtos.Item item) {
+        if (!ModConfig.get().loggedIn()) {
+            minecraft.setScreen(new GuiLogin(this));
+            return;
+        }
+        if (minecraft.player == null) {
+            status = tr("ltsmodelshare.detail.world_required");
+            return;
+        }
+        status = tr("ltsmodelshare.detail.requested");
+        ApiClient.downloadInfo(item.itemId, "1.19", accessCode, new ApiClient.Callback<Dtos.DownloadInfo>() {
+            @Override public void ok(Dtos.DownloadInfo info) {
+                if (info.version == null || !(info.version.startsWith("1.19") || info.version.startsWith("1.20"))) {
+                    ApiClient.post(() -> status = tr("ltsmodelshare.preview.version"));
+                    return;
+                }
+                ApiClient.fetchText(info, new ApiClient.Callback<String>() {
+                    @Override public void ok(String text) {
+                        ApiClient.post(() -> BlueprintClient.request(text, item.title));
+                    }
+                    @Override public void fail(String message) {
+                        ApiClient.post(() -> status = message);
+                    }
+                });
+            }
+            @Override public void fail(String message) {
+                ApiClient.post(() -> status = message);
+            }
+        });
+    }
+
+    private void openPreview(Dtos.Item item) {
+        status = tr("ltsmodelshare.preview.obj_loading");
+        ApiClient.fetchObj(item.preview.assetUrl, 8L * 1024 * 1024, new ApiClient.Callback<String>() {
+            @Override public void ok(String text) {
+                try {
+                    ObjModel model = ObjModel.parse(text);
+                    ApiClient.post(() -> minecraft.setScreen(new GuiObjPreview(GuiWorkDetail.this, model, item.title)));
+                } catch (Exception error) {
+                    ApiClient.post(() -> status = tr("ltsmodelshare.preview.obj_failed", "", error.getMessage()));
+                }
+            }
+            @Override public void fail(String message) {
+                ApiClient.post(() -> status = tr("ltsmodelshare.preview.obj_failed", "", message));
+            }
+        });
+    }
+
+    /** Server result callback (client thread). */
+    public void onServerBlueprint(boolean ok, String text) {
+        status = text;
     }
 
     private String favoriteKey() {
@@ -71,7 +147,7 @@ public class GuiWorkDetail extends Screen {
                     if (value.items != null) items.addAll(value.items);
                     favorited = Boolean.TRUE.equals(value.favorited);
                     status = items.isEmpty() ? tr("ltsmodelshare.detail.no_models") : "";
-                    init();
+                    init(); // adds per-item blueprint buttons; load() is guarded by detail != null
                 });
             }
             @Override public void fail(String message) {

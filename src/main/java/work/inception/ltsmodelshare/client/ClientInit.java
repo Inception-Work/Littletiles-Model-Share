@@ -39,6 +39,7 @@ public final class ClientInit {
             while (OPEN.consumeClick()) {
                 InputHandler.openPanel();
             }
+            BlueprintClient.tick();
         }
 
         @SubscribeEvent

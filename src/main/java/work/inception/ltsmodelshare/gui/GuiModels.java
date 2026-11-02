@@ -34,6 +34,7 @@ public class GuiModels extends Screen {
     private boolean loading;
     private int requestId;
     private EditBox search;
+    private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
 
     public GuiModels() {
         super(Component.translatable("ltsmodelshare.models.title"));
@@ -55,7 +56,7 @@ public class GuiModels extends Screen {
         addRenderableWidget(GuiNavigation.button(topX + searchW + 52, 23, 40, 20,
                 "ltsmodelshare.common.refresh", () -> reload()));
         addRenderableWidget(GuiNavigation.button(topX + searchW + 96, 23, 56, 20,
-                "ltsmodelshare.search.filters", () -> status = "高级搜索迁移中"));
+                "ltsmodelshare.search.filters", () -> minecraft.setScreen(new GuiAdvancedSearch(this, filter))));
 
         int pageY = GuiNavigation.footerY(height) - 26;
         int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GAP) / 4);
@@ -79,10 +80,13 @@ public class GuiModels extends Screen {
                 this::toggleLogin));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
-                "ltsmodelshare.models.upload", () -> status = "上传页迁移中"));
+                "ltsmodelshare.models.upload", () -> {
+                    if (!ModConfig.get().loggedIn()) minecraft.setScreen(new GuiLogin(this));
+                    else minecraft.setScreen(new GuiUpload(this));
+                }));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
-                "ltsmodelshare.models.invitation", () -> status = "邀请页迁移中"));
+                "ltsmodelshare.models.invitation", () -> minecraft.setScreen(new GuiInviteAccess(this))));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
                 "ltsmodelshare.common.close", () -> minecraft.setScreen(null)));
@@ -112,7 +116,10 @@ public class GuiModels extends Screen {
         cards.clear();
         status = tr("ltsmodelshare.common.loading");
         Dtos.CardQuery query = new Dtos.CardQuery(search == null ? "" : search.getValue().trim(),
-                "latest", page, perPage, work.inception.ltsmodelshare.client.Translations.siteLocale());
+                filter.sort == null ? "latest" : filter.sort, page, perPage,
+                work.inception.ltsmodelshare.client.Translations.siteLocale());
+        query.authorId = filter.authorId;
+        if (!filter.tagCodes.isEmpty()) query.tagCodes = new ArrayList<>(filter.tagCodes);
         ApiClient.listCards(query, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {
             @Override public void ok(Dtos.Page<Dtos.WorkCard> value) {
                 ApiClient.post(() -> {
@@ -150,6 +157,14 @@ public class GuiModels extends Screen {
     private void openLibrary() {
         if (!ModConfig.get().loggedIn()) minecraft.setScreen(new GuiLogin(this));
         else minecraft.setScreen(new GuiLibrary(this));
+    }
+
+    /** Called by the advanced search screen when the user applies filters. */
+    public void applyFilter(GuiAdvancedSearch.Filter next) {
+        this.filter = next;
+        if (search != null) filter.q = search.getValue().trim();
+        page = 1;
+        reload();
     }
 
     private void openMySpace() {

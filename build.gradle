@@ -22,6 +22,9 @@ minecraft {
             workingDirectory project.file('run')
             property 'forge.logging.markers', ''
             property 'forge.logging.console.level', 'debug'
+            // Remap production mod refmaps (LittleTiles/CreativeCore ship SRG refmaps).
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             mods {
                 ltsmodelshare {
                     source sourceSets.main
