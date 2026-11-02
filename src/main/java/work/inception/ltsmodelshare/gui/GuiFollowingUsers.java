@@ -85,7 +85,7 @@ public class GuiFollowingUsers extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 20, 0xFFFFFF);
         for (int i = 0; i < Math.min(users.size(), pageSize); i++) {
             Dtos.UserCard user = users.get(i);

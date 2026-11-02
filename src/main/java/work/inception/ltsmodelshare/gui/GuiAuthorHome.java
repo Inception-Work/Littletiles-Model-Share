@@ -310,7 +310,7 @@ public class GuiAuthorHome extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         if (onlyThisVersion) {
             graphics.fill(versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
         }
@@ -387,10 +387,10 @@ public class GuiAuthorHome extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (needLogin || mouseX < panelX || mouseX > panelX + panelW || mouseY < listTop || mouseY >= listBottom)
-            return super.mouseScrolled(mouseX, mouseY, delta);
-        turn(delta > 0 ? -1 : 1);
+            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        turn(scrollY > 0 ? -1 : 1);
         return true;
     }
 

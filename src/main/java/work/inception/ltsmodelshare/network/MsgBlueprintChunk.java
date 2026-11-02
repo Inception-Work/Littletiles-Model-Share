@@ -1,55 +1,56 @@
 package work.inception.ltsmodelshare.network;
 
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.server.BlueprintServer;
 
-import java.util.function.Supplier;
-
-/** Client → server: one gzip-compressed structure chunk. */
-public class MsgBlueprintChunk {
+/**
+ * Client → server: one gzip-compressed structure chunk.
+ *
+ * <p>NeoForge 1.21 payload (replaces the Forge {@code SimpleChannel} message).</p>
+ */
+public record MsgBlueprintChunk(int transferId, int index, int total, String title, byte[] data)
+        implements CustomPacketPayload {
     public static final int MAX_DATA = 30_000;
 
-    private final int transferId;
-    private final int index;
-    private final int total;
-    private final String title;
-    private final byte[] data;
+    public static final Type<MsgBlueprintChunk> TYPE = new Type<>(
+            ResourceLocation.fromNamespaceAndPath(LtsModelShare.MODID, "blueprint_chunk"));
 
-    public MsgBlueprintChunk(int transferId, int index, int total, String title, byte[] data) {
-        this.transferId = transferId;
-        this.index = index;
-        this.total = total;
-        this.title = title == null ? "" : title;
-        this.data = data;
+    public static final StreamCodec<RegistryFriendlyByteBuf, MsgBlueprintChunk> STREAM_CODEC = StreamCodec.of(
+            (buf, msg) -> {
+                buf.writeVarInt(msg.transferId());
+                buf.writeVarInt(msg.index());
+                buf.writeVarInt(msg.total());
+                buf.writeUtf(msg.title(), 32767);
+                buf.writeByteArray(msg.data());
+            },
+            buf -> new MsgBlueprintChunk(
+                    buf.readVarInt(),
+                    buf.readVarInt(),
+                    buf.readVarInt(),
+                    buf.readUtf(32767),
+                    buf.readByteArray(MAX_DATA)));
+
+    public MsgBlueprintChunk {
+        title = title == null ? "" : title;
+        data = data == null ? new byte[0] : data;
     }
 
-    public static void encode(MsgBlueprintChunk msg, FriendlyByteBuf buf) {
-        buf.writeVarInt(msg.transferId);
-        buf.writeVarInt(msg.index);
-        buf.writeVarInt(msg.total);
-        buf.writeUtf(msg.title, 32767);
-        buf.writeByteArray(msg.data);
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
-    public static MsgBlueprintChunk decode(FriendlyByteBuf buf) {
-        int transferId = buf.readVarInt();
-        int index = buf.readVarInt();
-        int total = buf.readVarInt();
-        String title = buf.readUtf(32767);
-        byte[] data = buf.readByteArray(MAX_DATA);
-        return new MsgBlueprintChunk(transferId, index, total, title, data);
+    public static void handle(MsgBlueprintChunk msg, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (context.player() instanceof ServerPlayer player) {
+                BlueprintServer.accept(player, msg);
+            }
+        });
     }
-
-    public static void handle(MsgBlueprintChunk msg, Supplier<NetworkEvent.Context> supplier) {
-        NetworkEvent.Context ctx = supplier.get();
-        ctx.enqueueWork(() -> BlueprintServer.accept(ctx.getSender(), msg));
-        ctx.setPacketHandled(true);
-    }
-
-    public int transferId() { return transferId; }
-    public int index() { return index; }
-    public int total() { return total; }
-    public String title() { return title; }
-    public byte[] data() { return data; }
 }

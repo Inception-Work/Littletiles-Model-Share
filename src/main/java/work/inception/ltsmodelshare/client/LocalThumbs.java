@@ -81,7 +81,7 @@ public final class LocalThumbs {
             } finally { image.flush(); }
             texture = new DynamicTexture(nativeImage);
             nativeImage = null; // DynamicTexture now owns native storage.
-            id = new ResourceLocation(LtsModelShare.MODID, "upload_shot/" + serial++);
+            id = ResourceLocation.fromNamespaceAndPath(LtsModelShare.MODID, "upload_shot/" + serial++);
             Minecraft.getInstance().getTextureManager().register(id, texture);
             texture = null; // TextureManager now owns the texture.
             return new Entry(file, id, width, height);

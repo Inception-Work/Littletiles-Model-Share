@@ -21,10 +21,10 @@ import net.minecraft.world.Difficulty;
 import net.minecraft.world.phys.AABB;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
 import team.creative.littletiles.client.level.little.FakeClientLevel;
-import team.creative.littletiles.common.action.LittleActionException;
+import team.creative.littletiles.common.action.exception.LittleActionException;
 import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
 import team.creative.littletiles.common.gui.AnimationPreview;
-import team.creative.littletiles.common.gui.controls.animation.GuiAnimationViewerStorage;
+import team.creative.littletiles.common.gui.control.animation.GuiAnimationViewerStorage;
 import work.inception.ltsmodelshare.client.TextUtil;
 
 /**
@@ -64,7 +64,8 @@ public class GuiTilesPreview extends Screen {
 
         FakeClientLevel fake = FakeClientLevel.createFakeWorldClient("ltsmodelshare-preview",
                 new ClientLevel.ClientLevelData(Difficulty.PEACEFUL, false, false));
-        this.preview = new AnimationPreview(fake, null, group);
+        // LT 1.6.0-pre235 needs a registry lookup provider (1.21 data components / structures).
+        this.preview = new AnimationPreview(fake, null, group, fake.registryAccess());
         AABB box = this.preview.box;
         this.center = new Vec3d(box.getCenter());
         this.longest = Math.max(box.getXsize(), Math.max(box.getYsize(), box.getZsize()));
@@ -94,7 +95,7 @@ public class GuiTilesPreview extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, TextUtil.trim(font, title, width - 20), width / 2, 10, 0xFFFFFF);
         graphics.drawCenteredString(font, tr("ltsmodelshare.preview.native_mode"), width / 2, 22, 0xFFCC88);
 
@@ -112,22 +113,17 @@ public class GuiTilesPreview extends Screen {
     private void renderScene(GuiGraphics graphics, float partialTick) {
         Minecraft mc = minecraft;
         if (mc == null) return;
-        PoseStack pose = graphics.pose();
         RenderSystem.enableDepthTest();
         RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
 
-        // 跟 LT 的 GuiAnimationViewer 同一套顺序：视口铺满窗口、清深度、modelview 归零后再摆相机。
-        // 少了这几步就是"预览页一片空白"——透视投影有了，但深度/矩阵状态还停在 GUI 那套。
+        // NeoForge 1.21 removed the fixed-function modelview stack. The camera transform now
+        // lives in the PoseStack handed to LT's renderer (it feeds it to the shader uniforms),
+        // so only the projection and viewport have to be swapped around the scene.
         var window = mc.getWindow();
         RenderSystem.viewport(0, 0, window.getWidth(), window.getHeight());
         RenderSystem.clear(org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
-
-        var modelView = RenderSystem.getModelViewStack();
-        modelView.pushPose();
-        modelView.setIdentity();
-        RenderSystem.applyModelViewMatrix();
 
         Matrix4f projection = new Matrix4f().perspective((float) Math.toRadians(90),
                 (float) window.getWidth() / Math.max(1, window.getHeight()), 0.05f, 2048f);
@@ -145,13 +141,11 @@ public class GuiTilesPreview extends Screen {
             renderFailed = true;
             work.inception.ltsmodelshare.LtsModelShare.LOG.warn("原生预览渲染失败：{}", error.toString());
         }
-        modelView.popPose();
-        RenderSystem.applyModelViewMatrix();
 
         RenderSystem.setProjectionMatrix(new Matrix4f().setOrtho(0f, width, height, 0f, 1000f, 3000f),
                 VertexSorting.ORTHOGRAPHIC_Z);
         RenderSystem.disableDepthTest();
-        GlStateManager._enableBlend();
+        RenderSystem.enableBlend();
     }
 
     @Override
@@ -186,8 +180,8 @@ public class GuiTilesPreview extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        distance = Math.max(longest * 0.4, Math.min(longest * 6.0, distance - delta * longest * 0.12));
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        distance = Math.max(longest * 0.4, Math.min(longest * 6.0, distance - scrollY * longest * 0.12));
         return true;
     }
 

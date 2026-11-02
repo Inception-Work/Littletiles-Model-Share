@@ -309,7 +309,7 @@ public class GuiWorkDetail extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         if (onlyThisVersion && isCollection()) {
             graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
                     versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
@@ -497,17 +497,17 @@ public class GuiWorkDetail extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         PageLayout p = layout();
         WorkDetailLayout g = p.geometry;
-        if (!g.inBody(mouseX, mouseY) || delta == 0) return super.mouseScrolled(mouseX, mouseY, delta);
+        if (!g.inBody(mouseX, mouseY) || scrollY == 0) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         int sy = WorkDetailLayout.BODY_TOP - scroll + p.header.summaryY();
         Rect summary = new Rect(g.rightX, sy, g.rightWidth, p.header.summaryLines() * 10);
         if (p.header.summaryMaxScroll(p.summary.size()) > 0 && summary.contains(mouseX, mouseY)) {
             summaryScroll = Math.max(0, Math.min(p.header.summaryMaxScroll(p.summary.size()),
-                    summaryScroll - (int) Math.signum(delta)));
+                    summaryScroll - (int) Math.signum(scrollY)));
         } else {
-            scroll = Math.max(0, Math.min(g.maxScroll(p.header, items.size()), scroll - (int) Math.signum(delta) * 18));
+            scroll = Math.max(0, Math.min(g.maxScroll(p.header, items.size()), scroll - (int) Math.signum(scrollY) * 18));
         }
         return true;
     }

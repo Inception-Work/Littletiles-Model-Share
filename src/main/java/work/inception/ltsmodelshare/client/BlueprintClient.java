@@ -4,10 +4,10 @@ import static work.inception.ltsmodelshare.client.Translations.tr;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.network.PacketDistributor;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.gui.GuiWorkDetail;
 import work.inception.ltsmodelshare.network.MsgBlueprintChunk;
-import work.inception.ltsmodelshare.network.Network;
 import work.inception.ltsmodelshare.network.SnbtCodec;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,10 +46,6 @@ public final class BlueprintClient {
         waiting = true;
         softWarned = false;
         sentAt = System.currentTimeMillis();
-        if (Network.INSTANCE == null) {
-            fallbackToClipboard(tr("ltsmodelshare.blueprint.channel_missing"));
-            return;
-        }
         try {
             byte[] packed = SnbtCodec.compress(lastSnbt);
             int total = Math.max(1, (packed.length + MsgBlueprintChunk.MAX_DATA - 1) / MsgBlueprintChunk.MAX_DATA);
@@ -63,7 +59,7 @@ public final class BlueprintClient {
                 int len = Math.min(MsgBlueprintChunk.MAX_DATA, packed.length - from);
                 byte[] part = new byte[len];
                 System.arraycopy(packed, from, part, 0, len);
-                Network.INSTANCE.sendToServer(new MsgBlueprintChunk(transferId, i, total, i == 0 ? lastTitle : "", part));
+                PacketDistributor.sendToServer(new MsgBlueprintChunk(transferId, i, total, i == 0 ? lastTitle : "", part));
             }
             LtsModelShare.LOG.info("[联机] 已请求服务端生成蓝图（{} 字符 → 压缩 {} 字节 → {} 片）",
                     lastSnbt.length(), packed.length, total);
@@ -73,9 +69,9 @@ public final class BlueprintClient {
     }
 
     /** Called on the client thread by the result packet. */
-    public static void onResult(boolean ok, String text) {
+    public static void onResult(boolean ok, Component message) {
         if (!waiting) return;
-        finish(ok, decode(text).getString());
+        finish(ok, message == null ? "" : message.getString());
     }
 
     private static void finish(boolean ok, String text) {
@@ -85,14 +81,6 @@ public final class BlueprintClient {
         if (callback != null) callback.accept(ok, text);
         lastSnbt = "";
         lastTitle = "";
-    }
-
-    private static Component decode(String text) {
-        try {
-            Component parsed = Component.Serializer.fromJson(text);
-            if (parsed != null) return parsed;
-        } catch (Exception ignored) { }
-        return Component.literal(text == null ? "" : text);
     }
 
     /** Call every client tick. A soft timeout is not a terminal failure. */

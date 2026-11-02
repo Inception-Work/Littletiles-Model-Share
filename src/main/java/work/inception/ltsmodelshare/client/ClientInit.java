@@ -2,12 +2,12 @@ package work.inception.ltsmodelshare.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterClientCommandsEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.command.CommandLts;
@@ -20,7 +20,7 @@ public final class ClientInit {
 
     private ClientInit() { }
 
-    @Mod.EventBusSubscriber(modid = LtsModelShare.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    @EventBusSubscriber(modid = LtsModelShare.MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static final class ModBus {
         private ModBus() { }
 
@@ -30,13 +30,12 @@ public final class ClientInit {
         }
     }
 
-    @Mod.EventBusSubscriber(modid = LtsModelShare.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
-    public static final class ForgeBus {
-        private ForgeBus() { }
+    @EventBusSubscriber(modid = LtsModelShare.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
+    public static final class GameBus {
+        private GameBus() { }
 
         @SubscribeEvent
-        public static void tick(TickEvent.ClientTickEvent event) {
-            if (event.phase != TickEvent.Phase.END) return;
+        public static void tick(ClientTickEvent.Post event) {
             while (OPEN.consumeClick()) {
                 InputHandler.openPanel();
             }

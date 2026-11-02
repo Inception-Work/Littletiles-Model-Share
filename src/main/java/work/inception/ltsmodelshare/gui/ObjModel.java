@@ -102,9 +102,7 @@ final class ObjModel {
         RenderSystem.disableCull();
         RenderSystem.enableBlend();
         Matrix4f matrix = pose.last().pose();
-        Tesselator tessellator = Tesselator.getInstance();
-        BufferBuilder buffer = tessellator.getBuilder();
-        buffer.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         float scale = (float) (1.0 / size);
         for (int i = 0; i < indices.length; i += 3) {
             int a = indices[i] * 3, b = indices[i + 1] * 3, c = indices[i + 2] * 3;
@@ -117,13 +115,13 @@ final class ObjModel {
             vertex(buffer, matrix, positions[b] * scale, positions[b + 1] * scale, positions[b + 2] * scale, shade);
             vertex(buffer, matrix, positions[c] * scale, positions[c + 1] * scale, positions[c + 2] * scale, shade);
         }
-        BufferUploader.drawWithShader(buffer.end());
+        BufferUploader.drawWithShader(buffer.buildOrThrow());
         RenderSystem.disableBlend();
         RenderSystem.enableCull();
         RenderSystem.disableDepthTest();
     }
 
     private static void vertex(BufferBuilder buffer, Matrix4f matrix, float x, float y, float z, float shade) {
-        buffer.vertex(matrix, x, y, z).color(shade, shade, shade, 1f).endVertex();
+        buffer.addVertex(matrix, x, y, z).setColor(shade, shade, shade, 1f);
     }
 }

@@ -1,7 +1,6 @@
 plugins {
-    id 'eclipse'
-    id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.148'
 }
 
 version = '0.1.6'
@@ -11,61 +10,40 @@ base {
     archivesName = 'LittletilesModelShare'
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-minecraft {
-    mappings channel: 'official', version: '1.20.1'
-    copyIdeResources = true
+neoForge {
+    // NeoForge 21.1.x -> Minecraft 1.21.1, official (Mojang) mappings via NeoForm.
+    version = '21.1.133'
 
     runs {
         client {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', ''
-            property 'forge.logging.console.level', 'debug'
-            // Remap production mod refmaps (LittleTiles/CreativeCore ship SRG refmaps).
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            client()
             // More headroom for remote cover textures, OBJ models and blueprint parsing.
-            jvmArgs '-Xms1G', '-Xmx6G', '-XX:+UseG1GC'
-            if (project.hasProperty('ltsDebugOpen')) {
-                jvmArgs '-Dltsmodelshare.debugOpen=true'
-            }
-            mods {
-                ltsmodelshare {
-                    source sourceSets.main
-                }
-            }
+            jvmArguments.addAll(['-Xms1G', '-Xmx6G', '-XX:+UseG1GC'])
         }
         server {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', ''
-            property 'forge.logging.console.level', 'debug'
-            jvmArgs '-Xms512M', '-Xmx3G', '-XX:+UseG1GC'
-            args '--nogui'
-            mods {
-                ltsmodelshare {
-                    source sourceSets.main
-                }
-            }
+            server()
+            jvmArguments.addAll(['-Xms512M', '-Xmx3G', '-XX:+UseG1GC'])
+            programArguments.add('--nogui')
+        }
+    }
+
+    mods {
+        ltsmodelshare {
+            sourceSet sourceSets.main
         }
     }
 }
 
 repositories {
-    maven {
-        name = 'MinecraftForge'
-        url = 'https://maven.minecraftforge.net/'
-    }
-    flatDir {
-        dirs 'deps'
-    }
+    mavenCentral()
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.2.0'
-    // Local LittleTiles / CreativeCore 1.20.1 jars (flatDir names); deobf so compilation sees official names.
-    compileOnly fg.deobf('local:littletiles:1.20.1')
-    compileOnly fg.deobf('local:creativecore:1.20.1')
+    // LittleTiles / CreativeCore 1.21.1 NeoForge builds are compiled against Mojang mappings,
+    // so they can be consumed directly (no fg.deobf equivalent needed on NeoForge 1.21).
+    compileOnly files('deps/littletiles-1.21.1.jar', 'deps/creativecore-1.21.1.jar')
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -85,4 +63,14 @@ jar {
     }
 }
 
+// Test release layout: build/releases/0.1.6-neoforge1.21.1-test/LittletilesModelShare-0.1.6-neoforge1.21.1.jar
+tasks.register('neoForge1211Release', Copy) {
+    dependsOn tasks.named('jar')
+    from tasks.named('jar').flatMap { it.archiveFile }
+    into layout.buildDirectory.dir('releases/0.1.6-neoforge1.21.1-test')
+    rename { 'LittletilesModelShare-0.1.6-neoforge1.21.1.jar' }
+}
 
+tasks.named('build') {
+    dependsOn 'neoForge1211Release'
+}

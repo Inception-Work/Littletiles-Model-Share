@@ -34,8 +34,8 @@ public class GuiUpload extends Screen {
     private static final int CELL_GAP = 4;
     private static final int ROW_H = CELL_H + CELL_GAP;
     private static final int TAG_ROW_H = 14;
-    private static final String SOURCE_LOADER = "forge";
-    private static final String GAME_VERSION = "1.20.1";
+    private static final String SOURCE_LOADER = "neoforge";
+    private static final String GAME_VERSION = "1.21.1";
     private final Screen parent;
     private final LocalThumbs thumbs = new LocalThumbs();
     private EditBox titleField;
@@ -151,7 +151,7 @@ public class GuiUpload extends Screen {
 
     private void loadShots() {
         shots.clear();
-        File dir = net.minecraftforge.fml.loading.FMLPaths.GAMEDIR.get().resolve("screenshots").toFile();
+        File dir = net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().resolve("screenshots").toFile();
         File[] files = dir.listFiles();
         if (files != null) {
             Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
@@ -308,7 +308,7 @@ public class GuiUpload extends Screen {
     private void dismissResult() { busy = false; resultText = null; updateSubmitButtons(); }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.drawCenteredString(font, title, width / 2, 22, 0xFFFFFF);
         String state = exportError != null ? exportError : snbt != null ? tr("ltsmodelshare.upload.exported", snbt.length()) : "";
@@ -423,17 +423,17 @@ public class GuiUpload extends Screen {
         }
         return handled;
     }
-    @Override public boolean mouseScrolled(double x, double y, double delta) {
+    @Override public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
         if (busy) return true;
         if (inside(x, y, shotsBoxX, boxY, shotsBoxW, boxH)) {
-            shotScrollPx = Math.max(0, Math.min(maxShotScrollPx(), shotScrollPx - (int) Math.signum(delta) * (ROW_H / 2)));
+            shotScrollPx = Math.max(0, Math.min(maxShotScrollPx(), shotScrollPx - (int) Math.signum(scrollY) * (ROW_H / 2)));
             return true;
         }
         if (inside(x, y, tagsBoxX, boxY, tagsBoxW, tagsBoxH)) {
-            tagScroll = Math.max(0, Math.min(maxTagScroll(), tagScroll - (int) Math.signum(delta)));
+            tagScroll = Math.max(0, Math.min(maxTagScroll(), tagScroll - (int) Math.signum(scrollY)));
             return true;
         }
-        return super.mouseScrolled(x, y, delta);
+        return super.mouseScrolled(x, y, scrollX, scrollY);
     }
     @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
         if (busy) { if (key == GLFW.GLFW_KEY_ESCAPE && resultText != null) dismissResult(); return true; }
@@ -454,7 +454,6 @@ public class GuiUpload extends Screen {
     @Override public boolean keyReleased(int key, int scan, int modifiers) { return busy || super.keyReleased(key, scan, modifiers); }
     @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) { return busy || super.mouseDragged(x, y, button, dx, dy); }
     @Override public boolean mouseReleased(double x, double y, int button) { return busy || super.mouseReleased(x, y, button); }
-    @Override public void tick() { if (!busy) titleField.tick(); }
     @Override public void onClose() { if (!busy) minecraft.setScreen(parent); }
     @Override public void removed() { thumbs.clear(); super.removed(); }
     @Override public boolean isPauseScreen() { return false; }

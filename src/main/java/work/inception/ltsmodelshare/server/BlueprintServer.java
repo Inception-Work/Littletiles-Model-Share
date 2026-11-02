@@ -1,11 +1,12 @@
 package work.inception.ltsmodelshare.server;
 
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PacketDistributor;
 import team.creative.littletiles.LittleTilesRegistry;
 import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
 import team.creative.littletiles.common.item.ItemLittleBlueprint;
@@ -94,21 +95,21 @@ public final class BlueprintServer {
                 reply(player, false, Component.translatable("ltsmodelshare.common.parse_incompatible"));
                 return;
             }
-            ItemStack stack = new ItemStack(LittleTilesRegistry.BLUEPRINT.get());
+            ItemStack stack = new ItemStack(LittleTilesRegistry.BLUEPRINT.value());
             if (!(stack.getItem() instanceof ItemLittleBlueprint blueprint)) {
                 reply(player, false, Component.translatable("ltsmodelshare.common.parse_incompatible"));
                 return;
             }
             blueprint.saveTiles(stack, group);
             String cleanTitle = title == null ? "" : title.trim();
-            if (!cleanTitle.isEmpty()) stack.setHoverName(Component.literal(cleanTitle));
+            if (!cleanTitle.isEmpty()) stack.set(DataComponents.CUSTOM_NAME, Component.literal(cleanTitle));
             if (!player.getInventory().add(stack)) {
                 player.drop(stack, false);
-                reply(player, true, Component.translatable("ltsmodelshare.server.dropped", stack.getDisplayName()));
+                reply(player, true, Component.translatable("ltsmodelshare.server.dropped", stack.getHoverName()));
             } else {
                 player.getInventory().setChanged();
                 reply(player, true, Component.translatable("ltsmodelshare.server.created",
-                        stack.getDisplayName(), snbt.length()));
+                        stack.getHoverName(), snbt.length()));
             }
             LtsModelShare.LOG.info("服务端生成蓝图：player={} title={} 字符数={}",
                     player.getName().getString(), title, snbt.length());
@@ -142,8 +143,7 @@ public final class BlueprintServer {
 
     private static void reply(ServerPlayer player, boolean ok, Component message) {
         try {
-            Network.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
-                    new MsgBlueprintResult(ok, Component.Serializer.toJson(message)));
+            PacketDistributor.sendToPlayer(player, new MsgBlueprintResult(ok, message));
         } catch (Throwable error) {
             LtsModelShare.LOG.warn("回执发送失败：{}", error.toString());
         }

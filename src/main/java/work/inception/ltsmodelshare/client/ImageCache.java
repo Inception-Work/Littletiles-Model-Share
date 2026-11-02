@@ -103,7 +103,7 @@ public final class ImageCache {
             DynamicTexture texture = new DynamicTexture(image);
             image = null; // DynamicTexture owns the pixels now.
             String hash = Integer.toHexString(url.hashCode());
-            ResourceLocation id = new ResourceLocation("ltsmodelshare", "remote/" + hash);
+            ResourceLocation id = ResourceLocation.fromNamespaceAndPath("ltsmodelshare", "remote/" + hash);
             Minecraft.getInstance().getTextureManager().register(id, texture);
             LOADED.put(url, id);
             SIZES.put(url, new int[]{width, height});
