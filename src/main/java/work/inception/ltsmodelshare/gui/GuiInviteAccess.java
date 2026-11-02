@@ -99,7 +99,7 @@ public class GuiInviteAccess extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         int cx = width / 2, cy = height / 2;
         graphics.drawCenteredString(font, title, cx, cy - 95, 0xFFFFFF);
         graphics.drawCenteredString(font, tr("ltsmodelshare.invite.help"), cx, cy - 82, 0xAAAAAA);
@@ -114,7 +114,7 @@ public class GuiInviteAccess extends Screen {
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) { open(); return true; }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
-    @Override public void tick() { idField.tick(); codeField.tick(); }
+    @Override public void tick() { /* EditBox.tick() removed in 1.20.2. */ }
     @Override public void onClose() { minecraft.setScreen(parent); }
     @Override public boolean isPauseScreen() { return false; }
 }

@@ -4,6 +4,7 @@ import static work.inception.ltsmodelshare.client.Translations.tr;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraftforge.network.PacketDistributor;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.gui.GuiWorkDetail;
 import work.inception.ltsmodelshare.network.MsgBlueprintChunk;
@@ -63,7 +64,8 @@ public final class BlueprintClient {
                 int len = Math.min(MsgBlueprintChunk.MAX_DATA, packed.length - from);
                 byte[] part = new byte[len];
                 System.arraycopy(packed, from, part, 0, len);
-                Network.INSTANCE.sendToServer(new MsgBlueprintChunk(transferId, i, total, i == 0 ? lastTitle : "", part));
+                Network.INSTANCE.send(new MsgBlueprintChunk(transferId, i, total, i == 0 ? lastTitle : "", part),
+                        PacketDistributor.SERVER.noArg());
             }
             LtsModelShare.LOG.info("[联机] 已请求服务端生成蓝图（{} 字符 → 压缩 {} 字节 → {} 片）",
                     lastSnbt.length(), packed.length, total);

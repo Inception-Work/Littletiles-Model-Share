@@ -309,7 +309,7 @@ public class GuiWorkDetail extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         if (onlyThisVersion && isCollection()) {
             graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
                     versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
@@ -497,10 +497,10 @@ public class GuiWorkDetail extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double delta) {
         PageLayout p = layout();
         WorkDetailLayout g = p.geometry;
-        if (!g.inBody(mouseX, mouseY) || delta == 0) return super.mouseScrolled(mouseX, mouseY, delta);
+        if (!g.inBody(mouseX, mouseY) || delta == 0) return super.mouseScrolled(mouseX, mouseY, deltaX, delta);
         int sy = WorkDetailLayout.BODY_TOP - scroll + p.header.summaryY();
         Rect summary = new Rect(g.rightX, sy, g.rightWidth, p.header.summaryLines() * 10);
         if (p.header.summaryMaxScroll(p.summary.size()) > 0 && summary.contains(mouseX, mouseY)) {

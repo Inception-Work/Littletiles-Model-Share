@@ -142,8 +142,8 @@ public final class BlueprintServer {
 
     private static void reply(ServerPlayer player, boolean ok, Component message) {
         try {
-            Network.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
-                    new MsgBlueprintResult(ok, Component.Serializer.toJson(message)));
+            Network.INSTANCE.send(new MsgBlueprintResult(ok, Component.Serializer.toJson(message)),
+                    PacketDistributor.PLAYER.with(player));
         } catch (Throwable error) {
             LtsModelShare.LOG.warn("回执发送失败：{}", error.toString());
         }

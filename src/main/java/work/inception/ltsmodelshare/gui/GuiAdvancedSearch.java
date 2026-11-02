@@ -209,7 +209,7 @@ public class GuiAdvancedSearch extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         int cx = width / 2;
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);
@@ -305,13 +305,13 @@ public class GuiAdvancedSearch extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double delta) {
         int authorW = authorBoxWidth();
         if (inBox(mouseX, mouseY, panelLeft, authorW)) authorScroll -= (int) Math.signum(delta);
         else {
             int tagsX = authorW == 0 ? panelLeft : panelLeft + authorW + 8;
             if (!inBox(mouseX, mouseY, tagsX, authorW == 0 ? panelW : panelW - authorW - 8))
-                return super.mouseScrolled(mouseX, mouseY, delta);
+                return super.mouseScrolled(mouseX, mouseY, deltaX, delta);
             tagScroll -= (int) Math.signum(delta);
         }
         clampScrolls();

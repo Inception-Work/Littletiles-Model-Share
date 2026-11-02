@@ -15,12 +15,9 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.Difficulty;
 import net.minecraft.world.phys.AABB;
 import team.creative.creativecore.common.util.math.vec.Vec3d;
-import team.creative.littletiles.client.level.little.FakeClientLevel;
 import team.creative.littletiles.common.action.LittleActionException;
 import team.creative.littletiles.common.block.little.tile.group.LittleGroup;
 import team.creative.littletiles.common.gui.AnimationPreview;
@@ -62,9 +59,9 @@ public class GuiTilesPreview extends Screen {
         this.parent = parent;
         this.title = title == null ? "" : title;
 
-        FakeClientLevel fake = FakeClientLevel.createFakeWorldClient("ltsmodelshare-preview",
-                new ClientLevel.ClientLevelData(Difficulty.PEACEFUL, false, false));
-        this.preview = new AnimationPreview(fake, null, group);
+        // 1.20.2 (LT pre063): AnimationPreview builds its own FakeClientLevel and takes
+        // (LittleStructure, LittleGroup); a null structure is supported for plain groups.
+        this.preview = new AnimationPreview(null, group);
         AABB box = this.preview.box;
         this.center = new Vec3d(box.getCenter());
         this.longest = Math.max(box.getXsize(), Math.max(box.getYsize(), box.getZsize()));
@@ -94,7 +91,7 @@ public class GuiTilesPreview extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, TextUtil.trim(font, title, width - 20), width / 2, 10, 0xFFFFFF);
         graphics.drawCenteredString(font, tr("ltsmodelshare.preview.native_mode"), width / 2, 22, 0xFFCC88);
 
@@ -186,7 +183,7 @@ public class GuiTilesPreview extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double delta) {
         distance = Math.max(longest * 0.4, Math.min(longest * 6.0, distance - delta * longest * 0.12));
         return true;
     }

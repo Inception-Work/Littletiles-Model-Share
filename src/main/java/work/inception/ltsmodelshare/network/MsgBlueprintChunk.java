@@ -1,10 +1,8 @@
 package work.inception.ltsmodelshare.network;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.event.network.CustomPayloadEvent;
 import work.inception.ltsmodelshare.server.BlueprintServer;
-
-import java.util.function.Supplier;
 
 /** Client → server: one gzip-compressed structure chunk. */
 public class MsgBlueprintChunk {
@@ -41,8 +39,7 @@ public class MsgBlueprintChunk {
         return new MsgBlueprintChunk(transferId, index, total, title, data);
     }
 
-    public static void handle(MsgBlueprintChunk msg, Supplier<NetworkEvent.Context> supplier) {
-        NetworkEvent.Context ctx = supplier.get();
+    public static void handle(MsgBlueprintChunk msg, CustomPayloadEvent.Context ctx) {
         ctx.enqueueWork(() -> BlueprintServer.accept(ctx.getSender(), msg));
         ctx.setPacketHandled(true);
     }

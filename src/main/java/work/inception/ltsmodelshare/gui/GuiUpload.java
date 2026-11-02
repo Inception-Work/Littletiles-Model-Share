@@ -308,7 +308,7 @@ public class GuiUpload extends Screen {
     private void dismissResult() { busy = false; resultText = null; updateSubmitButtons(); }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.drawCenteredString(font, title, width / 2, 22, 0xFFFFFF);
         String state = exportError != null ? exportError : snbt != null ? tr("ltsmodelshare.upload.exported", snbt.length()) : "";
@@ -423,7 +423,7 @@ public class GuiUpload extends Screen {
         }
         return handled;
     }
-    @Override public boolean mouseScrolled(double x, double y, double delta) {
+    @Override public boolean mouseScrolled(double x, double y, double deltaX, double delta) {
         if (busy) return true;
         if (inside(x, y, shotsBoxX, boxY, shotsBoxW, boxH)) {
             shotScrollPx = Math.max(0, Math.min(maxShotScrollPx(), shotScrollPx - (int) Math.signum(delta) * (ROW_H / 2)));
@@ -433,7 +433,7 @@ public class GuiUpload extends Screen {
             tagScroll = Math.max(0, Math.min(maxTagScroll(), tagScroll - (int) Math.signum(delta)));
             return true;
         }
-        return super.mouseScrolled(x, y, delta);
+        return super.mouseScrolled(x, y, deltaX, delta);
     }
     @Override public boolean keyPressed(int key, int scanCode, int modifiers) {
         if (busy) { if (key == GLFW.GLFW_KEY_ESCAPE && resultText != null) dismissResult(); return true; }
@@ -454,7 +454,7 @@ public class GuiUpload extends Screen {
     @Override public boolean keyReleased(int key, int scan, int modifiers) { return busy || super.keyReleased(key, scan, modifiers); }
     @Override public boolean mouseDragged(double x, double y, int button, double dx, double dy) { return busy || super.mouseDragged(x, y, button, dx, dy); }
     @Override public boolean mouseReleased(double x, double y, int button) { return busy || super.mouseReleased(x, y, button); }
-    @Override public void tick() { if (!busy) titleField.tick(); }
+    @Override public void tick() { /* EditBox.tick() removed in 1.20.2. */ }
     @Override public void onClose() { if (!busy) minecraft.setScreen(parent); }
     @Override public void removed() { thumbs.clear(); super.removed(); }
     @Override public boolean isPauseScreen() { return false; }

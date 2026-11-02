@@ -1,12 +1,8 @@
 package work.inception.ltsmodelshare.network;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraftforge.event.network.CustomPayloadEvent;
 import work.inception.ltsmodelshare.client.BlueprintClient;
-
-import java.util.function.Supplier;
 
 /** Server → client: blueprint creation result (component JSON or plain text). */
 public class MsgBlueprintResult {
@@ -27,10 +23,10 @@ public class MsgBlueprintResult {
         return new MsgBlueprintResult(buf.readBoolean(), buf.readUtf(32767));
     }
 
-    public static void handle(MsgBlueprintResult msg, Supplier<NetworkEvent.Context> supplier) {
-        NetworkEvent.Context ctx = supplier.get();
-        ctx.enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-                () -> () -> BlueprintClient.onResult(msg.ok, msg.text)));
+    public static void handle(MsgBlueprintResult msg, CustomPayloadEvent.Context ctx) {
+        // Registered PLAY_TO_CLIENT only, so this runs on the client; consumerMainThread already
+        // dispatches on the main thread (DistExecutor was removed in Forge 1.20.2).
+        ctx.enqueueWork(() -> BlueprintClient.onResult(msg.ok, msg.text));
         ctx.setPacketHandled(true);
     }
 }

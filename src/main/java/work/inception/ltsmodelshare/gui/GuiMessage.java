@@ -66,7 +66,7 @@ public class GuiMessage extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics);
+        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF000000);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF2B2B2B);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + 2, 0xFF8A8A8A);
@@ -94,12 +94,12 @@ public class GuiMessage extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    @Override public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    @Override public boolean mouseScrolled(double mouseX, double mouseY, double deltaX, double delta) {
         if (mouseX >= panelX && mouseX < panelX + panelW && mouseY >= panelY && mouseY < panelY + panelH) {
             lineScroll = Math.max(0, Math.min(Math.max(0, lines.size() - visibleLines), lineScroll - (int) Math.signum(delta)));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, deltaX, delta);
     }
     @Override public void onClose() { minecraft.setScreen(parent); }
     @Override public boolean isPauseScreen() { return false; }

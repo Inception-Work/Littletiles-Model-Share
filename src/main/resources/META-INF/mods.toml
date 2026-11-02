@@ -1,5 +1,5 @@
 modLoader="javafml"
-loaderVersion="[47,)"
+loaderVersion="[48,)"
 license="All Rights Reserved"
 issueTrackerURL="https://github.com/Inception-Work/Littletiles-Model-Share/issues"
 
@@ -14,14 +14,14 @@ Browse and share LittleTiles models in game.
 [[dependencies.ltsmodelshare]]
     modId="forge"
     mandatory=true
-    versionRange="[47,)"
+    versionRange="[48,)"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.ltsmodelshare]]
     modId="minecraft"
     mandatory=true
-    versionRange="[1.20.1,1.20.2)"
+    versionRange="[1.20.2,1.20.3)"
     ordering="NONE"
     side="BOTH"
 
@@ -35,6 +35,6 @@ Browse and share LittleTiles models in game.
 [[dependencies.ltsmodelshare]]
     modId="creativecore"
     mandatory=true
-    versionRange="[2.12.30,)"
+    versionRange="[2.11.5,)"
     ordering="AFTER"
     side="BOTH"
