@@ -79,7 +79,10 @@ public final class ImageCache {
         LOADING.remove(url);
         NativeImage image = null;
         try {
-            image = NativeImage.read(data);
+            // read(byte[]) copies the whole file onto LWJGL's small per-thread stack and
+            // overflows ("Out of stack space") for multi-megabyte screenshots. The stream
+            // overload uses a fixed 8 KB buffer instead.
+            image = NativeImage.read(new java.io.ByteArrayInputStream(data));
             int width = image.getWidth();
             int height = image.getHeight();
             // Screenshots can be 1920x1080 (8 MB decoded); downscale cards to 512 px.
@@ -103,10 +106,10 @@ public final class ImageCache {
             LOADED.put(url, id);
             SIZES.put(url, new int[]{width, height});
             evictOldest();
-        } catch (Exception error) {
+        } catch (Throwable error) {
             if (image != null) image.close();
             FAILED.add(url);
-            LtsModelShare.LOG.debug("图片解码失败 {}", url, error);
+            LtsModelShare.LOG.warn("图片解码失败 {}", url, error);
         }
     }
 
