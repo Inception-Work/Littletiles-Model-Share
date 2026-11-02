@@ -35,7 +35,7 @@ public class GuiUpload extends Screen {
     private static final int ROW_H = CELL_H + CELL_GAP;
     private static final int TAG_ROW_H = 14;
     private static final String SOURCE_LOADER = "forge";
-    private static final String GAME_VERSION = "1.20.1";
+    private static final String GAME_VERSION = "1.20.2";
     private final Screen parent;
     private final LocalThumbs thumbs = new LocalThumbs();
     private EditBox titleField;
