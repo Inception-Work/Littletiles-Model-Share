@@ -1,0 +1,79 @@
+﻿{
+  "de": {
+    "architecture": "Architektur",
+    "character": "Charakter / Kreatur",
+    "decoration": "Dekoration",
+    "furniture": "Möbel",
+    "landscape": "Landschaft",
+    "mechanism": "Mechanik / Redstone",
+    "other": "Sonstiges",
+    "pixel-art": "Pixel-Art",
+    "vehicle": "Fahrzeug"
+  },
+  "en": {
+    "architecture": "Architecture",
+    "character": "Character / creature",
+    "decoration": "Decoration",
+    "furniture": "Furniture",
+    "landscape": "Terrain / landscape",
+    "mechanism": "Mechanism / redstone",
+    "other": "Other",
+    "pixel-art": "Pixel art",
+    "vehicle": "Vehicle"
+  },
+  "fr": {
+    "architecture": "Architecture",
+    "character": "Personnage / créature",
+    "decoration": "Décoration",
+    "furniture": "Mobilier",
+    "landscape": "Terrain / paysage",
+    "mechanism": "Mécanisme / redstone",
+    "other": "Autre",
+    "pixel-art": "Pixel art",
+    "vehicle": "Véhicule"
+  },
+  "ja": {
+    "architecture": "建築",
+    "character": "キャラ / 生物",
+    "decoration": "装飾",
+    "furniture": "家具",
+    "landscape": "地形 / 景観",
+    "mechanism": "機構 / レッドストーン",
+    "other": "その他",
+    "pixel-art": "ピクセルアート",
+    "vehicle": "乗り物"
+  },
+  "ko": {
+    "architecture": "건축",
+    "character": "캐릭터 / 생물",
+    "decoration": "장식",
+    "furniture": "가구",
+    "landscape": "지형 / 풍경",
+    "mechanism": "기계 / 레드스톤",
+    "other": "기타",
+    "pixel-art": "픽셀 아트",
+    "vehicle": "탈것"
+  },
+  "zh-cn": {
+    "architecture": "建筑",
+    "character": "角色 / 生物",
+    "decoration": "装饰",
+    "furniture": "家具",
+    "landscape": "地形 / 景观",
+    "mechanism": "机械 / 红石",
+    "other": "其它",
+    "pixel-art": "像素画",
+    "vehicle": "载具"
+  },
+  "zh-tw": {
+    "architecture": "建築",
+    "character": "角色 / 生物",
+    "decoration": "裝飾",
+    "furniture": "家具",
+    "landscape": "地形 / 景觀",
+    "mechanism": "機械 / 紅石",
+    "other": "其它",
+    "pixel-art": "像素畫",
+    "vehicle": "載具"
+  }
+}
