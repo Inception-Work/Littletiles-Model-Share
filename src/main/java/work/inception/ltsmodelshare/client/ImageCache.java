@@ -18,11 +18,21 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-/** Remote image cache: downloads once, registers a dynamic texture on the render thread. */
+/** Remote image cache: bounded LRU textures, decoded off-thread, registered on the render thread. */
 public final class ImageCache {
-    /** Bounded LRU: browsing many pages must not keep every cover texture in RAM/VRAM. */
+    /** Covers are card-sized; keep direct + GPU memory bounded while browsing. */
     private static final int MAX_TEXTURES = 96;
+    private static final int MAX_PENDING = 24;
+    /** Separate from the API executor so a page full of covers can never starve list requests. */
+    private static final ExecutorService POOL = Executors.newFixedThreadPool(2, r -> {
+        Thread thread = new Thread(r, "ltsmodelshare-images");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     private static final Map<String, ResourceLocation> LOADED =
             new LinkedHashMap<>(32, 0.75f, true);
     private static final Map<String, int[]> SIZES = new LinkedHashMap<>(32, 0.75f, true);
@@ -35,7 +45,7 @@ public final class ImageCache {
         if (url == null || url.trim().isEmpty()) return null;
         ResourceLocation id = LOADED.get(url);
         if (id != null) return id;
-        if (!LOADING.contains(url) && !FAILED.contains(url)) {
+        if (!LOADING.contains(url) && !FAILED.contains(url) && LOADING.size() < MAX_PENDING) {
             LOADING.add(url);
             load(url);
         }
@@ -47,7 +57,7 @@ public final class ImageCache {
     }
 
     private static void load(final String rawUrl) {
-        ApiClient.io(() -> {
+        POOL.execute(() -> {
             try {
                 String url = rawUrl.startsWith("//") ? "https:" + rawUrl : rawUrl;
                 if (url.startsWith("/")) url = ModConfig.get().baseUrl + url;
@@ -65,9 +75,10 @@ public final class ImageCache {
                     while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
                 }
                 conn.disconnect();
-                final byte[] data = out.toByteArray();
-                ApiClient.post(() -> register(rawUrl, data));
-            } catch (Exception error) {
+                // Decode on this worker thread: ImageIO is heap based and can be slow.
+                java.awt.image.BufferedImage decoded = decodeAndScale(out.toByteArray());
+                ApiClient.post(() -> register(rawUrl, decoded));
+            } catch (Throwable error) {
                 FAILED.add(rawUrl);
                 LOADING.remove(rawUrl);
                 LtsModelShare.LOG.debug("图片加载失败 {}", rawUrl, error);
@@ -75,14 +86,10 @@ public final class ImageCache {
         });
     }
 
-    private static void register(String url, byte[] data) {
+    private static void register(String url, java.awt.image.BufferedImage source) {
         LOADING.remove(url);
         NativeImage image = null;
         try {
-            // Decode with ImageIO so the compressed/decoded data lives on the heap, not on
-            // LWJGL's small direct stack. NativeImage.read(byte[]) crashed with
-            // "Out of stack space" and huge images also exhausted direct buffer memory.
-            java.awt.image.BufferedImage source = decodeAndScale(data);
             int width = source.getWidth();
             int height = source.getHeight();
             image = new NativeImage(width, height, false);
@@ -104,7 +111,7 @@ public final class ImageCache {
         } catch (Throwable error) {
             if (image != null) image.close();
             FAILED.add(url);
-            LtsModelShare.LOG.warn("图片解码失败 {}", url, error);
+            LtsModelShare.LOG.warn("图片登记失败 {}", url, error);
         }
     }
 
