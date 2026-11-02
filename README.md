@@ -1,3 +1,6 @@
+> NeoForge 1.20.1 构建：源码与 Forge 1.20.1 相同（NeoForge 1.20.1 仍提供 net.minecraftforge 包），
+> 仅用于 NeoForge 加载器分发，需 NeoForge 47.1.x；实机未验收。
+
 # LittleTiles Model Share
 
 > 在游戏内浏览、获取和分享 LittleTiles 模型。

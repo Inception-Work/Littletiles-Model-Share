@@ -6,7 +6,7 @@ issueTrackerURL="https://github.com/Inception-Work/Littletiles-Model-Share/issue
 [[mods]]
 modId="ltsmodelshare"
 version="${file.jarVersion}"
-displayName="LittleTiles Model Share"
+displayName="LittleTiles Model Share (NeoForge)"
 description='''
 Browse and share LittleTiles models in game.
 '''
