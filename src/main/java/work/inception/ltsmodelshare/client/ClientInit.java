@@ -16,6 +16,7 @@ import work.inception.ltsmodelshare.command.CommandLts;
 public final class ClientInit {
     public static final KeyMapping OPEN = new KeyMapping("key.ltsmodelshare.open",
             InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_I, "key.categories.ltsmodelshare");
+    private static boolean debugOpened;
 
     private ClientInit() { }
 
@@ -40,6 +41,14 @@ public final class ClientInit {
                 InputHandler.openPanel();
             }
             BlueprintClient.tick();
+            // Dev-only smoke hook: -Dltsmodelshare.debugOpen=true opens the browser once.
+            if (Boolean.getBoolean("ltsmodelshare.debugOpen") && !debugOpened
+                    && (net.minecraft.client.Minecraft.getInstance().screen == null
+                    || net.minecraft.client.Minecraft.getInstance().screen
+                    instanceof net.minecraft.client.gui.screens.TitleScreen)) {
+                debugOpened = true;
+                InputHandler.openPanel();
+            }
         }
 
         @SubscribeEvent

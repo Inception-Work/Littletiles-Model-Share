@@ -858,8 +858,8 @@ public final class ApiClient {
     private static HttpURLConnection open(String url, String method, String body, String token) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod(method);
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(30000);
+        conn.setConnectTimeout(8000);
+        conn.setReadTimeout(20000);
         conn.setInstanceFollowRedirects(true);
         conn.setRequestProperty("Accept", "application/json, */*");
         conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
