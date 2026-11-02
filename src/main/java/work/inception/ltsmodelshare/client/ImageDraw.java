@@ -22,6 +22,16 @@ public final class ImageDraw {
      * @param x,y    左上角
      * @param w,h    目标框（宽高比即裁剪比例，例如 4:3 就传 4 与 3 的倍数）
      */
+    /** Card-sized rendering; uses DogeCloud /thumb (<=480px). */
+    public static void drawThumb(String url, int x, int y, int w, int h) {
+        drawCropped(ImageUrls.thumb(url), x, y, w, h);
+    }
+
+    /** Large rendering (detail cover, banner); uses DogeCloud /preview (<=1600px). */
+    public static void drawPreview(String url, int x, int y, int w, int h) {
+        drawCropped(ImageUrls.preview(url), x, y, w, h);
+    }
+
     public static void drawCropped(String url, int x, int y, int w, int h) {
         ImageCache.Img img = ImageCache.img(url);
         if (img == null) {

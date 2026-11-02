@@ -11,8 +11,9 @@ import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -46,7 +47,9 @@ public final class ImageCache {
         }
     }
 
-    private static final Map<String, Img> READY = new HashMap<>();
+    /** Bounded LRU; browsing many pages must not keep every cover texture in RAM/VRAM. */
+    private static final int MAX_TEXTURES = 96;
+    private static final Map<String, Img> READY = new LinkedHashMap<>(32, 0.75f, true);
     private static final Set<String> LOADING = new HashSet<>();
     private static final Set<String> FAILED = new HashSet<>();
 
@@ -74,7 +77,7 @@ public final class ImageCache {
         if (ready != null) {
             return ready;
         }
-        if (FAILED.contains(key) || !LOADING.add(key)) {
+        if (FAILED.contains(key) || LOADING.size() >= 24 || !LOADING.add(key)) {
             return null;
         }
         POOL.execute(() -> {
@@ -115,7 +118,7 @@ public final class ImageCache {
                 LOADING.remove(key);
                 return;
             }
-            final BufferedImage finalImage = image;
+            final BufferedImage finalImage = downscale(image);
             Minecraft.getMinecraft().addScheduledTask(() -> {
                 try {
                     DynamicTexture tex = new DynamicTexture(finalImage);
@@ -123,6 +126,7 @@ public final class ImageCache {
                     // loadTexture 内部会调 tex.loadTexture(...)，把 BufferedImage 传到 GL
                     Minecraft.getMinecraft().getTextureManager().loadTexture(loc, tex);
                     READY.put(key, new Img(loc, finalImage.getWidth(), finalImage.getHeight()));
+                    evictOldest();
                 } catch (Exception e) {
                     FAILED.add(key);
                     LtsModelShare.LOG.debug("图片上传失败 {}：{}", key, e.toString());
@@ -132,6 +136,36 @@ public final class ImageCache {
             });
         });
         return null;
+    }
+
+    /** Cards never need more than 512px; downscale before upload to bound RAM/VRAM. */
+    private static BufferedImage downscale(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        int largest = Math.max(width, height);
+        if (largest <= 512) return image;
+        float scale = 512f / largest;
+        int scaledW = Math.max(1, Math.round(width * scale));
+        int scaledH = Math.max(1, Math.round(height * scale));
+        BufferedImage scaled = new BufferedImage(scaledW, scaledH, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = scaled.createGraphics();
+        try {
+            graphics.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            graphics.drawImage(image, 0, 0, scaledW, scaledH, null);
+        } finally {
+            graphics.dispose();
+        }
+        return scaled;
+    }
+
+    private static void evictOldest() {
+        Iterator<Map.Entry<String, Img>> iterator = READY.entrySet().iterator();
+        while (READY.size() > MAX_TEXTURES && iterator.hasNext()) {
+            Map.Entry<String, Img> entry = iterator.next();
+            Minecraft.getMinecraft().getTextureManager().deleteTexture(entry.getValue().tex);
+            iterator.remove();
+        }
     }
 
     /** 本地文件路径 → 可直接喂给 {@link #img(String)} 的 URL */

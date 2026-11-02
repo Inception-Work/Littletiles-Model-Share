@@ -35,6 +35,8 @@ public class GuiMySpace extends GuiScreen {
     private int gridBottom;
     private boolean loading;
     private boolean needLogin;
+    private boolean onlyThisVersion;
+    private int versionX;
     private String status = "";
     private int requestId;
 
@@ -55,7 +57,9 @@ public class GuiMySpace extends GuiScreen {
         int footerY = GuiNavigation.footerY(height);
         buttonList.add(new LocalizedButton(3, GuiNavigation.MARGIN, footerY, 42, 20,
                 tr("ltsmodelshare.common.previous")));
-        buttonList.add(new LocalizedButton(4, GuiNavigation.backX(width) - GAP - 42, footerY, 42, 20,
+        versionX = GuiNavigation.backX(width) - GAP - 64;
+        buttonList.add(new LocalizedButton(8, versionX, footerY, 64, 20, "1.12.2"));
+        buttonList.add(new LocalizedButton(4, versionX - GAP - 42, footerY, 42, 20,
                 tr("ltsmodelshare.common.next")));
         buttonList.add(GuiNavigation.backButton(6, width, height, tr("ltsmodelshare.common.back")));
 
@@ -133,7 +137,9 @@ public class GuiMySpace extends GuiScreen {
         shown.clear();
         boolean wantCollection = tab == 1;
         for (Dtos.WorkCard card : all) {
-            if (card != null && wantCollection == "collection".equals(card.kind)) shown.add(card);
+            if (card == null || wantCollection != "collection".equals(card.kind)) continue;
+            if (onlyThisVersion && !matchesThisVersion(card)) continue;
+            shown.add(card);
         }
         if (page > maxPage()) page = maxPage();
         status = shown.isEmpty() ? TextFormatting.GRAY + tr("ltsmodelshare.library.empty_my") : "";
@@ -141,6 +147,13 @@ public class GuiMySpace extends GuiScreen {
 
     private int maxPage() {
         return (int) Math.max(1, (shown.size() + perPage - 1) / perPage);
+    }
+
+    private static boolean matchesThisVersion(Dtos.WorkCard card) {
+        if (card == null) return false;
+        if (card.sourceLoader != null && !"forge".equalsIgnoreCase(card.sourceLoader)) return false;
+        if (card.sourceGameVersion == null) return false;
+        return card.sourceGameVersion.trim().startsWith("1.12");
     }
 
     @Override
@@ -166,6 +179,11 @@ public class GuiMySpace extends GuiScreen {
                 break;
             case 4:
                 if (page < maxPage()) { page++; }
+                break;
+            case 8:
+                onlyThisVersion = !onlyThisVersion;
+                page = 1;
+                rebuild();
                 break;
             case 6:
                 mc.displayGuiScreen(parent);
@@ -214,6 +232,10 @@ public class GuiMySpace extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
+        if (onlyThisVersion) {
+            Gui.drawRect(versionX, GuiNavigation.footerY(height) + 20,
+                    versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
+        }
         drawCenteredString(fontRenderer, tr("ltsmodelshare.library.my_space"), width / 2, 8, 0xFFFFFF);
 
         if (needLogin) {
@@ -235,7 +257,7 @@ public class GuiMySpace extends GuiScreen {
         }
         int backX = GuiNavigation.backX(width);
         int midLeft = GuiNavigation.MARGIN + 42 + GAP;
-        int midRight = backX - GAP - 42 - GAP;
+        int midRight = versionX - GAP - 42 - GAP;
         drawCenteredString(fontRenderer, WorkCardView.trim(fontRenderer, TextFormatting.GRAY
                         + tr("ltsmodelshare.common.page", page, maxPage()), Math.max(20, midRight - midLeft)),
                 (midLeft + midRight) / 2, GuiNavigation.footerY(height) + 6, 0xAAAAAA);

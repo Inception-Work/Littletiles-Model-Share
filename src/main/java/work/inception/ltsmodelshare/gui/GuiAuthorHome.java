@@ -34,6 +34,8 @@ public class GuiAuthorHome extends GuiScreen {
     private boolean exact;
     private boolean loading;
     private boolean needLogin;
+    private boolean onlyThisVersion;
+    private int versionX;
     private String status = "";
     private int requestId;
     private int page = 1;
@@ -73,12 +75,14 @@ public class GuiAuthorHome extends GuiScreen {
         page = wasLastPage ? maxPage() : Math.min(page, maxPage());
         scroll = Math.min(scroll, maxScroll());
 
-        search = new GuiTextField(0, fontRenderer, panelX, 80, Math.max(55, panelW - 114), 18);
+        search = new GuiTextField(0, fontRenderer, panelX, 80, Math.max(55, panelW - 166), 18);
         search.setMaxStringLength(64);
         search.setText(keyword);
         search.setFocused(focused);
-        buttonList.add(new LocalizedButton(1, panelX + panelW - 110, 79, 44, 20, tr("ltsmodelshare.common.search")));
-        buttonList.add(new LocalizedButton(2, panelX + panelW - 62, 79, 62, 20, exact ? tr("ltsmodelshare.search.exact") : tr("ltsmodelshare.search.fuzzy")));
+        buttonList.add(new LocalizedButton(1, panelX + panelW - 162, 79, 44, 20, tr("ltsmodelshare.common.search")));
+        buttonList.add(new LocalizedButton(2, panelX + panelW - 114, 79, 62, 20, exact ? tr("ltsmodelshare.search.exact") : tr("ltsmodelshare.search.fuzzy")));
+        versionX = panelX + panelW - 48;
+        buttonList.add(new LocalizedButton(8, versionX, 79, 48, 20, "1.12.2"));
 
         int x = width / 2;
         buttonList.add(new LocalizedButton(3, GuiNavigation.MARGIN, GuiNavigation.footerY(height), 56, 20,
@@ -109,6 +113,13 @@ public class GuiAuthorHome extends GuiScreen {
         return (int) Math.max(1, (total + pageSize - 1) / pageSize);
     }
 
+    private static boolean matchesThisVersion(Dtos.WorkCard card) {
+        if (card == null) return false;
+        if (card.sourceLoader != null && !"forge".equalsIgnoreCase(card.sourceLoader)) return false;
+        if (card.sourceGameVersion == null) return false;
+        return card.sourceGameVersion.trim().startsWith("1.12");
+    }
+
     private String languageTag() {
         return work.inception.ltsmodelshare.client.Translations.siteLocale();
     }
@@ -137,7 +148,11 @@ public class GuiAuthorHome extends GuiScreen {
                             }
                             loading = false;
                             cards.clear();
-                            if (works != null && works.records != null) cards.addAll(works.records);
+                            if (works != null && works.records != null) {
+                                for (Dtos.WorkCard card : works.records) {
+                                    if (!onlyThisVersion || matchesThisVersion(card)) cards.add(card);
+                                }
+                            }
                             scroll = Math.min(previousScroll, maxScroll());
                             status = cards.isEmpty() ? tr("ltsmodelshare.author.empty") : "";
                         });
@@ -269,6 +284,11 @@ public class GuiAuthorHome extends GuiScreen {
             case 7:
                 toggleFollow();
                 break;
+            case 8:
+                onlyThisVersion = !onlyThisVersion;
+                page = 1;
+                load();
+                break;
             default:
                 break;
         }
@@ -370,7 +390,7 @@ public class GuiAuthorHome extends GuiScreen {
                     && mx >= panelX + 3 && mx < panelX + panelW - 3 && my >= y && my < y + ROW_H - 2;
             Gui.drawRect(panelX + 3, y, panelX + panelW - 3, y + ROW_H - 2,
                     hovered ? 0x55FFFFFF : 0x33000000);
-            ImageDraw.drawCropped(card.cover, panelX + 6, y + 3, 38, 28);
+            ImageDraw.drawThumb(card.cover, panelX + 6, y + 3, 38, 28);
             int textX = panelX + 49;
             int textW = Math.max(30, panelW - 56);
             drawString(fontRenderer, trim(card.title == null ? tr("ltsmodelshare.common.untitled") : card.title, textW),
@@ -383,10 +403,13 @@ public class GuiAuthorHome extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
+        if (onlyThisVersion) {
+            Gui.drawRect(versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
+        }
         // 对齐网页版作者身份通栏：横幅底图、头像、昵称、@账号、简介。
         Gui.drawRect(panelX, 14, panelX + panelW, 73, 0xFF303137);
         if (author != null && author.bannerUrl != null && !author.bannerUrl.isEmpty()) {
-            ImageDraw.drawCropped(author.bannerUrl, panelX, 14, panelW, 59);
+            ImageDraw.drawPreview(author.bannerUrl, panelX, 14, panelW, 59);
             Gui.drawRect(panelX, 14, panelX + panelW, 73, 0x99000000);
         }
         if (author != null) {

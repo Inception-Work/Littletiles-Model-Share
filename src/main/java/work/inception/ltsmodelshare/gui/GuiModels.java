@@ -67,6 +67,8 @@ public class GuiModels extends GuiScreen {
     private int requestId;
 
     private GuiTextField searchField;
+    private boolean onlyThisVersion;
+    private int versionX;
     /** 高级搜索的条件（作者 / 标签 / 排序） */
     private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
     private int gridLeft;
@@ -82,8 +84,8 @@ public class GuiModels extends GuiScreen {
         buttonList.clear();
         int cx = width / 2;
 
-        int topW = Math.min(360, width - 16);
-        int searchW = Math.max(70, topW - 152);
+        int topW = Math.min(440, width - 16);
+        int searchW = Math.max(60, topW - 202);
         int topX = cx - topW / 2;
         searchField = new GuiTextField(0, fontRenderer, topX, 24, searchW, 18);
         searchField.setMaxStringLength(64);
@@ -92,7 +94,9 @@ public class GuiModels extends GuiScreen {
 
         buttonList.add(new LocalizedButton(1, topX + searchW + 4, 23, 44, 20, tr("ltsmodelshare.common.search")));
         buttonList.add(new LocalizedButton(2, topX + searchW + 52, 23, 40, 20, tr("ltsmodelshare.common.refresh")));
-        buttonList.add(new LocalizedButton(8, topX + searchW + 96, 23, 56, 20, tr("ltsmodelshare.search.filters")));
+        buttonList.add(new LocalizedButton(8, topX + searchW + 96, 23, 50, 20, tr("ltsmodelshare.search.filters")));
+        versionX = topX + searchW + 150;
+        buttonList.add(new LocalizedButton(12, versionX, 23, 48, 20, "1.12.2"));
         /*
          * 底栏四个按钮平均铺满一整行；关闭按钮宽度同时决定分页行里
          * 「收藏与关注 + 我的空间」的总宽，保证右侧两处对齐。
@@ -142,6 +146,10 @@ public class GuiModels extends GuiScreen {
         query.authorId = filter.authorId;
         if (!filter.tagCodes.isEmpty()) {
             query.tagCodes = new java.util.ArrayList<>(filter.tagCodes);
+        }
+        if (onlyThisVersion) {
+            query.sourceLoader = "forge";
+            query.sourceGameVersions = java.util.Collections.singletonList("1.12.2");
         }
         ApiClient.listCards(query, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {
             @Override
@@ -257,6 +265,11 @@ public class GuiModels extends GuiScreen {
                     mc.displayGuiScreen(new GuiLibrary(this));
                 }
                 break;
+            case 12:
+                onlyThisVersion = !onlyThisVersion;
+                page = 1;
+                reload();
+                break;
             case 11:
                 if (!ModConfig.get().loggedIn()) {
                     mc.displayGuiScreen(new GuiLogin(this));
@@ -328,6 +341,9 @@ public class GuiModels extends GuiScreen {
         int cx = width / 2;
 
         drawCenteredString(fontRenderer, "Littletiles Model Share", cx, 8, 0xFFFFFF);
+        if (onlyThisVersion) {
+            Gui.drawRect(versionX, 43, versionX + 48, 45, 0xFFFFFFFF);
+        }
         searchField.drawTextBox();
         if (searchField.getText().isEmpty() && !searchField.isFocused()) {
             drawString(fontRenderer, TextFormatting.DARK_GRAY + tr("ltsmodelshare.search.placeholder"), searchField.x + 4, searchField.y + 5, 0x777777);
@@ -428,10 +444,10 @@ public class GuiModels extends GuiScreen {
      */
     /** 等比裁剪绘制（不拉伸）；卡片封面按 16:9 的框裁 */
     private void drawImage(String url, int x, int y, int w, int h, int placeholderColor) {
-        if (ImageCache.img(url) == null) {
+        if (ImageCache.img(work.inception.ltsmodelshare.client.ImageUrls.thumb(url)) == null) {
             Gui.drawRect(x, y, x + w, y + h, placeholderColor);
         }
-        ImageDraw.drawCropped(url, x, y, w, h);
+        ImageDraw.drawThumb(url, x, y, w, h);
     }
 
     private String trim(String text, int maxWidth) {

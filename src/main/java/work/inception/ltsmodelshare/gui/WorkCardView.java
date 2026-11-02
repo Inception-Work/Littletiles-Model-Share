@@ -20,8 +20,9 @@ final class WorkCardView {
         Gui.drawRect(x, y, x + w, y + h, hovered ? 0x50FFFFFF : 0x30000000);
         Gui.drawRect(x, y, x + w, y + 1, hovered ? 0xFFFFFFFF : 0x55FFFFFF);
         int imgX = x + 3, imgY = y + 3, imgW = w - 6;
-        if (ImageCache.img(card.cover) == null) Gui.drawRect(imgX, imgY, imgX + imgW, imgY + imageH, 0x30FFFFFF);
-        ImageDraw.drawCropped(card.cover, imgX, imgY, imgW, imageH);
+        if (ImageCache.img(work.inception.ltsmodelshare.client.ImageUrls.thumb(card.cover)) == null)
+            Gui.drawRect(imgX, imgY, imgX + imgW, imgY + imageH, 0x30FFFFFF);
+        ImageDraw.drawThumb(card.cover, imgX, imgY, imgW, imageH);
 
         int textY = imgY + imageH + 1;
         scaled(fr, trim(fr, card.title == null ? tr("ltsmodelshare.common.untitled") : card.title,
@@ -33,8 +34,9 @@ final class WorkCardView {
         int cursor = x + 3;
         String name = "";
         if (author != null) {
-            if (author.avatarUrl != null && ImageCache.img(author.avatarUrl) != null) {
-                ImageDraw.drawCropped(author.avatarUrl, cursor, ay, avatarSize, avatarSize);
+            if (author.avatarUrl != null
+                    && ImageCache.img(work.inception.ltsmodelshare.client.ImageUrls.thumb(author.avatarUrl)) != null) {
+                ImageDraw.drawThumb(author.avatarUrl, cursor, ay, avatarSize, avatarSize);
             } else {
                 Gui.drawRect(cursor, ay, cursor + avatarSize, ay + avatarSize, 0x40FFFFFF);
             }
@@ -50,8 +52,9 @@ final class WorkCardView {
     /** 关注动态用的紧凑行。 */
     static void row(FontRenderer fr, Dtos.WorkCard card, int x, int y, int w, int h, boolean hovered) {
         Gui.drawRect(x, y, x + w, y + h, hovered ? 0x55FFFFFF : 0x33000000);
-        if (ImageCache.img(card.cover) == null) Gui.drawRect(x + 3, y + 3, x + 41, y + h - 3, 0x30FFFFFF);
-        ImageDraw.drawCropped(card.cover, x + 3, y + 3, 38, h - 6);
+        if (ImageCache.img(work.inception.ltsmodelshare.client.ImageUrls.thumb(card.cover)) == null)
+            Gui.drawRect(x + 3, y + 3, x + 41, y + h - 3, 0x30FFFFFF);
+        ImageDraw.drawThumb(card.cover, x + 3, y + 3, 38, h - 6);
         int textX = x + 46;
         int textW = Math.max(30, w - 52);
         fr.drawStringWithShadow(trim(fr, card.title == null ? tr("ltsmodelshare.common.untitled") : card.title, textW),

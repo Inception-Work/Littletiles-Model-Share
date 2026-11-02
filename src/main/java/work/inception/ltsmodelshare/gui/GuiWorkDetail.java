@@ -62,6 +62,9 @@ public class GuiWorkDetail extends GuiScreen {
 
     private Dtos.WorkDetail detail;
     private final List<Dtos.Item> items = new ArrayList<>();
+    private final List<Dtos.Item> allItems = new ArrayList<>();
+    private boolean onlyThisVersion;
+    private int versionX;
     private final List<String> gallery = new ArrayList<>();
     private int galleryIndex;
 
@@ -176,6 +179,10 @@ public class GuiWorkDetail extends GuiScreen {
         int favoriteW = 64;
         buttonList.add(new LocalizedButton(20, GuiNavigation.backX(width) - GuiNavigation.GAP - favoriteW,
                 GuiNavigation.footerY(height), favoriteW, 20, favoriteLabel()));
+        if (card != null && "collection".equals(card.kind)) {
+            versionX = GuiNavigation.backX(width) - GuiNavigation.GAP - favoriteW - GuiNavigation.GAP - 64;
+            buttonList.add(new LocalizedButton(21, versionX, GuiNavigation.footerY(height), 64, 20, "1.12.2"));
+        }
 
         scroll = 0;
         load();
@@ -184,7 +191,7 @@ public class GuiWorkDetail extends GuiScreen {
     // ==================== 数据 ====================
 
     private void load() {
-        if (loading) {
+        if (loading || detail != null) {
             return;
         }
         loading = true;
@@ -195,10 +202,11 @@ public class GuiWorkDetail extends GuiScreen {
                 ApiClient.post(() -> {
                     loading = false;
                     detail = value;
-                    items.clear();
+                    allItems.clear();
                     if (value.items != null) {
-                        items.addAll(value.items);
+                        allItems.addAll(value.items);
                     }
+                    applyItemFilter();
                     gallery.clear();
                     if (value.images != null) {
                         for (String img : value.images) {
@@ -227,6 +235,18 @@ public class GuiWorkDetail extends GuiScreen {
                 });
             }
         });
+    }
+
+    private void applyItemFilter() {
+        items.clear();
+        for (Dtos.Item item : allItems) {
+            if (!onlyThisVersion || matchesThisVersion(item)) items.add(item);
+        }
+    }
+
+    private static boolean matchesThisVersion(Dtos.Item item) {
+        if (item == null || item.mcVersion == null) return false;
+        return item.mcVersion.trim().startsWith("1.12");
     }
 
     private String favoriteLabel() {
@@ -422,6 +442,10 @@ public class GuiWorkDetail extends GuiScreen {
             mc.displayGuiScreen(parent);
         } else if (button.id == 20) {
             toggleFavorite();
+        } else if (button.id == 21) {
+            onlyThisVersion = !onlyThisVersion;
+            scroll = 0;
+            applyItemFilter();
         }
     }
 
@@ -781,6 +805,10 @@ public class GuiWorkDetail extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
+        if (onlyThisVersion && card != null && "collection".equals(card.kind)) {
+            Gui.drawRect(versionX, GuiNavigation.footerY(height) + 20,
+                    versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);
+        }
         scroll = Math.max(0, Math.min(scroll, maxScroll()));
 
 
@@ -917,7 +945,7 @@ public class GuiWorkDetail extends GuiScreen {
                         th[0] + th[2] / 2, th[1] + th[3] / 2 - 4, 0x777777);
             } else {
                 int pos = itemImagePos(item);
-                ImageDraw.drawCropped(imgs.get(pos), th[0], th[1], th[2], th[3]);
+                ImageDraw.drawThumb(imgs.get(pos), th[0], th[1], th[2], th[3]);
                 if (imgs.size() > 1) {
                     // 左右切换按钮（半透明黑底 + < >，MC 默认字体没有 ◀ ▶ 字形）
                     int[] la = arrowBounds(ry, true);
@@ -1021,7 +1049,8 @@ public class GuiWorkDetail extends GuiScreen {
 
     /** 等比裁剪绘制（不拉伸）；封面用 4:3，缩略图用同样的裁剪逻辑 */
     private void drawImage(String url, int x, int y, int w, int h) {
-        ImageDraw.drawCropped(url, x, y, w, h);
+        // Gallery/cover images are large; local file screenshots ignore the CDN suffix.
+        ImageDraw.drawPreview(url, x, y, w, h);
     }
 
     private double guiScale() {

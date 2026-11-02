@@ -1,13 +1,13 @@
 /*
- * Littletiles Model Share —— Forge 1.12.2 客户端模组（Java 8）
+ * Littletiles Model Share â€”â€” Forge 1.12.2 å®¢æˆ·ç«¯æ¨¡ç»„ï¼ˆJava 8ï¼‰
  *
- * 工具链：ForgeGradle 2.3 + Gradle 4.10.3 + JDK 8 + MCP stable_39
- * （ForgeGradle 3 在这台机器上 runClient 会在 FML 注册网络通道时 NPE，原版 MDK 也一样，故回退到 2.3。）
+ * å·¥å…·é“¾ï¼šForgeGradle 2.3 + Gradle 4.10.3 + JDK 8 + MCP stable_39
+ * ï¼ˆForgeGradle 3 åœ¨è¿™å°æœºå™¨ä¸Š runClient ä¼šåœ¨ FML æ³¨å†Œç½‘ç»œé€šé“æ—¶ NPEï¼ŒåŽŸç‰ˆ MDK ä¹Ÿä¸€æ ·ï¼Œæ•…å›žé€€åˆ° 2.3ã€‚ï¼‰
  *
- * 常用命令：
- *   .\gradlew.bat setupDecompWorkspace   # 首次：反编译 + 建 workspace（几分钟）
- *   .\gradlew.bat build                  # 产出 build/libs/LittletilesModelShare-<version>.jar（已 reobf）
- *   .\gradlew.bat runClient              # 起开发客户端
+ * å¸¸ç”¨å‘½ä»¤ï¼š
+ *   .\gradlew.bat setupDecompWorkspace   # é¦–æ¬¡ï¼šåç¼–è¯‘ + å»º workspaceï¼ˆå‡ åˆ†é’Ÿï¼‰
+ *   .\gradlew.bat build                  # äº§å‡º build/libs/LittletilesModelShare-<version>.jarï¼ˆå·² reobfï¼‰
+ *   .\gradlew.bat runClient              # èµ·å¼€å‘å®¢æˆ·ç«¯
  */
 buildscript {
     repositories {
@@ -21,7 +21,7 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle.forge'
 
-version = '0.1.4'
+version = '0.1.5'
 group = 'work.inception'
 archivesBaseName = 'LittletilesModelShare'
 
@@ -30,24 +30,24 @@ sourceCompatibility = targetCompatibility = '1.8'
 minecraft {
     version = '1.12.2-14.23.5.2847'
     runDir = 'run'
-    // 1.12.2 的主流稳定映射
+    // 1.12.2 çš„ä¸»æµç¨³å®šæ˜ å°„
     mappings = 'stable_39'
 
     /*
-     * 游戏 JVM **默认不走代理**：Minecraft 的资源 CDN 直连没问题，
-     * 强塞代理反而会让 Realms/资源下载拿到 HTTP 400（Clash 对某些域名直接拒）。
-     * 真需要代理时显式给：.\gradlew.bat runClient -PltsProxy=127.0.0.1:7890
+     * æ¸¸æˆ JVM **é»˜è®¤ä¸èµ°ä»£ç†**ï¼šMinecraft çš„èµ„æº CDN ç›´è¿žæ²¡é—®é¢˜ï¼Œ
+     * å¼ºå¡žä»£ç†åè€Œä¼šè®© Realms/èµ„æºä¸‹è½½æ‹¿åˆ° HTTP 400ï¼ˆClash å¯¹æŸäº›åŸŸåç›´æŽ¥æ‹’ï¼‰ã€‚
+     * çœŸéœ€è¦ä»£ç†æ—¶æ˜¾å¼ç»™ï¼š.\gradlew.bat runClient -PltsProxy=127.0.0.1:7890
      */
     /*
-     * 关键：显式指定资源目录。
+     * å…³é”®ï¼šæ˜¾å¼æŒ‡å®šèµ„æºç›®å½•ã€‚
      *
-     * Minecraft 1.12.2 的"缺资源就下载"走的是 **http://**resources.download.minecraft.net，
-     * 而 Mojang 的 CDN 现在对 http 直接回 400（https 正常）—— 一旦客户端没拿到
-     * forge_gradle 缓存里的资源目录，就会把一千多个资源当成缺失，然后刷出几千条
-     * "HTTP response code: 400"，进游戏也慢一大截。
+     * Minecraft 1.12.2 çš„"ç¼ºèµ„æºå°±ä¸‹è½½"èµ°çš„æ˜¯ **http://**resources.download.minecraft.netï¼Œ
+     * è€Œ Mojang çš„ CDN çŽ°åœ¨å¯¹ http ç›´æŽ¥å›ž 400ï¼ˆhttps æ­£å¸¸ï¼‰â€”â€” ä¸€æ—¦å®¢æˆ·ç«¯æ²¡æ‹¿åˆ°
+     * forge_gradle ç¼“å­˜é‡Œçš„èµ„æºç›®å½•ï¼Œå°±ä¼šæŠŠä¸€åƒå¤šä¸ªèµ„æºå½“æˆç¼ºå¤±ï¼Œç„¶åŽåˆ·å‡ºå‡ åƒæ¡
+     * "HTTP response code: 400"ï¼Œè¿›æ¸¸æˆä¹Ÿæ…¢ä¸€å¤§æˆªã€‚
      *
-     * ForgeGradle 的 getAssets 已经把 1.12 的 1305 个资源下到
-     * ~/.gradle/caches/forge_gradle/assets（含 indexes/1.12.json），这里直接指过去。
+     * ForgeGradle çš„ getAssets å·²ç»æŠŠ 1.12 çš„ 1305 ä¸ªèµ„æºä¸‹åˆ°
+     * ~/.gradle/caches/forge_gradle/assetsï¼ˆå« indexes/1.12.jsonï¼‰ï¼Œè¿™é‡Œç›´æŽ¥æŒ‡è¿‡åŽ»ã€‚
      */
     clientRunArgs += [
             '--assetsDir', new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets').absolutePath,
@@ -66,28 +66,28 @@ minecraft {
 
 dependencies {
     /*
-     * LittleTiles 1.12.2（本地 jar，放在 libs/）。
+     * LittleTiles 1.12.2ï¼ˆæœ¬åœ° jarï¼Œæ”¾åœ¨ libs/ï¼‰ã€‚
      *
-     * 为什么用 provided：它只是**编译期**依赖 —— mod 运行时由玩家自己的 LittleTiles 提供，
-     * 不能打进我们的 jar（会重复类/版本冲突）。
+     * ä¸ºä»€ä¹ˆç”¨ providedï¼šå®ƒåªæ˜¯**ç¼–è¯‘æœŸ**ä¾èµ– â€”â€” mod è¿è¡Œæ—¶ç”±çŽ©å®¶è‡ªå·±çš„ LittleTiles æä¾›ï¼Œ
+     * ä¸èƒ½æ‰“è¿›æˆ‘ä»¬çš„ jarï¼ˆä¼šé‡å¤ç±»/ç‰ˆæœ¬å†²çªï¼‰ã€‚
      *
-     * 用到的 API 只有 com.creativemd.littletiles.common.util.converation.StructureStringUtils：
-     *   ItemStack importStructure(String snbt)  —— 把 SNBT 文本解析成蓝图道具
+     * ç”¨åˆ°çš„ API åªæœ‰ com.creativemd.littletiles.common.util.converation.StructureStringUtilsï¼š
+     *   ItemStack importStructure(String snbt)  â€”â€” æŠŠ SNBT æ–‡æœ¬è§£æžæˆè“å›¾é“å…·
      *
-     * 注意：mod jar 里的**成员名**是 SRG（func_xxx），但类名和我们调用的
-     * StructureStringUtils 自己的方法名不是混淆的，所以直接 provided 就能编译。
+     * æ³¨æ„ï¼šmod jar é‡Œçš„**æˆå‘˜å**æ˜¯ SRGï¼ˆfunc_xxxï¼‰ï¼Œä½†ç±»åå’Œæˆ‘ä»¬è°ƒç”¨çš„
+     * StructureStringUtils è‡ªå·±çš„æ–¹æ³•åä¸æ˜¯æ··æ·†çš„ï¼Œæ‰€ä»¥ç›´æŽ¥ provided å°±èƒ½ç¼–è¯‘ã€‚
      */
     /*
-     * 编译期依赖（LittleTiles 1.12.2）。
+     * ç¼–è¯‘æœŸä¾èµ–ï¼ˆLittleTiles 1.12.2ï¼‰ã€‚
      *
-     * 两个坑都踩过：
-     *  1. 不能用 provided —— FG2.3 会把 provided 同时放进开发运行期 classpath；
-     *  2. 也不能把 jar 放在 libs/ —— FG2.3 默认把 libs/ 整个加到运行期 classpath。
-     * 两件都做的话，run/mods 里的同名 jar 会撞出 DuplicateModsFoundException。
-     * 所以：jar 放 deps/（只给编译），运行时靠 run/mods（玩家环境靠他们自己的 mods 目录）。
+     * ä¸¤ä¸ªå‘éƒ½è¸©è¿‡ï¼š
+     *  1. ä¸èƒ½ç”¨ provided â€”â€” FG2.3 ä¼šæŠŠ provided åŒæ—¶æ”¾è¿›å¼€å‘è¿è¡ŒæœŸ classpathï¼›
+     *  2. ä¹Ÿä¸èƒ½æŠŠ jar æ”¾åœ¨ libs/ â€”â€” FG2.3 é»˜è®¤æŠŠ libs/ æ•´ä¸ªåŠ åˆ°è¿è¡ŒæœŸ classpathã€‚
+     * ä¸¤ä»¶éƒ½åšçš„è¯ï¼Œrun/mods é‡Œçš„åŒå jar ä¼šæ’žå‡º DuplicateModsFoundExceptionã€‚
+     * æ‰€ä»¥ï¼šjar æ”¾ deps/ï¼ˆåªç»™ç¼–è¯‘ï¼‰ï¼Œè¿è¡Œæ—¶é  run/modsï¼ˆçŽ©å®¶çŽ¯å¢ƒé ä»–ä»¬è‡ªå·±çš„ mods ç›®å½•ï¼‰ã€‚
      */
     compileOnly files('deps/LittleTiles_v1.5.66_mc1.12.2.jar')
-    // 原生预览会使用 LittleTiles 的 CreativeCore 数据类型；只编译，不打包进本模组。
+    // åŽŸç”Ÿé¢„è§ˆä¼šä½¿ç”¨ LittleTiles çš„ CreativeCore æ•°æ®ç±»åž‹ï¼›åªç¼–è¯‘ï¼Œä¸æ‰“åŒ…è¿›æœ¬æ¨¡ç»„ã€‚
     compileOnly files('deps/CreativeCore_v1.10.70_mc1.12.2.jar')
 }
 
@@ -119,12 +119,12 @@ check.dependsOn objModelChecks
 
 jar {
     /*
-     * 每次构建输出**唯一文件名**。
+     * æ¯æ¬¡æž„å»ºè¾“å‡º**å”¯ä¸€æ–‡ä»¶å**ã€‚
      *
-     * 之前踩过的坑：开发客户端正在跑的时候重新 build，gradle 会原地覆盖
-     * build/libs/LittletilesModelShare-0.1.0.jar，而运行中的游戏是懒加载类的 ——
-     * 一旦它去那个文件里取还没加载的类，就会 NoClassDefFoundError 直接崩。
-     * 改成带时间戳的文件名后，旧 jar 原封不动，正在跑的游戏不受影响。
+     * ä¹‹å‰è¸©è¿‡çš„å‘ï¼šå¼€å‘å®¢æˆ·ç«¯æ­£åœ¨è·‘çš„æ—¶å€™é‡æ–° buildï¼Œgradle ä¼šåŽŸåœ°è¦†ç›–
+     * build/libs/LittletilesModelShare-0.1.0.jarï¼Œè€Œè¿è¡Œä¸­çš„æ¸¸æˆæ˜¯æ‡’åŠ è½½ç±»çš„ â€”â€”
+     * ä¸€æ—¦å®ƒåŽ»é‚£ä¸ªæ–‡ä»¶é‡Œå–è¿˜æ²¡åŠ è½½çš„ç±»ï¼Œå°±ä¼š NoClassDefFoundError ç›´æŽ¥å´©ã€‚
+     * æ”¹æˆå¸¦æ—¶é—´æˆ³çš„æ–‡ä»¶ååŽï¼Œæ—§ jar åŽŸå°ä¸åŠ¨ï¼Œæ­£åœ¨è·‘çš„æ¸¸æˆä¸å—å½±å“ã€‚
      */
     archiveName = "LittletilesModelShare-${project.version}-" + new Date().format('MMdd-HHmmss') + ".jar"
     manifest {
@@ -141,45 +141,46 @@ jar {
 }
 
 /**
- * 修「1.12.2 客户端刷一堆 HTTP 400」。
+ * ä¿®ã€Œ1.12.2 å®¢æˆ·ç«¯åˆ·ä¸€å † HTTP 400ã€ã€‚
  *
- * 背景：ForgeGradle 的 makeStart 会把 GradleStart 的默认 assetsDir 写成
- * <gradle home>/caches/minecraft/assets，但资源其实下在 caches/forge_gradle/assets，
- * 于是客户端以为 1305 个资源全缺 → 去 http://resources.download.minecraft.net 拉
- * → Mojang 的 CDN 现在对 http 直接回 400（https 才正常）→ 几千条 400，进游戏还慢。
+ * èƒŒæ™¯ï¼šForgeGradle çš„ makeStart ä¼šæŠŠ GradleStart çš„é»˜è®¤ assetsDir å†™æˆ
+ * <gradle home>/caches/minecraft/assetsï¼Œä½†èµ„æºå…¶å®žä¸‹åœ¨ caches/forge_gradle/assetsï¼Œ
+ * äºŽæ˜¯å®¢æˆ·ç«¯ä»¥ä¸º 1305 ä¸ªèµ„æºå…¨ç¼º â†’ åŽ» http://resources.download.minecraft.net æ‹‰
+ * â†’ Mojang çš„ CDN çŽ°åœ¨å¯¹ http ç›´æŽ¥å›ž 400ï¼ˆhttps æ‰æ­£å¸¸ï¼‰â†’ å‡ åƒæ¡ 400ï¼Œè¿›æ¸¸æˆè¿˜æ…¢ã€‚
  *
- * 做法：在 Windows 上给两个目录建 junction（目录软链），让客户端那条默认路径能看到资源。
- * 非 Windows 直接提示手动处理（Linux/macOS 用 ln -s）。
+ * åšæ³•ï¼šåœ¨ Windows ä¸Šç»™ä¸¤ä¸ªç›®å½•å»º junctionï¼ˆç›®å½•è½¯é“¾ï¼‰ï¼Œè®©å®¢æˆ·ç«¯é‚£æ¡é»˜è®¤è·¯å¾„èƒ½çœ‹åˆ°èµ„æºã€‚
+ * éž Windows ç›´æŽ¥æç¤ºæ‰‹åŠ¨å¤„ç†ï¼ˆLinux/macOS ç”¨ ln -sï¼‰ã€‚
  */
 task fixAssetsDir {
     group = 'ltsmodelshare'
-    description = '把 forge_gradle 的资源目录链到 GradleStart 默认找的位置（修 1.12.2 资源 400 刷屏）'
+    description = 'æŠŠ forge_gradle çš„èµ„æºç›®å½•é“¾åˆ° GradleStart é»˜è®¤æ‰¾çš„ä½ç½®ï¼ˆä¿® 1.12.2 èµ„æº 400 åˆ·å±ï¼‰'
     doLast {
         def real = new File(gradle.gradleUserHomeDir, 'caches/forge_gradle/assets')
         def link = new File(gradle.gradleUserHomeDir, 'caches/minecraft/assets')
         if (!real.isDirectory()) {
-            println "[fixAssetsDir] 跳过：$real 不存在（先跑一次 getAssets）"
+            println "[fixAssetsDir] è·³è¿‡ï¼š$real ä¸å­˜åœ¨ï¼ˆå…ˆè·‘ä¸€æ¬¡ getAssetsï¼‰"
             return
         }
         if (new File(link, 'indexes/1.12.json').isFile()) {
-            println "[fixAssetsDir] 已经指好了：$link"
+            println "[fixAssetsDir] å·²ç»æŒ‡å¥½äº†ï¼š$link"
             return
         }
         if (!System.getProperty('os.name').toLowerCase().contains('windows')) {
-            println "[fixAssetsDir] 非 Windows：请手动 ln -s \"$real\" \"$link\""
+            println "[fixAssetsDir] éž Windowsï¼šè¯·æ‰‹åŠ¨ ln -s \"$real\" \"$link\""
             return
         }
         if (link.exists()) {
-            // 半成品/空壳目录：用 rmdir 删（避免误跟符号链接把真实资源删掉）
+            // åŠæˆå“/ç©ºå£³ç›®å½•ï¼šç”¨ rmdir åˆ ï¼ˆé¿å…è¯¯è·Ÿç¬¦å·é“¾æŽ¥æŠŠçœŸå®žèµ„æºåˆ æŽ‰ï¼‰
             "cmd /c rmdir /s /q \"${link.absolutePath}\"".execute().waitFor()
         }
         link.parentFile.mkdirs()
         def proc = "cmd /c mklink /J \"${link.absolutePath}\" \"${real.absolutePath}\"".execute()
         proc.waitFor()
-        println "[fixAssetsDir] 已建立链接：$link -> $real"
+        println "[fixAssetsDir] å·²å»ºç«‹é“¾æŽ¥ï¼š$link -> $real"
     }
 }
 
-// 跑客户端前自动保证资源目录可用
+// è·‘å®¢æˆ·ç«¯å‰è‡ªåŠ¨ä¿è¯èµ„æºç›®å½•å¯ç”¨
 tasks.getByName('runClient').dependsOn fixAssetsDir
 tasks.getByName('runServer').dependsOn fixAssetsDir
+

@@ -195,15 +195,31 @@ public final class ApiClient {
         });
     }
 
-    /** 作者主页：POST /api/public/work/author（需登录，作品固定按 top 排序）。 */
+    /** 作者主页（不区分 kind，保持旧行为）。 */
     public static void authorHome(final long userId, final String keyword, final boolean exact,
                                   final String locale, final int current, final int size,
+                                  final Callback<Dtos.AuthorHome> cb) {
+        authorHome(userId, keyword, exact, locale, null, null, current, size, cb);
+    }
+
+    /**
+     * 作者主页：POST /api/public/work/author（需登录）。
+     *
+     * @param kind single / collection / null（混排，旧行为）
+     * @param sort latest / hot / top；null = 服务端默认 top
+     */
+    public static void authorHome(final long userId, final String keyword, final boolean exact,
+                                  final String locale, final String kind, final String sort,
+                                  final int current, final int size,
                                   final Callback<Dtos.AuthorHome> cb) {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
                 String url = cfg.url("/api/public/work/author?userId=" + userId
-                        + "&current=" + current + "&size=" + size + "&exact=" + exact
+                        + "&current=" + current + "&size=" + Math.max(1, Math.min(size, 100))
+                        + "&exact=" + exact
+                        + (kind == null || kind.isEmpty() ? "" : "&kind=" + encode(kind))
+                        + (sort == null || sort.isEmpty() ? "" : "&sort=" + encode(sort))
                         + "&locale=" + encode(locale == null || locale.isEmpty() ? siteLocale() : locale)
                         + (keyword == null || keyword.trim().isEmpty() ? "" : "&q=" + encode(keyword.trim())));
                 Dtos.AuthorHomeResp resp = postAuthed(url, "{}", Dtos.AuthorHomeResp.class);
@@ -852,8 +868,8 @@ public final class ApiClient {
     private static HttpURLConnection open(String url, String method, String body, String token) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setRequestMethod(method);
-        conn.setConnectTimeout(15000);
-        conn.setReadTimeout(30000);
+        conn.setConnectTimeout(8000);
+        conn.setReadTimeout(20000);
         conn.setInstanceFollowRedirects(true);
         conn.setRequestProperty("Accept", "application/json, */*");
         conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");

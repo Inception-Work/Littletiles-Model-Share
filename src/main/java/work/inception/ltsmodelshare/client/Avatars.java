@@ -24,8 +24,8 @@ public final class Avatars {
             return;
         }
         String url = author.avatarUrl;
-        if (url != null && !url.isEmpty() && ImageCache.img(url) != null) {
-            ImageDraw.drawCropped(url, x, y, size, size);
+        if (url != null && !url.isEmpty() && ImageCache.img(ImageUrls.thumb(url)) != null) {
+            ImageDraw.drawThumb(url, x, y, size, size);
             return;
         }
 
