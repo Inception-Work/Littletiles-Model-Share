@@ -44,10 +44,8 @@ public class GuiMySpace extends Screen {
         clearWidgets();
         needLogin = !ModConfig.get().loggedIn();
         int cx = width / 2;
-        addRenderableWidget(new FitButton(cx - 96, 24, 92, 20,
-                Component.translatable("ltsmodelshare.library.my_works"), b -> switchTab(0)));
-        addRenderableWidget(new FitButton(cx + 4, 24, 92, 20,
-                Component.translatable("ltsmodelshare.library.my_collections"), b -> switchTab(1)));
+        addRenderableWidget(tabButton(cx - 96, "ltsmodelshare.library.my_works", 0));
+        addRenderableWidget(tabButton(cx + 4, "ltsmodelshare.library.my_collections", 1));
 
         int footerY = GuiNavigation.footerY(height);
         int backX = GuiNavigation.backX(width);
@@ -61,10 +59,27 @@ public class GuiMySpace extends Screen {
         gridBottom = footerY - 6;
         computeGrid();
         if (needLogin) {
+            ++requestId;
+            loading = false;
+            all.clear();
+            shown.clear();
             status = tr("ltsmodelshare.library.login_required");
             return;
         }
         load();
+    }
+
+    private FitButton tabButton(int x, String key, int selectedTab) {
+        return new FitButton(x, 24, 92, 20, Component.translatable(key), b -> switchTab(selectedTab)) {
+            @Override
+            public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+                if (tab != selectedTab) { super.renderWidget(graphics, mouseX, mouseY, partialTick); return; }
+                graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0xFF3F6E8C);
+                graphics.fill(getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(), 0xFFFFFFFF);
+                TextUtil.drawCenteredFit(graphics, font, getMessage().getString(), getX() + getWidth() / 2,
+                        getY() + (getHeight() - 8) / 2, getWidth() - 8, 0xFFFFFF);
+            }
+        };
     }
 
     private void computeGrid() {
@@ -95,7 +110,11 @@ public class GuiMySpace extends Screen {
         ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
             @Override public void ok(Long id) {
                 if (id == null) {
-                    ApiClient.post(() -> { loading = false; status = tr("ltsmodelshare.api.user_missing"); });
+                    ApiClient.post(() -> {
+                        if (currentRequest != requestId) return;
+                        loading = false;
+                        status = tr("ltsmodelshare.api.user_missing");
+                    });
                     return;
                 }
                 ApiClient.authorHome(id, "", false,
@@ -147,8 +166,6 @@ public class GuiMySpace extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
-        int selectedX = tab == 0 ? width / 2 - 96 : width / 2 + 4;
-        graphics.fill(selectedX, 44, selectedX + 92, 46, 0xFFFFFFFF);
         if (needLogin) {
             graphics.drawCenteredString(font, status, width / 2, height / 2, 0xFFCCCCCC);
             super.render(graphics, mouseX, mouseY, partialTick);

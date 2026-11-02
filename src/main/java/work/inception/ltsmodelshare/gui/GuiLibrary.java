@@ -63,30 +63,30 @@ public class GuiLibrary extends Screen {
         clearWidgets();
         needLogin = !ModConfig.get().loggedIn();
         int cx = width / 2;
-        addRenderableWidget(new FitButton(cx - 96, 22, 92, 20,
-                Component.translatable("ltsmodelshare.library.favorites"), b -> switchTab(TAB_FAVORITES)));
-        addRenderableWidget(new FitButton(cx + 4, 22, 92, 20,
-                Component.translatable("ltsmodelshare.library.following"), b -> switchTab(TAB_FOLLOWING)));
+        addRenderableWidget(tabButton(cx - 96, 22, 92, "ltsmodelshare.library.favorites",
+                () -> tab == TAB_FAVORITES, () -> switchTab(TAB_FAVORITES)));
+        addRenderableWidget(tabButton(cx + 4, 22, 92, "ltsmodelshare.library.following",
+                () -> tab == TAB_FOLLOWING, () -> switchTab(TAB_FOLLOWING)));
 
         int footerY = GuiNavigation.footerY(height);
         int pagY = footerY - 26;
         int backX = GuiNavigation.backX(width);
         if (tab == TAB_FAVORITES) {
             int subW = 64;
-            addRenderableWidget(new FitButton(GuiNavigation.MARGIN, footerY, subW, 20,
-                    Component.translatable("ltsmodelshare.library.single"), b -> switchKind(0)));
-            addRenderableWidget(new FitButton(GuiNavigation.MARGIN + subW + GAP, footerY, subW, 20,
-                    Component.translatable("ltsmodelshare.library.collection"), b -> switchKind(1)));
+            addRenderableWidget(tabButton(GuiNavigation.MARGIN, footerY, subW, "ltsmodelshare.library.single",
+                    () -> favKind == 0, () -> switchKind(0)));
+            addRenderableWidget(tabButton(GuiNavigation.MARGIN + subW + GAP, footerY, subW, "ltsmodelshare.library.collection",
+                    () -> favKind == 1, () -> switchKind(1)));
             addRenderableWidget(GuiNavigation.button(GuiNavigation.MARGIN, pagY, 42, 20,
-                    "ltsmodelshare.common.previous", () -> { if (page > 1) { page--; loadFavorites(); } }));
+                    "ltsmodelshare.common.previous", () -> { if (!needLogin && !loading && page > 1) { page--; loadFavorites(); } }));
             addRenderableWidget(GuiNavigation.button(width - GuiNavigation.MARGIN - 42, pagY, 42, 20,
-                    "ltsmodelshare.common.next", () -> { if (page < maxPage()) { page++; loadFavorites(); } }));
+                    "ltsmodelshare.common.next", () -> { if (!needLogin && !loading && page < maxPage()) { page++; loadFavorites(); } }));
             gridTop = 48;
         } else {
             addRenderableWidget(GuiNavigation.button(GuiNavigation.MARGIN, footerY, 42, 20,
-                    "ltsmodelshare.common.previous", () -> { if (feedPage > 1) feedPage--; }));
+                    "ltsmodelshare.common.previous", () -> { if (!needLogin && !loading && feedPage > 1) feedPage--; }));
             addRenderableWidget(GuiNavigation.button(backX - GAP - 42, footerY, 42, 20,
-                    "ltsmodelshare.common.next", () -> { if (feedPage < maxFeedPage()) feedPage++; }));
+                    "ltsmodelshare.common.next", () -> { if (!needLogin && !loading && feedPage < maxFeedPage()) feedPage++; }));
             addRenderableWidget(GuiNavigation.button(width - GuiNavigation.MARGIN - 56, 44, 56, 16,
                     "ltsmodelshare.library.more", () -> {
                         if (!loading && myUserId > 0) minecraft.setScreen(new GuiFollowingUsers(this, myUserId, userTotal));
@@ -98,14 +98,33 @@ public class GuiLibrary extends Screen {
         addRenderableWidget(GuiNavigation.button(backX, footerY, GuiNavigation.BACK_WIDTH, 20,
                 "ltsmodelshare.common.back", () -> minecraft.setScreen(parent)));
 
-        gridBottom = footerY - 6;
+        gridBottom = (tab == TAB_FAVORITES ? pagY : footerY) - 6;
         computeLayout();
         if (needLogin) {
+            ++requestId;
+            loading = false;
+            cards.clear();
+            users.clear();
+            feed.clear();
             status = tr("ltsmodelshare.library.login_required");
             return;
         }
         if (tab == TAB_FAVORITES) loadFavorites();
         else loadFollowing();
+    }
+
+    private FitButton tabButton(int x, int y, int w, String key,
+            java.util.function.BooleanSupplier selected, Runnable action) {
+        return new FitButton(x, y, w, 20, Component.translatable(key), b -> action.run()) {
+            @Override
+            public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+                if (!selected.getAsBoolean()) { super.renderWidget(graphics, mouseX, mouseY, partialTick); return; }
+                graphics.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), 0xFF3F6E8C);
+                graphics.fill(getX(), getY() + getHeight() - 1, getX() + getWidth(), getY() + getHeight(), 0xFFFFFFFF);
+                TextUtil.drawCenteredFit(graphics, font, getMessage().getString(), getX() + getWidth() / 2,
+                        getY() + (getHeight() - 8) / 2, getWidth() - 8, 0xFFFFFF);
+            }
+        };
     }
 
     private void computeLayout() {
@@ -229,11 +248,7 @@ public class GuiLibrary extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         int cx = width / 2;
-        String pageText = tab == TAB_FAVORITES && !loading
-                ? " · " + tr("ltsmodelshare.common.page", page, maxPage()) : "";
-        graphics.drawCenteredString(font, tr("ltsmodelshare.library.title") + pageText, cx, 8, 0xFFFFFF);
-        int selectedX = tab == TAB_FAVORITES ? cx - 96 : cx + 4;
-        graphics.fill(selectedX, 42, selectedX + 92, 44, 0xFFFFFFFF);
+        graphics.drawCenteredString(font, tr("ltsmodelshare.library.title"), cx, 8, 0xFFFFFF);
 
         if (needLogin) {
             graphics.drawCenteredString(font, status, cx, height / 2, 0xFFCCCCCC);
@@ -248,9 +263,6 @@ public class GuiLibrary extends Screen {
                 WorkCardView.grid(graphics, font, cards.get(i), x, y, cardW, cardH, imageH,
                         mouseX >= x && mouseX <= x + cardW && mouseY >= y && mouseY <= y + cardH);
             }
-            // Highlight the selected kind tab.
-            int kindX = favKind == 0 ? GuiNavigation.MARGIN : GuiNavigation.MARGIN + 64 + GAP;
-            graphics.fill(kindX, GuiNavigation.footerY(height) + 19, kindX + 64, GuiNavigation.footerY(height) + 21, 0xFFFFFFFF);
             graphics.drawCenteredString(font, tr("ltsmodelshare.common.page", page, maxPage()), cx,
                     GuiNavigation.footerY(height) - 20, 0xAAAAAA);
         } else {
@@ -313,7 +325,8 @@ public class GuiLibrary extends Screen {
                 }
             }
             int index = feedStart() + (int) ((mouseY - listTop) / FEED_ROW_H);
-            if (mouseY >= listTop && mouseY < gridBottom && index >= 0 && index < feed.size()) {
+            if (mouseX >= GuiNavigation.MARGIN && mouseX <= width - GuiNavigation.MARGIN
+                    && mouseY >= listTop && mouseY < gridBottom && index >= 0 && index < feed.size()) {
                 minecraft.setScreen(new GuiWorkDetail(feed.get(index), this));
                 return true;
             }

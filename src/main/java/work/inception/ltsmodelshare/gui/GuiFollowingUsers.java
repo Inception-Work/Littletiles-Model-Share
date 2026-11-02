@@ -62,7 +62,6 @@ public class GuiFollowingUsers extends Screen {
     }
 
     private void load() {
-        if (loading) return;
         final int currentRequest = ++requestId;
         loading = true;
         status = tr("ltsmodelshare.common.loading");
@@ -71,6 +70,7 @@ public class GuiFollowingUsers extends Screen {
                 ApiClient.post(() -> {
                     if (currentRequest != requestId) return;
                     total = value.total;
+                    if (page > maxPage()) { page = maxPage(); load(); return; }
                     loading = false;
                     users.clear();
                     if (value.records != null) users.addAll(value.records);

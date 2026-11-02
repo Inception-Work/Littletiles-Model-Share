@@ -199,6 +199,37 @@ cmd /c mklink /J "$h\minecraft\assets" "$h\forge_gradle\assets"
 会对同一批类**处理两次**，报 `VarInsnNode cannot be cast to LabelNode`（看起来像 ASM 版本问题，
 其实是重复加载）。挪到 `deps/` 后原版 jar 在开发环境正常：`Forge Mod Loader has successfully loaded 9 mods`。
 
+## 放置上限（`placeBlockLimit`）
+
+**现象**：想一次放下吊塔之类的高结构，聊天栏出现
+`You are not allowed to place more than 10 blocks`，模型没放下来。
+
+**这不是本模组的限制，是 LittleTiles 自己的建造权限**：
+
+| 项 | 说明 |
+|---|---|
+| 配置项 | `build` → 用户组 → `placeBlockLimit`（`{ "enabled": bool, "content": int }`，默认 `10`） |
+| 判定口径 | `preview.previews.getVolumeIncludingChildren()` —— **一次放置预览的整体体积**（含子结构，单位是方块格，不是 LittleTiles 的细分 tile） |
+| 默认分组 | `creative`（按 gamemode 判定）三条上限全关；`survival` 与 `default` 都是 10 |
+| 同类另两条 | `editBlockLimit`（默认 10，一次能改多少方块）、`affectedBlockLimit`（默认 2，一次影响几个相邻方块） |
+
+**改法**：退出游戏 → 打开 `config/littletiles.json` → `build` → `survival`（或 `default`）→ `placeBlockLimit`：
+
+```json
+"build": {
+  "survival": {
+    "placeBlockLimit": { "enabled": false, "content": 10 }
+  }
+}
+```
+
+- 想彻底放开就 `"enabled": false`；只想放宽就把 `"content"` 调大（例如 512）。
+- 改的是**服务端**那份配置（单人存档用同一个文件），改完重启游戏/服务器。
+- 不想改配置时：分几次放（每次体积 ≤ 10），或者切创造模式放完再切回来。
+
+> 注：LittleTiles 把这条拒绝信息当纯文本发到聊天栏（`Component.literal(e.getLocalizedMessage())`），没有翻译 key；
+> 本模组**不拦截、不改写**这条消息，只在这里留一份改配置的说明。
+
 ## 「获取蓝图」的流程
 
 1. `POST /api/work/download-snbt?itemId=&version=1.12`

@@ -6,11 +6,9 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.FormattedCharSequence;
 import work.inception.ltsmodelshare.ModConfig;
 import work.inception.ltsmodelshare.api.ApiClient;
 import work.inception.ltsmodelshare.api.Dtos;
-import work.inception.ltsmodelshare.client.InputHandler;
 import work.inception.ltsmodelshare.client.TextUtil;
 
 import java.util.ArrayList;
@@ -35,27 +33,33 @@ public class GuiModels extends Screen {
     private long loadStartedAt;
     private int requestId;
     private EditBox search;
+    private FitButton sessionButton;
     private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
 
     public GuiModels() {
-        super(Component.translatable("ltsmodelshare.models.title"));
+        // 1.12.2 draws the product name here as plain text, not a translation key.
+        super(Component.literal("Littletiles Model Share"));
     }
 
     @Override
     protected void init() {
+        boolean wasLastPage = page == maxPage();
+        String keyword = search == null ? filter.q : search.getValue();
+        boolean focused = search == null || search.isFocused();
         clearWidgets();
         int topW = Math.min(360, width - 16);
         int searchW = Math.max(70, topW - 152);
         int topX = width / 2 - topW / 2;
         search = new EditBox(font, topX, 24, searchW, 18, Component.translatable("ltsmodelshare.search.placeholder"));
         search.setMaxLength(64);
-        search.setHint(Component.translatable("ltsmodelshare.search.placeholder"));
+        search.setValue(keyword == null ? "" : keyword);
         addRenderableWidget(search);
+        if (focused) setInitialFocus(search);
 
         addRenderableWidget(GuiNavigation.button(topX + searchW + 4, 23, 44, 20,
                 "ltsmodelshare.common.search", () -> { page = 1; reload(); }));
         addRenderableWidget(GuiNavigation.button(topX + searchW + 52, 23, 40, 20,
-                "ltsmodelshare.common.refresh", () -> reload()));
+                "ltsmodelshare.common.refresh", () -> { page = 1; reload(); }));
         addRenderableWidget(GuiNavigation.button(topX + searchW + 96, 23, 56, 20,
                 "ltsmodelshare.search.filters", () -> minecraft.setScreen(new GuiAdvancedSearch(this, filter))));
 
@@ -76,15 +80,12 @@ public class GuiModels extends Screen {
 
         int by = GuiNavigation.footerY(height);
         int bx = GuiNavigation.MARGIN;
-        addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
+        sessionButton = addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
                 ModConfig.get().loggedIn() ? "ltsmodelshare.models.logout" : "ltsmodelshare.common.login",
                 this::toggleLogin));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
-                "ltsmodelshare.models.upload", () -> {
-                    if (!ModConfig.get().loggedIn()) minecraft.setScreen(new GuiLogin(this));
-                    else minecraft.setScreen(new GuiUpload(this));
-                }));
+                "ltsmodelshare.models.upload", () -> minecraft.setScreen(new GuiUpload(this))));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
                 "ltsmodelshare.models.invitation", () -> minecraft.setScreen(new GuiInviteAccess(this))));
@@ -93,6 +94,7 @@ public class GuiModels extends Screen {
                 "ltsmodelshare.common.close", () -> minecraft.setScreen(null)));
 
         computeLayout();
+        page = wasLastPage ? maxPage() : Math.min(page, maxPage());
         work.inception.ltsmodelshare.LtsModelShare.LOG.info("[ui] GuiModels 打开，开始加载列表");
         reload();
     }
@@ -139,6 +141,8 @@ public class GuiModels extends Screen {
                 ApiClient.post(() -> {
                     if (currentRequest != requestId) return;
                     loading = false;
+                    if (!ModConfig.get().loggedIn() && sessionButton != null)
+                        sessionButton.setMessage(Component.translatable("ltsmodelshare.common.login"));
                     status = message;
                 });
             }
@@ -151,7 +155,7 @@ public class GuiModels extends Screen {
             ModConfig.get().clearSession();
             ModConfig.get().username = "";
             ModConfig.get().save();
-            minecraft.setScreen(new GuiLogin(new GuiModels()));
+            minecraft.setScreen(new GuiLogin(this));
         } else {
             minecraft.setScreen(new GuiLogin(this));
         }
@@ -184,6 +188,7 @@ public class GuiModels extends Screen {
         }
         int cx = width / 2;
         graphics.drawCenteredString(font, title, cx, 8, 0xFFFFFF);
+        search.setHint(search.isFocused() ? Component.empty() : Component.translatable("ltsmodelshare.search.placeholder"));
 
         int hovered = cardAt(mouseX, mouseY);
         for (int i = 0; i < Math.min(cards.size(), perPage); i++) {
@@ -193,7 +198,7 @@ public class GuiModels extends Screen {
         }
 
         if (!status.isEmpty()) {
-            graphics.drawCenteredString(font, TextUtil.trim(font, status, width - 24), cx, height / 2, 0xFFFFFF);
+            TextUtil.drawCenteredFit(graphics, font, status, cx, gridTop + cardH / 2, width - 20, 0xFFFFFF);
         }
 
         int footerW = Math.max(34, (width - 2 * GuiNavigation.MARGIN - 3 * GAP) / 4);
@@ -234,7 +239,7 @@ public class GuiModels extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == 257 && search != null && search.isFocused()) {
+        if ((keyCode == 257 || keyCode == 335) && search != null && search.isFocused()) {
             page = 1;
             reload();
             return true;

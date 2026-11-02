@@ -8,11 +8,10 @@ import work.inception.ltsmodelshare.client.TextUtil;
 
 /** Button that shrinks long translations to stay inside its bounds. */
 public class FitButton extends Button {
-    private final Component label;
-
     public FitButton(int x, int y, int width, int height, Component label, OnPress onPress) {
-        super(x, y, width, height, Component.empty(), onPress, DEFAULT_NARRATION);
-        this.label = label;
+        // Keep Button's message as the single source of truth for drawing and narration.
+        // setMessage() is used by follow/favorite/search-mode/session buttons.
+        super(x, y, width, height, label, onPress, DEFAULT_NARRATION);
     }
 
     public FitButton(int x, int y, int width, int height, String translationKey, OnPress onPress) {
@@ -21,11 +20,11 @@ public class FitButton extends Button {
 
     @Override
     public void renderString(GuiGraphics graphics, Font font, int color) {
-        TextUtil.drawCenteredFit(graphics, font, label.getString(),
+        TextUtil.drawCenteredFit(graphics, font, getMessage().getString(),
                 getX() + width / 2, getY() + (height - 8) / 2, width - 8, color);
     }
 
     public Component label() {
-        return label;
+        return getMessage();
     }
 }
