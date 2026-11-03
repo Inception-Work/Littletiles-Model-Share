@@ -235,5 +235,5 @@
   "ltsmodelshare.upload.tags_empty": "Keine Tags geladen",
   "ltsmodelshare.common.request_timeout": "Zeitüberschreitung. Netzwerk oder Proxy prüfen und erneut versuchen.",
   "ltsmodelshare.blueprint.legacy_door": "Dieses Werk enthält eine nicht konvertierte 1.12-Tür. Bitte erneut herunterladen (alte Baupläne lassen sich nicht platzieren).",
-  "ltsmodelshare.blueprint.invalid_grid": "Dieses Modell nutzt eine Rastergröße, die diese LittleTiles-Version nicht laden kann."
+  "ltsmodelshare.blueprint.invalid_grid": "Dieses Modell überschreitet das LittleTiles-Rasterlimit. Spiel beenden, config/littletiles.json öffnen, core.highest auf 64/128/256 (mindestens das Modellraster) setzen, speichern und neu starten."
 }
