@@ -14,6 +14,8 @@ public final class LtsModelShare {
     public static final String MODID = "ltsmodelshare";
     /** Version this build was compiled for; used by the "only this version" filters. */
     public static final String GAME_VERSION = "1.21.1";
+    /** Loader id used by the site source filter for this build. */
+    public static final String MOD_LOADER = "neoforge";
     public static final Logger LOG = LogUtils.getLogger();
 
     public LtsModelShare(IEventBus modEventBus) {
