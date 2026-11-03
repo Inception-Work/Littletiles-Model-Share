@@ -5,9 +5,10 @@
     "description": "In-game browser and uploader for LittleTiles models shared on inception.work.\nBrowse, preview and download a model straight into your inventory as a Little Blueprint - no files, no manual import - or share the blueprint in your hand with screenshots and tags.\n\n在游戏内浏览 inception.work 上的 LittleTiles 模型：一键把模型变成背包里的蓝图，也能把手里拿着的蓝图连同截图和标签上传分享。",
     "version": "${version}",
     "mcversion": "${mcversion}",
-    "url": "https://www.inception.work/models",
+    "url": "https://www.inception.work/lt-share-mod",
     "authorList": ["Inception Work"],
     "credits": "LittleTiles by CreativeMD - UI powered by McPixel Craft UI. Thanks to everyone sharing models on inception.work.",
+    "license": "MIT",
     "logoFile": "logo.png",
     "screenshots": [],
     "dependencies": []
