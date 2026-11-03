@@ -234,5 +234,6 @@
   "ltsmodelshare.upload.tags": "Tags",
   "ltsmodelshare.upload.tags_empty": "No tags loaded",
   "ltsmodelshare.common.request_timeout": "Request timed out. Check your network or proxy, then retry.",
-  "ltsmodelshare.blueprint.legacy_door": "This work still contains an unconverted 1.12 door; please download it again (old blueprints cannot be placed)."
+  "ltsmodelshare.blueprint.legacy_door": "This work still contains an unconverted 1.12 door; please download it again (old blueprints cannot be placed).",
+  "ltsmodelshare.blueprint.invalid_grid": "This model uses a grid size that this LittleTiles version cannot load."
 }

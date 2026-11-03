@@ -246,7 +246,6 @@ public class GuiLibrary extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         int cx = width / 2;
         graphics.drawCenteredString(font, tr("ltsmodelshare.library.title"), cx, 8, 0xFFFFFF);
 

@@ -214,7 +214,6 @@ public class GuiModels extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         if (loading && System.currentTimeMillis() - loadStartedAt > 30_000L) {
             loading = false;
             status = tr("ltsmodelshare.common.request_timeout");

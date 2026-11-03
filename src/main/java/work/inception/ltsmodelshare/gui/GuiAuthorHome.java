@@ -310,7 +310,6 @@ public class GuiAuthorHome extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         if (onlyThisVersion) {
             graphics.fill(versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
         }

@@ -234,5 +234,6 @@
   "ltsmodelshare.upload.tags": "タグ",
   "ltsmodelshare.upload.tags_empty": "タグを読み込めませんでした",
   "ltsmodelshare.common.request_timeout": "リクエストがタイムアウトしました。ネットワークまたはプロキシを確認して再試行してください。",
-  "ltsmodelshare.blueprint.legacy_door": "この作品には未変換の 1.12 ドアが含まれています。再ダウンロードしてください（古いブループリントは設置できません）。"
+  "ltsmodelshare.blueprint.legacy_door": "この作品には未変換の 1.12 ドアが含まれています。再ダウンロードしてください（古いブループリントは設置できません）。",
+  "ltsmodelshare.blueprint.invalid_grid": "このモデルのグリッドサイズは現在の LittleTiles では読み込めません。"
 }
