@@ -113,6 +113,11 @@ public final class BlueprintServer {
             LtsModelShare.LOG.info("服务端生成蓝图：player={} title={} 字符数={}",
                     player.getName().getString(), title, snbt.length());
         } catch (Throwable error) {
+            if (error instanceof team.creative.littletiles.common.grid.LittleGridException) {
+                LtsModelShare.LOG.warn("服务端生成蓝图失败（网格不兼容）：title={} {}", title, error.toString());
+                reply(player, false, Component.translatable("ltsmodelshare.blueprint.invalid_grid"));
+                return;
+            }
             LtsModelShare.LOG.warn("服务端生成蓝图失败：{}", error.toString());
             reply(player, false, Component.translatable("ltsmodelshare.server.failed", error.toString()));
         }
