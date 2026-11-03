@@ -234,5 +234,6 @@
   "ltsmodelshare.upload.tags": "標籤",
   "ltsmodelshare.upload.tags_empty": "標籤還沒載入",
   "ltsmodelshare.common.request_timeout": "請求逾時，請檢查網路或代理後重試。",
-  "ltsmodelshare.blueprint.legacy_door": "這個作品裡的 1.12 門尚未轉換，請重新下載；舊藍圖不能放置。"
+  "ltsmodelshare.blueprint.legacy_door": "這個作品裡的 1.12 門尚未轉換，請重新下載；舊藍圖不能放置。",
+  "ltsmodelshare.blueprint.invalid_grid": "這個模型使用的網格超過 LittleTiles 設定上限。結束遊戲，開啟 config/littletiles.json，把 core.highest 調到 64/128/256（不小於模型網格），儲存後重新啟動再試。"
 }
