@@ -113,8 +113,11 @@ public final class BlueprintServer {
             LtsModelShare.LOG.info("服务端生成蓝图：player={} title={} 字符数={}",
                     player.getName().getString(), title, snbt.length());
         } catch (Throwable error) {
-            if ("LittleGridException".equals(error.getClass().getSimpleName())
-                    || (error.getMessage() != null && error.getMessage().contains("invalid_grid"))) {
+            String gridMessage = error.getMessage() == null ? "" : error.getMessage();
+            boolean gridError = "LittleGridException".equals(error.getClass().getSimpleName())
+                    || gridMessage.contains("invalid_grid")
+                    || gridMessage.toLowerCase(java.util.Locale.ROOT).contains("invalid gridsize");
+            if (gridError) {
                 LtsModelShare.LOG.warn("服务端生成蓝图失败（网格不兼容）：title={} {}", title, error.toString());
                 reply(player, false, Component.translatable("ltsmodelshare.blueprint.invalid_grid"));
                 return;
