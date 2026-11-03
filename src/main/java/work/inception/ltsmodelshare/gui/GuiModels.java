@@ -155,7 +155,7 @@ public class GuiModels extends Screen {
         query.authorId = filter.authorId;
         if (!filter.tagCodes.isEmpty()) query.tagCodes = new ArrayList<>(filter.tagCodes);
         if (onlyThisVersion) {
-            query.sourceLoader = "forge";
+            query.sourceLoader = work.inception.ltsmodelshare.LtsModelShare.MOD_LOADER;
             query.sourceGameVersions = java.util.List.of(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION);
         }
         ApiClient.listCards(query, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {

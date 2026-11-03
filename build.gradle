@@ -1,88 +1,32 @@
 plugins {
-    id 'eclipse'
-    id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'java'
+    id 'net.neoforged.gradle.userdev' version '7.0.145'
 }
 
-version = '0.1.6'
+version = '0.1.7'
 group = 'work.inception'
-
-base {
-    archivesName = 'LittletilesModelShare'
-}
-
+base { archivesName = 'LittletilesModelShare' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-minecraft {
-    mappings channel: 'official', version: '1.20.1'
-    copyIdeResources = true
-
-    runs {
-        client {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', ''
-            property 'forge.logging.console.level', 'debug'
-            // Remap production mod refmaps (LittleTiles/CreativeCore ship SRG refmaps).
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            // More headroom for remote cover textures, OBJ models and blueprint parsing.
-            jvmArgs '-Xms1G', '-Xmx6G', '-XX:+UseG1GC'
-            if (project.hasProperty('ltsDebugOpen')) {
-                jvmArgs '-Dltsmodelshare.debugOpen=true'
-            }
-            mods {
-                ltsmodelshare {
-                    source sourceSets.main
-                }
-            }
-        }
-        server {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', ''
-            property 'forge.logging.console.level', 'debug'
-            jvmArgs '-Xms512M', '-Xmx3G', '-XX:+UseG1GC'
-            args '--nogui'
-            mods {
-                ltsmodelshare {
-                    source sourceSets.main
-                }
-            }
-        }
+runs {
+    client {
+        modSource sourceSets.main
+        jvmArguments.addAll(['-Xms1G', '-Xmx6G', '-XX:+UseG1GC'])
+        jvmArguments.addAll(['-Dmixin.env.remapRefMap=true', '-Dmixin.env.refMapRemappingFile=D:/DevelopmentProject/littletiles-model-share/build/createSrgToMcp/output.srg'])
+    }
+    server {
+        modSource sourceSets.main
+        programArguments.add('--nogui')
     }
 }
 
 repositories {
-    maven {
-        name = 'MinecraftForge'
-        url = 'https://maven.minecraftforge.net/'
-    }
-    flatDir {
-        dirs 'deps'
-    }
+    maven { url = 'https://maven.neoforged.net/releases' }
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.2.0'
-    // Local LittleTiles / CreativeCore 1.20.1 jars (flatDir names); deobf so compilation sees official names.
-    compileOnly fg.deobf('local:littletiles:1.20.1')
-    compileOnly fg.deobf('local:creativecore:1.20.1')
+    implementation "net.neoforged:forge:1.20.1-47.1.106"
+    compileOnly files('deps/littletiles-1.20.1.jar', 'deps/creativecore-1.20.1.jar')
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-}
-
-jar {
-    manifest {
-        attributes([
-                'Specification-Title'     : 'ltsmodelshare',
-                'Specification-Vendor'    : 'inception',
-                'Specification-Version'   : '1',
-                'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.version,
-                'Implementation-Vendor'   : 'inception'
-        ])
-    }
-}
-
-
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
