@@ -81,7 +81,11 @@ public final class BlueprintServer {
                 reply(player, false, Component.translatable("ltsmodelshare.server.too_large", snbt.length()));
                 return;
             }
-            CompoundTag tag = TagParser.parseTag(snbt);
+            String sanitized = snbt.replaceAll("\"([a-z0-9_.-]+:[a-z0-9_/.-]+):\\d+\"", "\"$1\"");
+            if (!sanitized.equals(snbt)) {
+                LtsModelShare.LOG.info("已移除旧版方块元数据：title={} 字符数 {} -> {}", title, snbt.length(), sanitized.length());
+            }
+            CompoundTag tag = TagParser.parseTag(sanitized);
             // A converted 1.12 door/axis still says e.g. id:"door" but has no "states";
             // LittleTiles would crash the client when placing it. Check every structure
             // (including nested children), not just the top-level one.
@@ -113,7 +117,11 @@ public final class BlueprintServer {
             LtsModelShare.LOG.info("服务端生成蓝图：player={} title={} 字符数={}",
                     player.getName().getString(), title, snbt.length());
         } catch (Throwable error) {
-            if (error instanceof team.creative.littletiles.common.grid.LittleGridException) {
+            String gridMessage = error.getMessage() == null ? "" : error.getMessage();
+            boolean gridError = error instanceof team.creative.littletiles.common.grid.LittleGridException
+                    || gridMessage.contains("invalid_grid")
+                    || gridMessage.toLowerCase(java.util.Locale.ROOT).contains("invalid gridsize");
+            if (gridError) {
                 LtsModelShare.LOG.warn("服务端生成蓝图失败（网格不兼容）：title={} {}", title, error.toString());
                 reply(player, false, Component.translatable("ltsmodelshare.blueprint.invalid_grid"));
                 return;
