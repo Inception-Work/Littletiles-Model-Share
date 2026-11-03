@@ -66,7 +66,6 @@ public class GuiMessage extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF000000);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF2B2B2B);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + 2, 0xFF8A8A8A);

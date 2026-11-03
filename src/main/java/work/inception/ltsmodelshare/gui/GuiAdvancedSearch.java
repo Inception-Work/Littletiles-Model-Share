@@ -209,7 +209,6 @@ public class GuiAdvancedSearch extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         int cx = width / 2;
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);

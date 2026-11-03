@@ -91,7 +91,6 @@ public class GuiTilesPreview extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, TextUtil.trim(font, title, width - 20), width / 2, 10, 0xFFFFFF);
         graphics.drawCenteredString(font, tr("ltsmodelshare.preview.native_mode"), width / 2, 22, 0xFFCC88);
 

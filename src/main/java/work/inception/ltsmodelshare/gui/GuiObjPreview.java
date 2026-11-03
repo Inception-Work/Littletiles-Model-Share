@@ -36,7 +36,6 @@ public class GuiObjPreview extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         int cx = width / 2;
         int cy = height / 2 - 8;
         graphics.drawCenteredString(font, workTitle, cx, 10, 0xFFFFFF);

@@ -308,7 +308,6 @@ public class GuiUpload extends Screen {
     private void dismissResult() { busy = false; resultText = null; updateSubmitButtons(); }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.drawCenteredString(font, title, width / 2, 22, 0xFFFFFF);
         String state = exportError != null ? exportError : snbt != null ? tr("ltsmodelshare.upload.exported", snbt.length()) : "";
