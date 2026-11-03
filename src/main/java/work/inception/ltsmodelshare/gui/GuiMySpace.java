@@ -15,6 +15,11 @@ import java.util.List;
 
 /** My space: own works and collections without avatar/profile chrome. */
 public class GuiMySpace extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // No-op: Screen.render calls this *after* content; painting here dims the UI.
+    }
     private static final int GAP = 6;
     private final Screen parent;
     private int tab;
@@ -185,6 +190,7 @@ public class GuiMySpace extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFF);
         if (onlyThisVersion) {
             graphics.fill(versionX, GuiNavigation.footerY(height) + 20,

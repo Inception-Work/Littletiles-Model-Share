@@ -10,6 +10,11 @@ import net.minecraft.network.chat.Component;
 
 /** In-game white-model preview for a site-generated OBJ. */
 public class GuiObjPreview extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // No-op: Screen.render calls this *after* content; painting here dims the UI.
+    }
     private final Screen parent;
     private final ObjModel model;
     private final String workTitle;
@@ -36,6 +41,7 @@ public class GuiObjPreview extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         int cx = width / 2;
         int cy = height / 2 - 8;
         graphics.drawCenteredString(font, workTitle, cx, 10, 0xFFFFFF);

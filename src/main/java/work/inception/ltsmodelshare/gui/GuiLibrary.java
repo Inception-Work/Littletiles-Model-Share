@@ -19,6 +19,11 @@ import java.util.Set;
 
 /** Favorites and following, with the same tab/pagination layout as the 1.12 build. */
 public class GuiLibrary extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // No-op: Screen.render calls this *after* content; painting here dims the UI.
+    }
     private static final int GAP = 6;
     private static final int TAB_FAVORITES = 0;
     private static final int TAB_FOLLOWING = 1;
@@ -246,6 +251,7 @@ public class GuiLibrary extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         int cx = width / 2;
         graphics.drawCenteredString(font, tr("ltsmodelshare.library.title"), cx, 8, 0xFFFFFF);
 
