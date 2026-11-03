@@ -81,7 +81,13 @@ public final class BlueprintServer {
                 reply(player, false, Component.translatable("ltsmodelshare.server.too_large", snbt.length()));
                 return;
             }
-            CompoundTag tag = TagParser.parseTag(snbt);
+            // Old 1.12 block names can still carry a metadata suffix (mod:block:3),
+            // which is not a valid ResourceLocation in modern versions.
+            String sanitized = snbt.replaceAll("\"([a-z0-9_.-]+:[a-z0-9_/.-]+):\\d+\"", "\"$1\"");
+            if (!sanitized.equals(snbt)) {
+                LtsModelShare.LOG.info("已移除旧版方块元数据：title={} 字符数 {} -> {}", title, snbt.length(), sanitized.length());
+            }
+            CompoundTag tag = TagParser.parseTag(sanitized);
             // A converted 1.12 door/axis still says e.g. id:"door" but has no "states";
             // LittleTiles would crash the client when placing it. Check every structure
             // (including nested children), not just the top-level one.
