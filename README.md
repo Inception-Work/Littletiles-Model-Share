@@ -27,7 +27,7 @@
 
 **Credits**
 
-LittleTiles by [CreativeMD](https://github.com/CreativeMD) · UI powered by [McPixel Craft UI](https://www.inception.work/mcpixel-ui)
+LittleTiles by [CreativeMD](https://github.com/CreativeMD)
 
 ---
 
