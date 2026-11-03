@@ -234,5 +234,6 @@
   "ltsmodelshare.upload.tags": "标签",
   "ltsmodelshare.upload.tags_empty": "标签还没加载出来",
   "ltsmodelshare.common.request_timeout": "请求超时，请检查网络或代理后重试。",
-  "ltsmodelshare.blueprint.legacy_door": "这个作品里的 1.12 门尚未转换，请重新下载；旧蓝图不能放置。"
+  "ltsmodelshare.blueprint.legacy_door": "这个作品里的 1.12 门尚未转换，请重新下载；旧蓝图不能放置。",
+  "ltsmodelshare.blueprint.invalid_grid": "这个模型使用的网格超过 LittleTiles 配置上限。退出游戏，打开 config/littletiles.json，把 core.highest 调到 64/128/256（不小于模型网格），保存后重启再试。"
 }
