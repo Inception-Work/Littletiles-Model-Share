@@ -15,6 +15,12 @@ import java.util.List;
 
 /** All followed users with the same pagination row as the following tab. */
 public class GuiFollowingUsers extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     private static final int GAP = 6;
     private final Screen parent;
     private final long userId;
@@ -85,6 +91,7 @@ public class GuiFollowingUsers extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         graphics.drawCenteredString(font, title, width / 2, 20, 0xFFFFFF);
         for (int i = 0; i < Math.min(users.size(), pageSize); i++) {
             Dtos.UserCard user = users.get(i);

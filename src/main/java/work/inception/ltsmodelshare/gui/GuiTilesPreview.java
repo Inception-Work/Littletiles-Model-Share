@@ -42,6 +42,12 @@ import work.inception.ltsmodelshare.client.TextUtil;
  */
 public class GuiTilesPreview extends Screen {
 
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
+
     private final Screen parent;
     private final String title;
     private final AnimationPreview preview;
@@ -95,6 +101,7 @@ public class GuiTilesPreview extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         graphics.drawCenteredString(font, TextUtil.trim(font, title, width - 20), width / 2, 10, 0xFFFFFF);
         graphics.drawCenteredString(font, tr("ltsmodelshare.preview.native_mode"), width / 2, 22, 0xFFCC88);
 

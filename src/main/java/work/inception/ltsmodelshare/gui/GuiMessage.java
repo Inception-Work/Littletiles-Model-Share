@@ -12,6 +12,12 @@ import work.inception.ltsmodelshare.client.TextUtil;
 
 /** Small independent popup with the 1.12.2 GuiNotice chrome and parent-return semantics. */
 public class GuiMessage extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     private static final int PAD = 10;
     private static final int TITLE_H = 16;
     private static final int LINE_H = 10;
@@ -66,6 +72,7 @@ public class GuiMessage extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         graphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF000000);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF2B2B2B);
         graphics.fill(panelX, panelY, panelX + panelW, panelY + 2, 0xFF8A8A8A);

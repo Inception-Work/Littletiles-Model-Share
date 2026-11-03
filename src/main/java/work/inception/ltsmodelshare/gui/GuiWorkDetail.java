@@ -30,6 +30,12 @@ import work.inception.ltsmodelshare.client.TextUtil;
  * The working 1.20 native preview is deliberately retained as a separate screen.
  */
 public class GuiWorkDetail extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     private static final int DL_W = 72;
     private static final int DL_H = 18;
     private static final int PREVIEW_W = 52;
@@ -309,6 +315,7 @@ public class GuiWorkDetail extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         if (onlyThisVersion && isCollection()) {
             graphics.fill(versionX, GuiNavigation.footerY(height) + 20,
                     versionX + 64, GuiNavigation.footerY(height) + 22, 0xFFFFFFFF);

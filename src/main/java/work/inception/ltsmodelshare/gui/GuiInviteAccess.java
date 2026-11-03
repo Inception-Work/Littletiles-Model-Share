@@ -14,6 +14,12 @@ import work.inception.ltsmodelshare.client.TextUtil;
 
 /** The 1.12.2 invitation form and access-code behavior, using modern widgets. */
 public class GuiInviteAccess extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     private final Screen parent;
     private EditBox idField;
     private EditBox codeField;
@@ -99,6 +105,7 @@ public class GuiInviteAccess extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         int cx = width / 2, cy = height / 2;
         graphics.drawCenteredString(font, title, cx, cy - 95, 0xFFFFFF);
         graphics.drawCenteredString(font, tr("ltsmodelshare.invite.help"), cx, cy - 82, 0xAAAAAA);

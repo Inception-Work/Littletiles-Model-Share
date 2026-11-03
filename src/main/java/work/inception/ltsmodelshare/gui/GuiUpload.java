@@ -28,6 +28,12 @@ import work.inception.ltsmodelshare.client.TextUtil;
 
 /** Forge 1.12.2 upload geometry, drawing order and interactions on 1.20.1. */
 public class GuiUpload extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     private static final int MAX_SHOTS = 6;
     private static final int CELL_W = 60;
     private static final int CELL_H = 34;
@@ -308,6 +314,7 @@ public class GuiUpload extends Screen {
     private void dismissResult() { busy = false; resultText = null; updateSubmitButtons(); }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.drawCenteredString(font, title, width / 2, 22, 0xFFFFFF);
         String state = exportError != null ? exportError : snbt != null ? tr("ltsmodelshare.upload.exported", snbt.length()) : "";

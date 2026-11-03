@@ -22,6 +22,12 @@ import java.util.Set;
 
 /** Advanced search: the same author/tag lists and sort controls as the 1.12 screen. */
 public class GuiAdvancedSearch extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     public static class Filter {
         public String q = "";
         public Long authorId;
@@ -209,6 +215,7 @@ public class GuiAdvancedSearch extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         int cx = width / 2;
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, height - 6, 0x70000000);
         graphics.fill(panelLeft - 10, 20, panelLeft + panelW + 10, 21, 0x40FFFFFF);

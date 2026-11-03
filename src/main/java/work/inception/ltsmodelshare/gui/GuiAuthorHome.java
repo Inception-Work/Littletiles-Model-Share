@@ -25,6 +25,12 @@ import java.util.List;
  * next + follow on the right, whose combined width equals the back button's width.</p>
  */
 public class GuiAuthorHome extends Screen {
+
+    @Override
+    public void renderBackground(net.minecraft.client.gui.GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Intentionally empty: the opaque panel is drawn at the start of render().
+        // Screen.render calls this *after* content, so filling here would dim the UI.
+    }
     private static final int ROW_H = 36;
     private static final int BACK_W = AuthorFooterLayout.BACK_W;
     private static final int PAGE_W = AuthorFooterLayout.PAGE_W;
@@ -310,6 +316,7 @@ public class GuiAuthorHome extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, this.width, this.height, 0xE0101010);
         if (onlyThisVersion) {
             graphics.fill(versionX, 99, versionX + 48, 101, 0xFFFFFFFF);
         }
