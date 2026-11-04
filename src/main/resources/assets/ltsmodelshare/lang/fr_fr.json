@@ -235,5 +235,6 @@
   "ltsmodelshare.upload.tags_empty": "Aucune étiquette chargée",
   "ltsmodelshare.common.request_timeout": "Délai dépassé. Vérifiez le réseau ou le proxy, puis réessayez.",
   "ltsmodelshare.blueprint.legacy_door": "Cette œuvre contient une porte 1.12 non convertie. Téléchargez-la à nouveau (les anciens plans ne peuvent pas être placés).",
-  "ltsmodelshare.blueprint.invalid_grid": "Ce modèle dépasse la limite de grille de LittleTiles. Quittez le jeu, ouvrez config/littletiles.json, passez core.highest à 64/128/256 (au moins la grille du modèle), enregistrez puis redémarrez."
+  "ltsmodelshare.blueprint.invalid_grid": "Ce modèle dépasse la limite de grille de LittleTiles. Quittez le jeu, ouvrez config/littletiles.json, passez core.highest à 64/128/256 (au moins la grille du modèle), enregistrez puis redémarrez.",
+  "ltsmodelshare.upload.screenshot_required": "Prenez au moins une capture d'écran avant de soumettre à la vérification."
 }
