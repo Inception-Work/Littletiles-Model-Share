@@ -220,3 +220,4 @@ ltsmodelshare.library.my_works=我的作品
 ltsmodelshare.library.my_collections=我的合集
 ltsmodelshare.library.follower_count=%s 人关注
 ltsmodelshare.api.user_missing=无法确认当前登录的账号
+ltsmodelshare.upload.screenshot_required=请先截一张图再提交审核。

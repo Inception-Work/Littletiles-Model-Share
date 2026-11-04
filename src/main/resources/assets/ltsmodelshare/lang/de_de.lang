@@ -220,3 +220,4 @@ ltsmodelshare.library.my_works=Meine Werke
 ltsmodelshare.library.my_collections=Meine Sammlungen
 ltsmodelshare.library.follower_count=%s Follower
 ltsmodelshare.api.user_missing=Angemeldetes Konto konnte nicht ermittelt werden
+ltsmodelshare.upload.screenshot_required=Bitte vor dem Einreichen mindestens einen Screenshot aufnehmen.

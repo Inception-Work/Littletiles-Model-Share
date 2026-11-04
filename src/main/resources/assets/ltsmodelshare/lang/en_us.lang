@@ -220,3 +220,4 @@ ltsmodelshare.library.my_works=My works
 ltsmodelshare.library.my_collections=My collections
 ltsmodelshare.library.follower_count=%s followers
 ltsmodelshare.api.user_missing=Could not identify the signed-in account
+ltsmodelshare.upload.screenshot_required=Take at least one screenshot before submitting for review.

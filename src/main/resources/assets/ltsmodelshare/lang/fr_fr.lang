@@ -220,3 +220,4 @@ ltsmodelshare.library.my_works=Mes œuvres
 ltsmodelshare.library.my_collections=Mes collections
 ltsmodelshare.library.follower_count=%s abonnés
 ltsmodelshare.api.user_missing=Impossible d'identifier le compte connecté
+ltsmodelshare.upload.screenshot_required=Prenez au moins une capture d'écran avant de soumettre à la vérification.
