@@ -210,6 +210,10 @@ public class GuiUpload extends Screen {
         }
         String titleText = titleField.getValue().trim();
         if (titleText.isEmpty()) { finish(false, tr("ltsmodelshare.upload.title_required")); return; }
+        if (alsoSubmit && picked.isEmpty()) {
+            finish(false, tr("ltsmodelshare.upload.screenshot_required"));
+            return;
+        }
         busy = true;
         resultText = null;
         progress = tr("ltsmodelshare.upload.structure");
@@ -268,6 +272,9 @@ public class GuiUpload extends Screen {
                     if (!alsoSubmit) {
                         finish(true, tr("ltsmodelshare.upload.draft_saved", workId, urls.size(), tagCodes.size())); return;
                     }
+                    if (urls.isEmpty()) {
+                        finish(false, tr("ltsmodelshare.upload.screenshot_required")); return;
+                    }
                     progress = tr("ltsmodelshare.upload.consent");
                     ApiClient.agreeUploadRights(new ApiClient.Callback<Long>() {
                         @Override public void ok(Long consentId) {
@@ -280,7 +287,9 @@ public class GuiUpload extends Screen {
                                                 : tr("ltsmodelshare.upload.auto_submit", workId));
                                     }
                                     @Override public void fail(String message) {
-                                        finish(false, tr("ltsmodelshare.upload.review_error", workId, message));
+                                        finish(false, message != null && message.contains("M05-069")
+                                                ? tr("ltsmodelshare.upload.screenshot_required")
+                                                : tr("ltsmodelshare.upload.review_error", workId, message));
                                     }
                                 });
                             });
