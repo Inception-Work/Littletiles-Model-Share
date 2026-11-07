@@ -1,3 +1,5 @@
+> 2026-11-07：已同步0.1.8 V2协议、封面/头像修复与用户指定英文更新日志；Java17编译和19项检查通过，逐版游戏实测及上架尚待确认。进度表：D:/DevelopmentProject/littletiles-model-share/design/integration-audit/0.1.8-多版本适配与验收进度-2026-11-07.md
+
 # LittleTiles Model Share 开发交接
 
 > 更新：2026-10-28。此文档针对 `D:\DevelopmentProject\littletiles-model-share` 的**当前工作树**。0.1.3 测试版已发布，详见第 9 节；工作树尚未提交。项目原有工具链/历史排障详见 [README.md](README.md)。
