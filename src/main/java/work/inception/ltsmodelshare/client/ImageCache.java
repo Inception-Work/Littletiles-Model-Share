@@ -61,27 +61,14 @@ public final class ImageCache {
             try {
                 String url = rawUrl.startsWith("//") ? "https:" + rawUrl : rawUrl;
                 if (url.startsWith("/")) url = ModConfig.get().baseUrl + url;
-                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(30000);
-                conn.setInstanceFollowRedirects(true);
-                AssetHeaders.apply(conn, ModConfig.get().baseUrl);
-                int code = conn.getResponseCode();
-                if (code / 100 != 2) throw new IllegalStateException("HTTP " + code);
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                try (InputStream in = conn.getInputStream()) {
-                    byte[] buffer = new byte[8192];
-                    int n;
-                    while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
-                }
-                conn.disconnect();
-                // Decode on this worker thread: ImageIO is heap based and can be slow.
-                java.awt.image.BufferedImage decoded = decodeAndScale(out.toByteArray());
+                var response=work.inception.ltsmodelshare.api.V2Transport.request(
+                        ModConfig.get().baseUrl,url,"GET",null,null,null,16L*1024*1024);
+                if(response.status()/100!=2)throw new java.io.IOException("Image HTTP "+response.status());
+                java.awt.image.BufferedImage decoded=decodeAndScale(response.bytes());
                 ApiClient.post(() -> register(rawUrl, decoded));
             } catch (Throwable error) {
-                FAILED.add(rawUrl);
-                LOADING.remove(rawUrl);
-                LtsModelShare.LOG.debug("图片加载失败 {}", rawUrl, error);
+                ApiClient.post(() -> { FAILED.add(rawUrl); LOADING.remove(rawUrl); });
+                LtsModelShare.LOG.debug("Image load failed: {}", error.getClass().getSimpleName());
             }
         });
     }
@@ -111,7 +98,7 @@ public final class ImageCache {
         } catch (Throwable error) {
             if (image != null) image.close();
             FAILED.add(url);
-            LtsModelShare.LOG.warn("图片登记失败 {}", url, error);
+            LtsModelShare.LOG.warn("Image registration failed: {}", error.getClass().getSimpleName());
         }
     }
 

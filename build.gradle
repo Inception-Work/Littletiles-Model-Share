@@ -86,3 +86,13 @@ jar {
 }
 
 
+
+// V2 protocol fixtures, real loopback HTTP and optional public read-only checks.
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath
+tasks.register("v2Checks", JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "work.inception.ltsmodelshare.api.V2Checks"
+    if (project.hasProperty("publicV2Read")) args "public"
+}
