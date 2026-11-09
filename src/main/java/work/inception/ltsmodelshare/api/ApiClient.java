@@ -99,23 +99,71 @@ public final class ApiClient {
      *
      * @return true = 续期成功（cfg 里的 token/refreshToken 已更新并落盘）
      */
+    private static volatile boolean refreshRejected;
+    private static final SessionRequests.Session SESSION = new SessionRequests.Session() {
+        public String base() { return ModConfig.get().baseUrl; }
+        public String token() { return ModConfig.get().token; }
+        public SessionRequests.Refresh refresh() {
+            return refreshBlocking() ? SessionRequests.Refresh.UPDATED
+                    : refreshRejected ? SessionRequests.Refresh.REJECTED : SessionRequests.Refresh.UNAVAILABLE;
+        }
+        public void expired(String base, String token) {
+            ModConfig cfg = ModConfig.get();
+            if (!java.util.Objects.equals(base, cfg.baseUrl) || !java.util.Objects.equals(token, cfg.token)) return;
+            cfg.clearSession();
+            work.inception.ltsmodelshare.client.SessionLogin.required(base);
+        }
+    };
+
+    static V2Transport.Response sessionRequest(String path, String method, byte[] body,
+            String contentType, long limit, boolean authenticated) throws IOException {
+        return SessionRequests.execute(SESSION,
+                (base, token) -> V2Transport.request(base, path, method, body, contentType, token, limit),
+                r -> V2Transport.credentialTarget(SESSION.base(), r.finalUrl()) ? r.status() : 0,
+                authenticated);
+    }
+
+    /** Called when opening the panel: a stored token is not proof of a live session. */
+    public static void validateSession() {
+        if (!ModConfig.get().loggedIn()) return;
+        io(() -> {
+            try { V2Api.accountUserId(); }
+            catch (Exception error) { LtsModelShare.LOG.debug("Session validation failed: {}", error.getClass().getSimpleName()); }
+        });
+    }
+
+    /** Session-aware image path; the transport still strips credentials outside the origin API. */
+    public static byte[] imageBytes(String base, String path, String token) throws IOException {
+        if (!java.util.Objects.equals(base, ModConfig.get().baseUrl)
+                || !java.util.Objects.equals(token, ModConfig.get().token)) throw new IOException("V2_SESSION_CHANGED");
+        V2Transport.Response response = sessionRequest(path, "GET", null, null, 16L*1024*1024, true);
+        if (response.status()/100 != 2) throw new IOException("Image HTTP " + response.status());
+        return response.bytes();
+    }
+
     public static boolean refreshBlocking() {
         ModConfig cfg = ModConfig.get();
-        String previousRefresh = cfg.refreshToken;
+        String previousRefresh = cfg.refreshToken, previousToken = cfg.token, base = cfg.baseUrl;
+        refreshRejected = false;
         if (previousRefresh == null || previousRefresh.isEmpty()) {
+            refreshRejected = true;
             return false;
         }
         try {
             Dtos.LoginPayload resp = V2Api.refresh(previousRefresh);
-            // 登录或登出可能在网络请求期间发生；不能把旧会话写回新用户的配置。
-            if (!previousRefresh.equals(cfg.refreshToken)) return false;
+            if (!java.util.Objects.equals(previousRefresh, cfg.refreshToken)
+                    || !java.util.Objects.equals(previousToken, cfg.token)
+                    || !java.util.Objects.equals(base, cfg.baseUrl)) return false;
             cfg.token = resp.token;
             cfg.refreshToken = resp.refreshToken;
             cfg.save();
-            LtsModelShare.LOG.info("登录已续期（access + refresh 都换了新的）");
             return true;
         } catch (Exception e) {
-            LtsModelShare.LOG.warn("续期异常：{}", e.toString());
+            if (e instanceof V2Api.HttpFailure) {
+                int status = ((V2Api.HttpFailure)e).status;
+                refreshRejected = status == 400 || status == 401 || status == 403 || status == 410;
+            }
+            LtsModelShare.LOG.debug("Session refresh failed: {}", e.getClass().getSimpleName());
             return false;
         }
     }
@@ -202,6 +250,30 @@ public final class ApiClient {
                         locale == null || locale.isEmpty() ? siteLocale() : locale,
                         current, size, kind, sort);
                 cb.ok(home);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.author_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** Own library; ownership is determined by the authenticated session. */
+    /** Send the same event ID again after a transient failure without double counting. */
+    public static void recordWorkEvent(final long workId, final Long itemId, final String eventId,
+                                      final Callback<Dtos.WorkStats> cb) {
+        io(() -> {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                try { cb.ok(V2Api.recordWorkEvent(workId, itemId, eventId)); return; }
+                catch (Exception error) {
+                    if (attempt == 1) cb.fail(tr("ltsmodelshare.common.action_failed", error.getClass().getSimpleName()));
+                }
+            }
+        });
+    }
+
+    public static void myWorks(final Callback<Dtos.AuthorHome> cb) {
+        io(() -> {
+            try {
+                cb.ok(V2Api.myWorks(siteLocale()));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.author_failed", e.getMessage()));
             }
@@ -510,7 +582,7 @@ public final class ApiClient {
                 if (url.startsWith("/")) {
                     url = cfg.baseUrl + url;
                 }
-                V2Transport.Response response=V2Transport.request(cfg.baseUrl,url,"GET",null,null,cfg.token,10L*1024*1024);
+                V2Transport.Response response=sessionRequest(url,"GET",null,null,10L*1024*1024,true);
                 if(response.status()/100!=2)throw new IOException("HTTP_"+response.status());
                 String text=response.text();
                 if (text == null || text.trim().isEmpty()) {
@@ -533,7 +605,7 @@ public final class ApiClient {
                 if (!"https".equalsIgnoreCase(url.getProtocol()) && !"http".equalsIgnoreCase(url.getProtocol())) {
                     throw new IOException("Unsupported OBJ URL scheme");
                 }
-                V2Transport.Response response=V2Transport.request(cfg.baseUrl,url.toExternalForm(),"GET",null,null,cfg.token,Math.min(maxBytes,8L*1024*1024));
+                V2Transport.Response response=sessionRequest(url.toExternalForm(),"GET",null,null,Math.min(maxBytes,8L*1024*1024),true);
                 if(response.status()/100!=2)throw new IOException("HTTP_"+response.status());
                 cb.ok(response.text());
             } catch (Exception error) {

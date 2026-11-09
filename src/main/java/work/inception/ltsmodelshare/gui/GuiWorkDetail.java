@@ -40,6 +40,7 @@ public class GuiWorkDetail extends Screen {
     private final Dtos.WorkCard card;
     private final String accessCode;
     private Dtos.WorkDetail detail;
+    private final String viewEventId = java.util.UUID.randomUUID().toString();
     private final List<Dtos.Item> items = new ArrayList<>();
     private final List<Dtos.Item> allItems = new ArrayList<>();
     private boolean onlyThisVersion;
@@ -246,6 +247,28 @@ public class GuiWorkDetail extends Screen {
         return count == 0 ? 0 : Math.floorMod(itemImageIndex.getOrDefault(item.itemId, 0), count);
     }
 
+    private void recordVisibleVisit() {
+        if (minecraft.screen != this || detail == null) return;
+        ApiClient.recordWorkEvent(card.workId, null, viewEventId, statisticsCallback());
+    }
+
+    private ApiClient.Callback<Dtos.WorkStats> statisticsCallback() {
+        return new ApiClient.Callback<Dtos.WorkStats>() {
+            @Override public void ok(Dtos.WorkStats counts) {
+                ApiClient.post(() -> {
+                    if (counts == null) return;
+                    card.viewCount = Math.max(card.viewCount, counts.views);
+                    card.downloadCount = Math.max(card.downloadCount, counts.downloads);
+                    if (detail != null) {
+                        detail.viewCount = Math.max(detail.viewCount, counts.views);
+                        detail.downloadCount = Math.max(detail.downloadCount, counts.downloads);
+                    }
+                });
+            }
+            @Override public void fail(String message) { /* Statistics never interrupt browsing or file use. */ }
+        };
+    }
+
     private void load() {
         if (loading || detail != null || loadError != null) return;
         loading = true;
@@ -255,6 +278,7 @@ public class GuiWorkDetail extends Screen {
                     loading = false;
                     if (value == null) return;
                     detail = value;
+                    recordVisibleVisit();
                     allItems.clear();
                     if (value.items != null) allItems.addAll(value.items.stream().filter(it -> it != null).toList());
                     applyItemFilter();
@@ -562,6 +586,7 @@ public class GuiWorkDetail extends Screen {
     }
 
     private void startBlueprint(Dtos.Item item) {
+        final String downloadEventId = java.util.UUID.randomUUID().toString();
         blueprintPending = true;
         pendingItemId = item.itemId;
         GuiMessage progress = GuiMessage.info(this, "ltsmodelshare.detail.get_blueprint", tr("ltsmodelshare.detail.requested"));
@@ -574,7 +599,10 @@ public class GuiWorkDetail extends Screen {
                     return;
                 }
                 ApiClient.fetchText(info, new ApiClient.Callback<String>() {
-                    @Override public void ok(String text) { ApiClient.post(() -> BlueprintClient.request(text, item.title, GuiWorkDetail.this::onServerBlueprint)); }
+                    @Override public void ok(String text) { ApiClient.post(() -> {
+                        ApiClient.recordWorkEvent(card.workId, item.itemId, downloadEventId, statisticsCallback());
+                        BlueprintClient.request(text, item.title, GuiWorkDetail.this::onServerBlueprint);
+                    }); }
                     @Override public void fail(String message) { ApiClient.post(() -> failBlueprint(message)); }
                 });
             }

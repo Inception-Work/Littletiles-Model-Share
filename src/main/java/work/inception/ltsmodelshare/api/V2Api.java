@@ -83,12 +83,17 @@ final class V2Api {
         return exchange("POST", path, body == null ? new JsonObject() : body);
     }
 
+    static final class HttpFailure extends IOException {
+        final int status;
+        HttpFailure(int status, String message) { super(message); this.status = status; }
+    }
+
     static JsonObject decode(int status, String source) throws IOException {
         JsonObject envelope=parse(source);
-        if(envelope==null)throw new IOException("V2_INVALID_RESPONSE(HTTP "+status+")");
+        if(envelope==null)throw new HttpFailure(status,"V2_INVALID_RESPONSE(HTTP "+status+")");
         if(status/100!=2||!flag(envelope,"success")){
             String code=text(envelope,"error_code");
-            throw new IOException(code==null?"HTTP_"+status:code);
+            throw new HttpFailure(status,code==null?"HTTP_"+status:code);
         }
         JsonElement payload=envelope.get("payload");
         if(payload==null||payload.isJsonNull())throw new IOException("V2_MISSING_PAYLOAD");
@@ -96,18 +101,11 @@ final class V2Api {
         JsonObject wrapped=new JsonObject();wrapped.add(payload.isJsonArray()?"items":"value",payload);return wrapped;
     }
     private static JsonObject exchange(String method, String path, JsonObject body) throws IOException {
-        ModConfig cfg=ModConfig.get();
-        String base=cfg.baseUrl, initialToken=cfg.token;
-        boolean authRoute=path.startsWith("/auth/login")||path.startsWith("/auth/refresh");
-        byte[] bytes=body==null?null:GSON.toJson(body).getBytes(StandardCharsets.UTF_8);
-        V2Transport.Response response=V2Transport.request(base,"/api/v2"+path,method,bytes,
-                "application/json; charset=utf-8",authRoute?null:initialToken,4L*1024*1024);
-        if(!base.equals(cfg.baseUrl)||!java.util.Objects.equals(initialToken,cfg.token))throw new IOException("V2_SESSION_CHANGED");
-        if(response.status()==401&&!authRoute&&cfg.loggedIn()&&ApiClient.refreshBlocking()){
-            response=V2Transport.request(base,"/api/v2"+path,method,bytes,
-                    "application/json; charset=utf-8",cfg.token,4L*1024*1024);
-        }
-        return decode(response.status(),response.text());
+        boolean authRoute = path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/logout");
+        byte[] bytes = body == null ? null : GSON.toJson(body).getBytes(StandardCharsets.UTF_8);
+        V2Transport.Response response = ApiClient.sessionRequest("/api/v2" + path, method, bytes,
+                "application/json; charset=utf-8", 4L*1024*1024, !authRoute);
+        return decode(response.status(), response.text());
     }
 
     private static JsonObject parse(String text) {
@@ -197,6 +195,7 @@ final class V2Api {
         Dtos.WorkCard card = new Dtos.WorkCard();
         card.workId = number(o, "id", number(o, "workId", 0));
         card.kind = text(o, "kind");
+        card.visibility = text(o, "visibility");
         card.title = text(o, "title");
         card.summary = text(o, "summary");
         if (card.summary == null) card.summary = text(o, "description");
@@ -204,8 +203,8 @@ final class V2Api {
         if(card.cover==null)card.cover = text(o, "coverUrl");
         if(card.cover==null&&boxedNumber(o,"coverResourceId")!=null)
             card.cover="/api/v2/resources/"+number(o,"coverResourceId",0)+"/content";
-        card.viewCount = number(o, "views", 0);
-        card.downloadCount = number(o, "downloads", 0);
+        card.viewCount = number(o, "views", number(o, "viewCount", 0));
+        card.downloadCount = number(o, "downloads", number(o, "downloadCount", 0));
         card.publishedAt = text(o, "publishedAt");
         card.sourceLoader = text(o, "sourceLoader");
         card.sourceGameVersion = text(o, "sourceGameVersion");
@@ -297,6 +296,44 @@ final class V2Api {
     }
 
     // ---------------------------------------------------------------- author pages
+
+    /** Session-owned published works, including private/unlisted works and collections. */
+    static Dtos.WorkStats recordWorkEvent(long workId, Long itemId, String eventId) throws IOException {
+        if (workCodes.containsKey(workId)) detail(workId, workCodes.get(workId));
+        JsonObject body = new JsonObject();
+        body.addProperty("eventId", eventId);
+        if (itemId != null) body.addProperty("itemId", itemId);
+        String path = "/works/" + workId + (itemId == null ? "/views" : "/downloads");
+        return GSON.fromJson(post(grantPath(path, workId), body), Dtos.WorkStats.class);
+    }
+
+    static Dtos.AuthorHome myWorks(String locale) throws IOException {
+        Dtos.AuthorHome home = new Dtos.AuthorHome();
+        home.works = loadLibrary(locale, V2Api::get);
+        return home;
+    }
+
+    interface LibraryReader {
+        JsonObject read(String path) throws IOException;
+    }
+
+    static Dtos.Page<Dtos.WorkCard> loadLibrary(String locale, LibraryReader reader) throws IOException {
+        Dtos.Page<Dtos.WorkCard> merged = new Dtos.Page<>();
+        merged.records = new ArrayList<>();
+        merged.current = 1;
+        for (int current = 1; current <= 100; current++) {
+            String path = "/studio/library?page=" + current + "&size=100&locale="
+                    + encode(locale == null || locale.isEmpty() ? "zh-Hans" : locale);
+            Dtos.Page<Dtos.WorkCard> part = page(reader.read(path), current, 100);
+            merged.records.addAll(part.records);
+            merged.total = part.total;
+            if (merged.records.size() >= part.total || part.records.isEmpty()) {
+                merged.size = merged.records.size();
+                return merged;
+            }
+        }
+        throw new IOException("V2_LIBRARY_TOO_LARGE: Please use the website for this library");
+    }
 
     static Dtos.AuthorHome authorHome(long userId, String keyword, boolean exact, String locale,
                                       int page, int size, String kind, String requestedSort) throws IOException {
@@ -425,12 +462,9 @@ final class V2Api {
         System.arraycopy(bytes, 0, body, head.length, bytes.length);
         System.arraycopy(tail, 0, body, head.length + bytes.length, tail.length);
 
-        String base=cfg.baseUrl, token=cfg.token;
         String path="/api/v2/uploads?purpose="+encode(purpose)+"&module=community";
-        V2Transport.Response response=V2Transport.request(base,path,"POST",body,"multipart/form-data; boundary="+boundary,token,4L*1024*1024);
-        if(!base.equals(cfg.baseUrl)||!java.util.Objects.equals(token,cfg.token))throw new IOException("V2_SESSION_CHANGED");
-        if(response.status()==401&&ApiClient.refreshBlocking())
-            response=V2Transport.request(base,path,"POST",body,"multipart/form-data; boundary="+boundary,cfg.token,4L*1024*1024);
+        V2Transport.Response response = ApiClient.sessionRequest(path, "POST", body,
+                "multipart/form-data; boundary="+boundary, 4L*1024*1024, true);
         return decode(response.status(),response.text());
     }
 
@@ -561,8 +595,8 @@ final class V2Api {
         detail.summary = text(payload, "description");
         if (detail.summary == null) detail.summary = text(payload, "summary");
         detail.visibility = text(payload, "visibility");
-        detail.viewCount = number(payload, "views", 0);
-        detail.downloadCount = number(payload, "downloads", 0);
+        detail.viewCount = number(payload, "views", number(payload, "viewCount", 0));
+        detail.downloadCount = number(payload, "downloads", number(payload, "downloadCount", 0));
         detail.favoriteCount = boxedNumber(payload, "favorites");
         detail.favorited = flag(payload, "favorited");
         detail.tags = tags(payload);
