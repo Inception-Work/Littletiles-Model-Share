@@ -38,6 +38,7 @@ public final class Dtos {
 
     /** 作品卡片（列表用） */
     public static class WorkCard {
+        public String visibility;
         public String kind;
         public long workId;
         public Long itemId;
@@ -173,6 +174,12 @@ public final class Dtos {
     }
 
     /** 下载 SNBT 的结果 */
+    /** Authoritative counters returned after an idempotent interaction event. */
+    public static class WorkStats {
+        public long views;
+        public long downloads;
+    }
+
     public static class DownloadInfo {
         public String assetUrl;
         public String fileName;

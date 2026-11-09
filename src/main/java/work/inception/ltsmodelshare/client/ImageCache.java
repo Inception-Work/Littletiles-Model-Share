@@ -39,9 +39,28 @@ public final class ImageCache {
     private static final Set<String> LOADING = new HashSet<>();
     private static final Set<String> FAILED = new HashSet<>();
 
+    private static String sessionBase;
+    private static String sessionToken;
+    private static int sessionGeneration;
+
+    /** Called on the render thread; private textures and failures belong to one session. */
+    private static void syncSession() {
+        ModConfig cfg = ModConfig.get();
+        if (java.util.Objects.equals(sessionBase, cfg.baseUrl)
+                && java.util.Objects.equals(sessionToken, cfg.token)) return;
+        for (ResourceLocation id : LOADED.values()) {
+            Minecraft.getInstance().getTextureManager().release(id);
+        }
+        LOADED.clear(); SIZES.clear(); LOADING.clear(); FAILED.clear();
+        sessionBase = cfg.baseUrl;
+        sessionToken = cfg.token;
+        sessionGeneration++;
+    }
+
     private ImageCache() { }
 
     public static ResourceLocation img(String url) {
+        syncSession();
         if (url == null || url.trim().isEmpty()) return null;
         ResourceLocation id = LOADED.get(url);
         if (id != null) return id;
@@ -53,21 +72,28 @@ public final class ImageCache {
     }
 
     public static int[] size(String url) {
+        syncSession();
         return SIZES.get(url);
     }
 
     private static void load(final String rawUrl) {
+        final String base = sessionBase, token = sessionToken;
+        final int generation = sessionGeneration;
         POOL.execute(() -> {
             try {
                 String url = rawUrl.startsWith("//") ? "https:" + rawUrl : rawUrl;
-                if (url.startsWith("/")) url = ModConfig.get().baseUrl + url;
-                var response=work.inception.ltsmodelshare.api.V2Transport.request(
-                        ModConfig.get().baseUrl,url,"GET",null,null,null,16L*1024*1024);
-                if(response.status()/100!=2)throw new java.io.IOException("Image HTTP "+response.status());
-                java.awt.image.BufferedImage decoded=decodeAndScale(response.bytes());
-                ApiClient.post(() -> register(rawUrl, decoded));
+                byte[] bytes = ApiClient.imageBytes(base, url, token);
+                java.awt.image.BufferedImage decoded=decodeAndScale(bytes);
+                ApiClient.post(() -> {
+                    syncSession();
+                    if (generation == sessionGeneration) register(rawUrl, decoded);
+                });
             } catch (Throwable error) {
-                ApiClient.post(() -> { FAILED.add(rawUrl); LOADING.remove(rawUrl); });
+                ApiClient.post(() -> {
+                    syncSession();
+                    if (generation != sessionGeneration) return;
+                    FAILED.add(rawUrl); LOADING.remove(rawUrl);
+                });
                 LtsModelShare.LOG.debug("Image load failed: {}", error.getClass().getSimpleName());
             }
         });
