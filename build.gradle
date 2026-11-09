@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.gradle.userdev' version '7.0.145'
 }
 
-version = '0.1.8'
+version = '0.1.9'
 group = 'work.inception'
 base { archivesName = 'LittletilesModelShare' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
@@ -30,3 +30,59 @@ dependencies {
 }
 
 tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+// V2 protocol fixtures, real loopback HTTP and optional public read-only checks.
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath
+tasks.register("v2Checks", JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = "work.inception.ltsmodelshare.api.V2Checks"
+    if (project.hasProperty("publicV2Read")) args "public"
+}
+
+jar {
+    manifest {
+        attributes('Implementation-Version': project.version, 'Implementation-Title': project.name, 'Implementation-Vendor': 'inception')
+    }
+}
+
+// Minecraft 1.20.1 still uses SRG method/field names at runtime. NeoGradle 7
+// builds a Mojang-named development jar, so explicitly produce a runtime jar.
+configurations { releaseRenamer }
+def cachedReleaseRenamer = fileTree(new File(gradle.gradleUserHomeDir, 'caches/modules-2/files-2.1/net.minecraftforge/renamer/2.2.3')) { include '**/*-all.jar' }
+dependencies {
+    // Reuse the exact cached tool in offline release builds, resolve normally on clean machines.
+    releaseRenamer cachedReleaseRenamer.empty ? 'net.minecraftforge:renamer:2.2.3:all' : files(cachedReleaseRenamer)
+}
+repositories { maven { url = 'https://maven.minecraftforge.net' } }
+
+def runtimeMappings = layout.buildDirectory.file('reobfJar/mappings.tsrg')
+tasks.register('releaseMappings') {
+    dependsOn 'compileJava', 'cacheVersionMappingsClient1.20.1'
+    outputs.file(runtimeMappings)
+    doLast {
+        def official = net.minecraftforge.srgutils.IMappingFile.load(file('.gradle/caches/minecraft/versions/1.20.1/client.txt'))
+        def srg = net.minecraftforge.srgutils.IMappingFile.load(file('build/neoForm/1.20.1-20230612.114412/config/joined.tsrg'))
+        def mappings = official.chain(srg).rename(new net.minecraftforge.srgutils.IRenamer() {
+            String rename(net.minecraftforge.srgutils.IMappingFile.IClass entry) { return entry.original }
+        })
+        runtimeMappings.get().asFile.parentFile.mkdirs()
+        mappings.write(runtimeMappings.get().asFile.toPath(), net.minecraftforge.srgutils.IMappingFile.Format.TSRG2, false)
+    }
+}
+tasks.register('reobfJar', JavaExec) {
+    dependsOn tasks.named('jar'), tasks.named('releaseMappings')
+    classpath = configurations.releaseRenamer
+    mainClass = 'net.minecraftforge.renamer.Main'
+    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+    inputs.file(runtimeMappings)
+    outputs.file(layout.buildDirectory.file('reobfJar/output.jar'))
+    doFirst {
+        args '--input', tasks.named('jar').get().archiveFile.get().asFile.absolutePath,
+             '--output', layout.buildDirectory.file('reobfJar/output.jar').get().asFile.absolutePath,
+             '--names', runtimeMappings.get().asFile.absolutePath
+        sourceSets.main.compileClasspath.files.each { args '--lib', it.absolutePath }
+    }
+}
+tasks.named('build') { dependsOn tasks.named('reobfJar') }

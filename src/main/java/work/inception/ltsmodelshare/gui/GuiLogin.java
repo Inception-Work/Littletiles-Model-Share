@@ -106,6 +106,7 @@ public class GuiLogin extends Screen {
             cfg.refreshToken = "";
             cfg.username = "";
             cfg.save();
+            ApiClient.validateSession();
             minecraft.setScreen(parent != null ? parent : new GuiModels());
             return;
         }

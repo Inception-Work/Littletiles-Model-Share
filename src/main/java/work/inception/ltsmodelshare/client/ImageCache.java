@@ -39,9 +39,28 @@ public final class ImageCache {
     private static final Set<String> LOADING = new HashSet<>();
     private static final Set<String> FAILED = new HashSet<>();
 
+    private static String sessionBase;
+    private static String sessionToken;
+    private static int sessionGeneration;
+
+    /** Called on the render thread; private textures and failures belong to one session. */
+    private static void syncSession() {
+        ModConfig cfg = ModConfig.get();
+        if (java.util.Objects.equals(sessionBase, cfg.baseUrl)
+                && java.util.Objects.equals(sessionToken, cfg.token)) return;
+        for (ResourceLocation id : LOADED.values()) {
+            Minecraft.getInstance().getTextureManager().release(id);
+        }
+        LOADED.clear(); SIZES.clear(); LOADING.clear(); FAILED.clear();
+        sessionBase = cfg.baseUrl;
+        sessionToken = cfg.token;
+        sessionGeneration++;
+    }
+
     private ImageCache() { }
 
     public static ResourceLocation img(String url) {
+        syncSession();
         if (url == null || url.trim().isEmpty()) return null;
         ResourceLocation id = LOADED.get(url);
         if (id != null) return id;
@@ -53,35 +72,29 @@ public final class ImageCache {
     }
 
     public static int[] size(String url) {
+        syncSession();
         return SIZES.get(url);
     }
 
     private static void load(final String rawUrl) {
+        final String base = sessionBase, token = sessionToken;
+        final int generation = sessionGeneration;
         POOL.execute(() -> {
             try {
                 String url = rawUrl.startsWith("//") ? "https:" + rawUrl : rawUrl;
-                if (url.startsWith("/")) url = ModConfig.get().baseUrl + url;
-                HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(30000);
-                conn.setInstanceFollowRedirects(true);
-                AssetHeaders.apply(conn, ModConfig.get().baseUrl);
-                int code = conn.getResponseCode();
-                if (code / 100 != 2) throw new IllegalStateException("HTTP " + code);
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                try (InputStream in = conn.getInputStream()) {
-                    byte[] buffer = new byte[8192];
-                    int n;
-                    while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
-                }
-                conn.disconnect();
-                // Decode on this worker thread: ImageIO is heap based and can be slow.
-                java.awt.image.BufferedImage decoded = decodeAndScale(out.toByteArray());
-                ApiClient.post(() -> register(rawUrl, decoded));
+                byte[] bytes = ApiClient.imageBytes(base, url, token);
+                java.awt.image.BufferedImage decoded=decodeAndScale(bytes);
+                ApiClient.post(() -> {
+                    syncSession();
+                    if (generation == sessionGeneration) register(rawUrl, decoded);
+                });
             } catch (Throwable error) {
-                FAILED.add(rawUrl);
-                LOADING.remove(rawUrl);
-                LtsModelShare.LOG.debug("图片加载失败 {}", rawUrl, error);
+                ApiClient.post(() -> {
+                    syncSession();
+                    if (generation != sessionGeneration) return;
+                    FAILED.add(rawUrl); LOADING.remove(rawUrl);
+                });
+                LtsModelShare.LOG.debug("Image load failed: {}", error.getClass().getSimpleName());
             }
         });
     }
@@ -111,7 +124,7 @@ public final class ImageCache {
         } catch (Throwable error) {
             if (image != null) image.close();
             FAILED.add(url);
-            LtsModelShare.LOG.warn("图片登记失败 {}", url, error);
+            LtsModelShare.LOG.warn("Image registration failed: {}", error.getClass().getSimpleName());
         }
     }
 
