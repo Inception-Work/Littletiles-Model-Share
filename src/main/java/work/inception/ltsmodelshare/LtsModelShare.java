@@ -9,15 +9,15 @@ import org.apache.logging.log4j.Logger;
 import work.inception.ltsmodelshare.proxy.CommonProxy;
 
 /**
- * Littletiles Model Share —— 在游戏内登录、浏览、上传和获取 LittleTiles 模型。
+ * Littletiles Model Share â€”â€” åœ¨æ¸¸æˆå†…ç™»å½•ã€æµè§ˆã€ä¸Šä¼ å’ŒèŽ·å– LittleTiles æ¨¡åž‹ã€‚
  *
- * <p>入口：按 <b>I</b> 打开面板，或者聊天栏输入 <code>/ltsmodels</code>。</p>
+ * <p>å…¥å£ï¼šæŒ‰ <b>I</b> æ‰“å¼€é¢æ¿ï¼Œæˆ–è€…èŠå¤©æ è¾“å…¥ <code>/ltsmodels</code>ã€‚</p>
  *
- * <p><b>为什么不再是 {@code clientSideOnly}</b>：联机时要由**服务端**生成蓝图
- * （{@code importStructure} + 塞背包），否则道具会被服务端同步覆盖。
- * 客户端专属的东西（按键 / GUI / 客户端命令）都放在
- * {@link work.inception.ltsmodelshare.proxy.ClientProxy} 里，
- * 专用服务端只加载 {@link CommonProxy} + 网络通道。</p>
+ * <p><b>ä¸ºä»€ä¹ˆä¸å†æ˜¯ {@code clientSideOnly}</b>ï¼šè”æœºæ—¶è¦ç”±**æœåŠ¡ç«¯**ç”Ÿæˆè“å›¾
+ * ï¼ˆ{@code importStructure} + å¡žèƒŒåŒ…ï¼‰ï¼Œå¦åˆ™é“å…·ä¼šè¢«æœåŠ¡ç«¯åŒæ­¥è¦†ç›–ã€‚
+ * å®¢æˆ·ç«¯ä¸“å±žçš„ä¸œè¥¿ï¼ˆæŒ‰é”® / GUI / å®¢æˆ·ç«¯å‘½ä»¤ï¼‰éƒ½æ”¾åœ¨
+ * {@link work.inception.ltsmodelshare.proxy.ClientProxy} é‡Œï¼Œ
+ * ä¸“ç”¨æœåŠ¡ç«¯åªåŠ è½½ {@link CommonProxy} + ç½‘ç»œé€šé“ã€‚</p>
  */
 @Mod(
         modid = LtsModelShare.MODID,
@@ -30,13 +30,13 @@ public class LtsModelShare {
 
     public static final String MODID = "ltsmodelshare";
     public static final String NAME = "Littletiles Model Share";
-    public static final String VERSION = "0.1.3";
+    public static final String VERSION = "0.1.9";
 
     public static final Logger LOG = LogManager.getLogger(MODID);
 
     /**
-     * 按物理端选实现：客户端拿到 {@code ClientProxy}（按键 / GUI / 客户端命令），
-     * 专用服务端拿到 {@code CommonProxy}（只注册网络通道）。
+     * æŒ‰ç‰©ç†ç«¯é€‰å®žçŽ°ï¼šå®¢æˆ·ç«¯æ‹¿åˆ° {@code ClientProxy}ï¼ˆæŒ‰é”® / GUI / å®¢æˆ·ç«¯å‘½ä»¤ï¼‰ï¼Œ
+     * ä¸“ç”¨æœåŠ¡ç«¯æ‹¿åˆ° {@code CommonProxy}ï¼ˆåªæ³¨å†Œç½‘ç»œé€šé“ï¼‰ã€‚
      */
     @SidedProxy(
             clientSide = "work.inception.ltsmodelshare.proxy.ClientProxy",
@@ -48,12 +48,12 @@ public class LtsModelShare {
     public void preInit(FMLPreInitializationEvent event) {
         ModConfig.get();
         proxy.preInit(event);
-        LOG.info("{} {} 预初始化完成（side={}）", NAME, VERSION, event.getSide());
+        LOG.info("{} {} é¢„åˆå§‹åŒ–å®Œæˆï¼ˆside={}ï¼‰", NAME, VERSION, event.getSide());
     }
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent event) {
         proxy.init(event);
-        LOG.info("{} {} 初始化完成", NAME, VERSION);
+        LOG.info("{} {} åˆå§‹åŒ–å®Œæˆ", NAME, VERSION);
     }
 }

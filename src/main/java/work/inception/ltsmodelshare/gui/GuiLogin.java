@@ -51,7 +51,7 @@ public class GuiLogin extends GuiScreen {
         //  而且令牌模式下那个值还是「访问令牌」占位，容易误导。）
         fieldUser.setText("");
 
-        fieldPass = new GuiTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
+        fieldPass = new PasswordTextField(1, fontRenderer, cx - 100, cy - 23, 200, 18);
         fieldPass.setMaxStringLength(128);
 
         buttonList.add(new LocalizedButton(1, cx - 100, cy + 4, 200, 20, tr("ltsmodelshare.common.login")));
@@ -120,6 +120,7 @@ public class GuiLogin extends GuiScreen {
             // 看起来就像"输入框里还留着访问令牌"
             cfg.username = "";
             cfg.save();
+            ApiClient.validateSession();
             status = TextFormatting.GREEN + tr("ltsmodelshare.login.token_saved");
             mc.displayGuiScreen(after != null ? after : new GuiModels());
             return;
@@ -150,6 +151,13 @@ public class GuiLogin extends GuiScreen {
                 });
             }
         });
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        fieldUser.updateCursorCounter();
+        if (!tokenMode) fieldPass.updateCursorCounter();
     }
 
     @Override
@@ -195,16 +203,7 @@ public class GuiLogin extends GuiScreen {
         fieldUser.drawTextBox();
         // 令牌模式只有一个输入框，密码框整个不画
         if (!tokenMode) {
-            // 密码框：不解字，只回显长度，避免明文
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < fieldPass.getText().length(); i++) {
-                sb.append('●');
-            }
             fieldPass.drawTextBox();
-            if (!fieldPass.getText().isEmpty()) {
-                drawRect(cx - 99, cy - 15, cx + 99, cy + 3, 0xFF000000);
-                drawString(fontRenderer, sb.toString(), cx - 96, cy - 11, 0xFFFFFF);
-            }
         }
 
         if (!status.isEmpty()) {

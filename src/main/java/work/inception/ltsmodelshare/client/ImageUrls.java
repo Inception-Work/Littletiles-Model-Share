@@ -28,7 +28,7 @@ public final class ImageUrls {
             String lower = host.toLowerCase(java.util.Locale.ROOT);
             if (!(lower.equals("inception.work") || lower.endsWith(".inception.work"))) return url;
             String path = uri.getRawPath();
-            if (path == null || path.isEmpty()) return url;
+            if (path == null || path.isEmpty() || path.startsWith("/api/")) return url;
             if (path.endsWith("/thumb") || path.endsWith("/preview")) return url;
             String processed = scheme + "://" + uri.getRawAuthority() + path + "/" + suffix;
             String query = uri.getRawQuery();

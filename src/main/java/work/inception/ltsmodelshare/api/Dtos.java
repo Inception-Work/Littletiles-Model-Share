@@ -3,9 +3,9 @@ package work.inception.ltsmodelshare.api;
 import java.util.List;
 
 /**
- * 站点接口的数据结构（只挑模组用得到的字段）。
+ * 现有界面使用的数据模型（保留第一版字段名以保持 GUI 不变）。
  *
- * <p>和后端一一对应，见 inception-work 仓库的
+ * <p>V2 网络对象由 V2Contract 映射；下面历史接口注释不代表仍请求 V1。旧字段来源：
  * {@code Sources/web/src/api/work_module/WorkPublicAPI.ts}。</p>
  */
 public final class Dtos {
@@ -39,6 +39,7 @@ public final class Dtos {
     /** 作品卡片（列表用） */
     public static class WorkCard {
         public String kind;
+        public String visibility;
         public long workId;
         public Long itemId;
         public String title;
@@ -172,6 +173,12 @@ public final class Dtos {
     }
 
     /** 下载 SNBT 的结果 */
+    /** Authoritative counters returned after an idempotent interaction event. */
+    public static class WorkStats {
+        public long views;
+        public long downloads;
+    }
+
     public static class DownloadInfo {
         public String assetUrl;
         public String fileName;
@@ -336,7 +343,7 @@ public final class Dtos {
         public List<SaveItem> items;
 
         public static class SaveItem {
-            /** upload-snbt 返回的 blobId */
+            /** V2 upload 返回的 resourceId；保留 snbtBlobId 名称以兼容现有界面。 */
             public long snbtBlobId;
             public String title;
             public String summary;

@@ -1,0 +1,380 @@
+{
+  "M05-054": [
+    "这个作品已被判定不可再次提交审核，请新建作品重新投稿。",
+    "此作品已被判定不可再次提交審核，請建立新作品重新投稿。",
+    "This work cannot be resubmitted for review. Create a new work to submit again.",
+    "この作品は再審査を申請できません。新しい作品を作成して投稿してください。",
+    "이 작품은 다시 심사를 요청할 수 없습니다. 새 작품을 만들어 제출해 주세요.",
+    "Dieses Werk kann nicht erneut zur Prüfung eingereicht werden. Bitte ein neues Werk erstellen.",
+    "Cette œuvre ne peut plus être soumise à validation. Créez une nouvelle œuvre pour la proposer à nouveau."
+  ],
+  "M05-034": [
+    "单个作品只能有一个模型，要多放几个请建作品集。",
+    "單個作品只能有一個模型，要放多個請建立作品集。",
+    "A single work can contain only one model. Create a collection for multiple models.",
+    "単体作品にはモデルを1つだけ登録できます。複数登録するには作品集を作成してください。",
+    "단일 작품에는 모델 하나만 포함할 수 있습니다. 여러 모델은 작품 모음을 만들어 주세요.",
+    "Ein Einzelwerk kann nur ein Modell enthalten. Für mehrere Modelle eine Sammlung erstellen.",
+    "Une œuvre simple ne peut contenir qu’un modèle. Créez une collection pour en ajouter plusieurs."
+  ],
+  "M05-018": [
+    "声明含模组方块或其它材质时，需要填写对应依赖名称。",
+    "聲明含模組方塊或其他材質時，需要填寫對應依賴名稱。",
+    "Name the corresponding dependencies when declaring mod blocks or other textures.",
+    "MODブロックや別のテクスチャを使用する場合は、対応する依存関係の名前を入力してください。",
+    "모드 블록이나 다른 텍스처를 사용하는 경우 해당 의존성 이름을 입력해 주세요.",
+    "Bei Mod-Blöcken oder anderen Texturen die zugehörigen Abhängigkeiten benennen.",
+    "Indiquez les dépendances correspondant aux blocs de mods ou aux autres textures déclarés."
+  ],
+  "M05-019": [
+    "依赖链接必须是有效的 HTTP 或 HTTPS 地址。",
+    "依賴連結必須是有效的 HTTP 或 HTTPS 位址。",
+    "Dependency links must be valid HTTP or HTTPS URLs.",
+    "依存関係のリンクには有効な HTTP または HTTPS URL を指定してください。",
+    "의존성 링크는 유효한 HTTP 또는 HTTPS 주소여야 합니다.",
+    "Links zu Abhängigkeiten müssen gültige HTTP- oder HTTPS-Adressen sein.",
+    "Les liens des dépendances doivent être des adresses HTTP ou HTTPS valides."
+  ],
+  "M05-070": [
+    "模型名称需为1-120字符，说明最多1000字符。",
+    "模型名稱需為1-120字元，說明最多1000字元。",
+    "Model names must contain 1–120 characters; descriptions allow up to 1,000 characters.",
+    "モデル名は1～120文字、説明は1000文字以内で入力してください。",
+    "모델 이름은 1~120자, 설명은 최대 1000자여야 합니다.",
+    "Modellnamen müssen 1–120 Zeichen enthalten; Beschreibungen höchstens 1.000 Zeichen.",
+    "Le nom du modèle doit contenir de 1 à 120 caractères ; la description, au maximum 1 000."
+  ],
+  "M05-071": [
+    "排序必须包含当前作品的全部条目，且不能重复。",
+    "排序必須包含目前作品的全部項目，且不能重複。",
+    "The order must include every item in this work exactly once.",
+    "並び順には現在の作品の全項目を重複なく含めてください。",
+    "순서에는 현재 작품의 모든 항목이 중복 없이 포함되어야 합니다.",
+    "Die Reihenfolge muss jeden Eintrag dieses Werks genau einmal enthalten.",
+    "L’ordre doit inclure chaque élément de cette œuvre une seule fois."
+  ],
+  "M05-072": [
+    "条目不存在或已从当前草稿移除。",
+    "項目不存在或已從目前草稿移除。",
+    "This item does not exist or was removed from the current draft.",
+    "項目が存在しないか、現在の下書きから削除されています。",
+    "항목이 없거나 현재 초안에서 삭제되었습니다.",
+    "Dieser Eintrag existiert nicht oder wurde aus dem aktuellen Entwurf entfernt.",
+    "Cet élément n’existe pas ou a été retiré du brouillon actuel."
+  ],
+  "M05-073": [
+    "依赖类型或格式无效。",
+    "依賴類型或格式無效。",
+    "Invalid dependency type or format.",
+    "依存関係の種類または形式が無効です。",
+    "의존성 유형 또는 형식이 올바르지 않습니다.",
+    "Ungültiger Typ oder ungültiges Format der Abhängigkeit.",
+    "Le type ou le format de la dépendance est invalide."
+  ],
+  "M05-010": [
+    "审核单不存在或已处理。",
+    "審核單不存在或已處理。",
+    "Review not found or already handled.",
+    "審査が見つからないか、処理済みです。",
+    "심사를 찾을 수 없거나 이미 처리되었습니다.",
+    "Prüfung nicht gefunden oder bereits bearbeitet.",
+    "Validation introuvable ou déjà traitée."
+  ],
+  "M05-011": [
+    "还有条目没有审完，逐条通过后才能批准。",
+    "還有項目尚未審完，逐項通過後才能批准。",
+    "Approve every item before approving the collection.",
+    "全項目を審査してから作品集を承認してください。",
+    "모든 항목을 심사한 후 작품 모음을 승인해 주세요.",
+    "Vor der Freigabe der Sammlung alle Einträge prüfen.",
+    "Validez chaque élément avant de valider la collection."
+  ],
+  "M05-016": [
+    "这条不属于当前审核单。",
+    "此項目不屬於目前審核單。",
+    "This item does not belong to this review.",
+    "この項目は現在の審査に属していません。",
+    "이 항목은 해당 심사에 속하지 않습니다.",
+    "Dieser Eintrag gehört nicht zu dieser Prüfung.",
+    "Cet élément n’appartient pas à cette validation."
+  ],
+  "M05-020": [
+    "这张审核单已经处理过，不能再次修改结论。",
+    "此審核單已處理，不能再次修改結論。",
+    "This review is closed. Its decision cannot be changed.",
+    "この審査は終了しており、結論を変更できません。",
+    "종료된 심사의 결론은 변경할 수 없습니다.",
+    "Diese Prüfung ist abgeschlossen und kann nicht geändert werden.",
+    "Cette validation est terminée et ne peut plus être modifiée."
+  ],
+  "M05-065": [
+    "请选择有效的加载器和精确游戏版本。",
+    "請選擇有效的載入器和精確遊戲版本。",
+    "Select a supported loader and exact game version.",
+    "対応するローダーと正確なゲームバージョンを選択してください。",
+    "지원하는 로더와 정확한 게임 버전을 선택해 주세요.",
+    "Unterstützten Loader und genaue Spielversion auswählen.",
+    "Sélectionnez un chargeur et une version exacte compatibles."
+  ],
+  "M05-066": [
+    "提交审核前请选择制作／导出环境。",
+    "提交審核前請選擇製作／匯出環境。",
+    "Select the source environment before submitting for review.",
+    "審査を申請する前に制作・出力環境を選択してください。",
+    "심사 요청 전에 제작 및 내보내기 환경을 선택해 주세요.",
+    "Vor der Einreichung die Quellumgebung auswählen.",
+    "Sélectionnez l’environnement source avant la validation."
+  ],
+  "M05-069": [
+    "请至少上传一张作品截图。",
+    "請至少上傳一張作品截圖。",
+    "Upload at least one screenshot of the work.",
+    "作品のスクリーンショットを1枚以上アップロードしてください。",
+    "작품 스크린샷을 하나 이상 업로드해 주세요.",
+    "Mindestens einen Screenshot des Werks hochladen.",
+    "Ajoutez au moins une capture de l’œuvre."
+  ],
+  "S00-401": [
+    "请先登录。",
+    "請先登入。",
+    "Please sign in.",
+    "ログインしてください。",
+    "로그인해 주세요.",
+    "Bitte anmelden.",
+    "Veuillez vous connecter."
+  ],
+  "S00-403": [
+    "没有权限执行该操作。",
+    "沒有權限執行此操作。",
+    "You do not have permission for this action.",
+    "この操作を行う権限がありません。",
+    "이 작업을 수행할 권한이 없습니다.",
+    "Keine Berechtigung für diese Aktion.",
+    "Vous ne pouvez pas effectuer cette action."
+  ],
+  "S00-400": [
+    "请求内容无法解析。",
+    "請求內容無法解析。",
+    "The request could not be parsed.",
+    "リクエストを解析できません。",
+    "요청을 해석할 수 없습니다.",
+    "Die Anfrage konnte nicht gelesen werden.",
+    "La requête ne peut pas être analysée."
+  ],
+  "S00-404": [
+    "接口不存在。",
+    "介面不存在。",
+    "Endpoint not found.",
+    "API が見つかりません。",
+    "API를 찾을 수 없습니다.",
+    "Endpunkt nicht gefunden.",
+    "Point de terminaison introuvable."
+  ],
+  "S00-405": [
+    "不支持此请求方法。",
+    "不支援此請求方法。",
+    "This request method is not supported.",
+    "このリクエストメソッドは未対応です。",
+    "지원하지 않는 요청 방식입니다.",
+    "Diese Anfragemethode wird nicht unterstützt.",
+    "Cette méthode de requête n’est pas prise en charge."
+  ],
+  "S00-413": [
+    "上传文件超过大小限制。",
+    "上傳檔案超過大小限制。",
+    "The uploaded file is too large.",
+    "アップロードするファイルが大きすぎます。",
+    "업로드 파일이 너무 큽니다.",
+    "Die hochgeladene Datei ist zu groß.",
+    "Le fichier envoyé est trop volumineux."
+  ],
+  "S00-500": [
+    "服务器内部错误，请稍后再试。",
+    "伺服器內部錯誤，請稍後再試。",
+    "Server error. Please try again later.",
+    "サーバーエラーです。後でもう一度お試しください。",
+    "서버 오류입니다. 나중에 다시 시도해 주세요.",
+    "Serverfehler. Bitte später erneut versuchen.",
+    "Erreur du serveur. Veuillez réessayer plus tard."
+  ],
+  "F01-001": [
+    "账户不存在或密码错误。",
+    "帳戶不存在或密碼錯誤。",
+    "Incorrect username or password.",
+    "ユーザー名またはパスワードが違います。",
+    "사용자 이름 또는 비밀번호가 올바르지 않습니다.",
+    "Benutzername oder Passwort falsch.",
+    "Identifiant ou mot de passe incorrect."
+  ],
+  "M01-006": [
+    "账户已停用。",
+    "帳戶已停用。",
+    "This account is disabled.",
+    "このアカウントは停止されています。",
+    "비활성화된 계정입니다.",
+    "Dieses Konto ist deaktiviert.",
+    "Ce compte est désactivé."
+  ],
+  "M05-005": [
+    "无权操作该作品。",
+    "無權操作此作品。",
+    "You cannot manage this work.",
+    "この作品を操作する権限がありません。",
+    "이 작품을 관리할 권한이 없습니다.",
+    "Dieses Werk kann nicht verwaltet werden.",
+    "Vous ne pouvez pas gérer cette œuvre."
+  ],
+  "M05-006": [
+    "作品正在审核中，请先撤回审核。",
+    "作品正在審核中，請先撤回審核。",
+    "Withdraw the pending review before editing.",
+    "編集する前に審査申請を取り下げてください。",
+    "편집하려면 먼저 심사 요청을 철회해 주세요.",
+    "Vor dem Bearbeiten die Prüfung zurückziehen.",
+    "Retirez la demande de validation avant de modifier."
+  ],
+  "M05-030": [
+    "这个作品需要访问码。",
+    "此作品需要存取碼。",
+    "An access code is required for this work.",
+    "この作品にはアクセスコードが必要です。",
+    "이 작품에는 접근 코드가 필요합니다.",
+    "Für dieses Werk ist ein Zugangscode erforderlich.",
+    "Un code d’accès est nécessaire pour cette œuvre."
+  ],
+  "M05-031": [
+    "访问码不正确。",
+    "存取碼不正確。",
+    "Incorrect access code.",
+    "アクセスコードが違います。",
+    "접근 코드가 올바르지 않습니다.",
+    "Falscher Zugangscode.",
+    "Code d’accès incorrect."
+  ],
+  "M05-048": [
+    "作品已下架，仅允许查询处置和提交申诉。",
+    "作品已下架，僅允許查詢處置和提交申訴。",
+    "This work was taken down. You can view the decision and appeal.",
+    "作品は公開停止中です。処分の確認と異議申立てができます。",
+    "게시 중단된 작품입니다. 조치 확인과 이의 신청만 가능합니다.",
+    "Dieses Werk wurde entfernt. Entscheidung und Einspruch bleiben verfügbar.",
+    "Cette œuvre a été retirée. Vous pouvez consulter la décision et faire appel."
+  ],
+  "M05-064": [
+    "旧带码链接已失效，请使用普通作品链接。",
+    "舊含碼連結已失效，請使用一般作品連結。",
+    "This coded link has expired. Use the plain work link.",
+    "コード付きリンクは無効です。通常の作品リンクをご利用ください。",
+    "코드가 포함된 링크가 만료되었습니다. 일반 작품 링크를 사용해 주세요.",
+    "Dieser Code-Link ist abgelaufen. Bitte den normalen Werk-Link verwenden.",
+    "Ce lien avec code a expiré. Utilisez le lien simple de l’œuvre."
+  ],
+  "M05-067": [
+    "请先解除来源环境冲突的收录关系。",
+    "請先解除來源環境衝突的收錄關係。",
+    "Remove memberships with conflicting source environments first.",
+    "制作環境が一致しない収録関係を先に解除してください。",
+    "먼저 제작 환경이 충돌하는 수록 관계를 해제해 주세요.",
+    "Zuerst Zuordnungen mit abweichender Quellumgebung entfernen.",
+    "Supprimez d’abord les liens dont les environnements source diffèrent."
+  ],
+  "M99-004": [
+    "版本已变化，请刷新后重试。",
+    "版本已變更，請重新整理後重試。",
+    "The version changed. Refresh and try again.",
+    "バージョンが変更されました。更新して再試行してください。",
+    "버전이 변경되었습니다. 새로 고침 후 다시 시도해 주세요.",
+    "Die Version wurde geändert. Bitte aktualisieren.",
+    "La version a changé. Actualisez puis réessayez."
+  ],
+  "M99-005": [
+    "操作过于频繁，请稍后重试。",
+    "操作過於頻繁，請稍後重試。",
+    "Too many requests. Please try again later.",
+    "操作が多すぎます。後でもう一度お試しください。",
+    "요청이 너무 많습니다. 나중에 다시 시도해 주세요.",
+    "Zu viele Anfragen. Bitte später erneut versuchen.",
+    "Trop de requêtes. Veuillez réessayer plus tard."
+  ],
+  "WORK_ACCESS_EXPIRED": [
+    "作品访问授权已失效，请重新打开作品。",
+    "作品存取授權已失效，請重新開啟作品。",
+    "Work access expired. Please reopen the work.",
+    "作品へのアクセス権が失効しました。作品を開き直してください。",
+    "작품 접근 권한이 만료되었습니다. 작품을 다시 열어 주세요.",
+    "Der Werkzugang ist abgelaufen. Bitte erneut öffnen.",
+    "L’accès à l’œuvre a expiré. Ouvrez-la à nouveau."
+  ],
+  "C0-01": [
+    "服务器返回了无法解析的响应。",
+    "伺服器回傳了無法解析的回應。",
+    "The server returned an unreadable response.",
+    "サーバーの応答を解析できません。",
+    "서버 응답을 해석할 수 없습니다.",
+    "Die Serverantwort konnte nicht gelesen werden.",
+    "La réponse du serveur est illisible."
+  ],
+  "V2_NETWORK_ERROR": [
+    "网络请求失败，请重试。",
+    "網路請求失敗，請重試。",
+    "Network request failed. Try again.",
+    "通信に失敗しました。再試行してください。",
+    "네트워크 요청에 실패했습니다. 다시 시도해 주세요.",
+    "Netzwerkanfrage fehlgeschlagen. Bitte erneut versuchen.",
+    "La requête réseau a échoué. Réessayez."
+  ],
+  "V2_QUERY_UNSUPPORTED": [
+    "网站暂不支持此筛选或排序。",
+    "網站暫不支援此篩選或排序。",
+    "The website does not support this filter or sort yet.",
+    "この絞り込み・並べ替えは未対応です。",
+    "웹사이트에서 이 필터 또는 정렬을 지원하지 않습니다.",
+    "Dieser Filter oder diese Sortierung wird noch nicht unterstützt.",
+    "Ce filtre ou ce tri n’est pas encore pris en charge."
+  ],
+  "V2_FOLLOWING_FEED_UNSUPPORTED": [
+    "网站尚无完整关注动态接口，请从作者主页浏览。",
+    "網站尚無完整關注動態介面，請從作者首頁瀏覽。",
+    "Following feed is not available. Browse the author page.",
+    "フォローの新着一覧は未対応です。作者ページをご覧ください。",
+    "팔로우 피드는 지원되지 않습니다. 작성자 페이지를 이용해 주세요.",
+    "Der Feed abonnierter Autoren fehlt noch. Bitte die Autorenseite öffnen.",
+    "Le fil des abonnements est indisponible. Consultez la page de l’auteur."
+  ],
+  "V2_WEB_CONSENT_REQUIRED": [
+    "草稿已保存。请去网站阅读并确认当前上传协议，再送审。",
+    "草稿已儲存。請前往網站閱讀並確認目前上傳協議，再送審。",
+    "Draft saved. Read and accept the current upload agreement on the website before submitting.",
+    "下書きは保存済みです。サイトで現在の投稿規約を確認・同意してから審査へ送信してください。",
+    "초안이 저장되었습니다. 웹사이트에서 현재 업로드 약관을 읽고 동의한 후 제출해 주세요.",
+    "Entwurf gespeichert. Bitte die aktuelle Upload-Vereinbarung auf der Website lesen und bestätigen.",
+    "Brouillon enregistré. Lisez et acceptez l’accord d’envoi actuel sur le site avant de soumettre."
+  ],
+  "V2_SESSION_CHANGED": [
+    "会话已切换，请重试。",
+    "工作階段已切換，請重試。",
+    "The session changed. Try again.",
+    "セッションが変更されました。再試行してください。",
+    "세션이 변경되었습니다. 다시 시도해 주세요.",
+    "Die Sitzung wurde gewechselt. Bitte erneut versuchen.",
+    "La session a changé. Réessayez."
+  ],
+  "V2_LEGACY_REQUIRED": [
+    "下载内容不是可确认的1.12蓝图，请等待网站转换修复。",
+    "下載內容不是可確認的1.12藍圖，請等待網站轉換修復。",
+    "The downloaded data is not a verified 1.12 blueprint. Website conversion needs attention.",
+    "ダウンロード内容を1.12設計図と確認できません。サイト側の変換修正が必要です。",
+    "다운로드한 데이터가 1.12 설계도로 확인되지 않습니다. 웹사이트 변환 수정이 필요합니다.",
+    "Die Daten sind keine bestätigte 1.12-Blaupause. Die Website-Konvertierung muss geprüft werden.",
+    "Les données ne sont pas un plan 1.12 vérifié. La conversion du site doit être corrigée."
+  ],
+  "V2_SIZE_MISMATCH": [
+    "下载字节数与网站声明不符。",
+    "下載位元組數與網站宣告不符。",
+    "Downloaded size differs from the website metadata.",
+    "受信サイズがサイトの情報と一致しません。",
+    "다운로드 크기가 웹사이트 정보와 다릅니다.",
+    "Die Downloadgröße stimmt nicht mit den Metadaten überein.",
+    "La taille reçue diffère des métadonnées du site."
+  ]
+}

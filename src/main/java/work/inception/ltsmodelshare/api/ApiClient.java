@@ -1,925 +1,584 @@
 package work.inception.ltsmodelshare.api;
 
-import static work.inception.ltsmodelshare.client.Translations.tr;
-import static work.inception.ltsmodelshare.client.Translations.siteLocale;
+import static work.inception.ltsmodelshare.api.V2Contract.*;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import work.inception.ltsmodelshare.LtsModelShare;
+import com.google.gson.*;
 import work.inception.ltsmodelshare.ModConfig;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.Reader;
-import java.io.Writer;
-import java.net.HttpURLConnection;
+import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.security.MessageDigest;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
- * 站点的 HTTP 客户端。
- *
- * <p>只用 JDK 自带的 {@link HttpURLConnection}（1.12.2 自带 gson，不用再引依赖）。
- * 所有请求都跑在**单个后台线程**里 —— Minecraft 的渲染线程不能阻塞；
- * 结果要动界面时用 {@link #post(Runnable)} 切回客户端线程。</p>
+ * V2 pre-integration for Forge 1.12.2. Public signatures preserve the tested GUI.
+ * Only the HTTP/DTO boundary changes; no fallback writes to V1.
  */
 public final class ApiClient {
-
-    private static final Gson GSON = new GsonBuilder().create();
-
+    /** Package-private seam lets integration tests use an in-memory session without a game config. */
+    interface Environment {
+        ModConfig config();
+        String locale();
+        String translate(String key, Object... arguments);
+        default void loginRequired(String base) { }
+    }
+    static volatile Environment environment = new Environment() {
+        public ModConfig config() { return ModConfig.get(); }
+        public void loginRequired(String base) { work.inception.ltsmodelshare.client.SessionLogin.required(base); }
+        public String locale() { return work.inception.ltsmodelshare.client.Translations.siteLocale(); }
+        public String translate(String key, Object... arguments) {
+            return work.inception.ltsmodelshare.client.Translations.tr(key, arguments);
+        }
+    };
+    private static String siteLocale() { return environment.locale(); }
+    private static String tr(String key, Object... arguments) { return environment.translate(key, arguments); }
+    private static final V2Http HTTP = new V2Http();
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "ltsmodelshare-http");
-        t.setDaemon(true);
-        return t;
+        Thread t = new Thread(r, "ltsmodelshare-http"); t.setDaemon(true); return t;
     });
-
-    private ApiClient() {
-    }
-
-    // ==================== 线程调度 ====================
-
-    /** 切回客户端（渲染）线程 */
-    public static void post(Runnable r) {
-        net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(r);
-    }
-
-    /** 后台线程执行 */
-    public static void io(Runnable r) {
-        POOL.execute(r);
-    }
-
-    // ==================== 接口 ====================
-
-    /** 登录：POST /api/account/login/password-login */
-    public static void login(final String username, final String password,
-                             final Callback<Dtos.LoginPayload> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String body = GSON.toJson(new Dtos.LoginRequest(username, password));
-                Dtos.LoginResp resp = post(cfg.url("/api/account/login/password-login"), body,
-                        null, Dtos.LoginResp.class);
-                if (resp == null || !resp.success || resp.payload == null
-                        || resp.payload.token == null || resp.payload.token.isEmpty()
-                        || resp.payload.refreshToken == null || resp.payload.refreshToken.isEmpty()) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cfg.token = resp.payload.token;
-                cfg.refreshToken = nullToEmpty(resp.payload.refreshToken);
-                cfg.username = username;
-                cfg.save();
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.login_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /** 登出时尽力通知网站撤销刷新令牌；本地退出不能依赖网络成功。 */
-    public static void revokeRefreshQuietly(String refreshToken) {
-        if (refreshToken == null || refreshToken.isEmpty()) return;
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                post(cfg.url("/api/account/auth/logout"),
-                        GSON.toJson(new Dtos.RefreshRequest(refreshToken)), null, Dtos.Resp.class);
-            } catch (Exception error) {
-                LtsModelShare.LOG.debug("登出时撤销刷新令牌未成功", error);
-            }
-        });
-    }
-
-    /**
-     * 静默续期：用 refreshToken 换新的 access token（滑动窗口，服务端每次轮换）。
-     *
-     * <p>服务端方案：access 30 分钟、refresh 滑动 2 小时；与网站一致，
-     * 只有请求遇到失效 access 才尝试轮换双令牌，打开面板本身不会延长会话。</p>
-     *
-     * @return true = 续期成功（cfg 里的 token/refreshToken 已更新并落盘）
-     */
-    public static boolean refreshBlocking() {
-        ModConfig cfg = ModConfig.get();
-        String previousRefresh = cfg.refreshToken;
-        if (previousRefresh == null || previousRefresh.isEmpty()) {
-            return false;
+    private static final long JSON_LIMIT = 4L * 1024 * 1024;
+    private static State state = new State("");
+    private static volatile boolean refreshRejected;
+    private static final SessionRequests.Session SESSION = new SessionRequests.Session() {
+        public String base() { return environment.config().baseUrl; }
+        public String token() { return environment.config().token; }
+        public SessionRequests.Refresh refresh() {
+            return refreshBlocking() ? SessionRequests.Refresh.UPDATED
+                    : refreshRejected ? SessionRequests.Refresh.REJECTED : SessionRequests.Refresh.UNAVAILABLE;
         }
-        try {
-            String body = GSON.toJson(new Dtos.RefreshRequest(previousRefresh));
-            Dtos.RefreshResp resp = post(cfg.url("/api/account/auth/refresh"), body, null,
-                    Dtos.RefreshResp.class);
-            if (resp == null || !resp.success || resp.payload == null
-                    || resp.payload.token == null || resp.payload.token.isEmpty()
-                    || resp.payload.refreshToken == null || resp.payload.refreshToken.isEmpty()) {
-                LtsModelShare.LOG.warn("续期失败：{}", describe(resp));
-                return false;
-            }
-            // 登录或登出可能在网络请求期间发生；不能把旧会话写回新用户的配置。
-            if (!previousRefresh.equals(cfg.refreshToken)) return false;
-            cfg.token = resp.payload.token;
-            cfg.refreshToken = resp.payload.refreshToken;
-            cfg.save();
-            LtsModelShare.LOG.info("登录已续期（access + refresh 都换了新的）");
-            return true;
-        } catch (Exception e) {
-            LtsModelShare.LOG.warn("续期异常：{}", e.toString());
-            return false;
-        }
-    }
-
-    /**
-     * 需要登录的请求：401 / 失败时先续期再重试一次。
-     */
-    private static <T extends Dtos.Resp<?>> T postAuthed(String url, String body, Class<T> type) throws IOException {
-        ModConfig cfg = ModConfig.get();
-        String tokenUsed = cfg.token;
-        T resp = post(url, body, tokenUsed, type);
-        if (!needsRefresh(resp)) return resp;
-        if (refreshBlocking()) {
-            return post(url, body, cfg.token, type);
-        }
-        // 网站只在明确的 HTTP 401 且无法续期时清空会话；权限不足与网络错误不能误登出。
-        if (resp != null && "401".equals(resp.error_code) && tokenUsed.equals(cfg.token)) {
+        public void expired(String base, String token) {
+            ModConfig cfg = environment.config();
+            if (!java.util.Objects.equals(base, cfg.baseUrl) || !java.util.Objects.equals(token, cfg.token)) return;
             cfg.clearSession();
+            environment.loginRequired(base);
         }
-        return resp;
-    }
+    };
 
-    /** 公共接口也会携带登录令牌：过期时应按网站规则续期后重试。 */
-    private static <T extends Dtos.Resp<?>> T postWithSession(String url, String body, Class<T> type) throws IOException {
-        ModConfig cfg = ModConfig.get();
-        return cfg.loggedIn() ? postAuthed(url, body, type) : post(url, body, null, type);
-    }
 
-    /** 响应看起来像「令牌过期/未登录」就给一次续期机会 */
-    private static boolean needsRefresh(Dtos.Resp<?> resp) {
-        if (resp == null) {
-            return false; // 空响应不能证明是认证过期，不为网络/网关异常轮换令牌。
-        }
-        if (resp.success) {
-            return false;
-        }
-        String code = resp.error_code == null ? "" : resp.error_code.toLowerCase();
-        String msg = resp.error_message == null ? "" : resp.error_message;
-        return code.contains("a02") || code.contains("401") || code.contains("token")
-                || msg.contains("登录") || msg.contains("过期") || msg.contains("token");
+    private static final ThreadLocal<String> taskIdentity = new ThreadLocal<>();
+    private static void checkTask() throws IOException {
+        String expected = taskIdentity.get();
+        if (expected != null) unchanged(expected);
     }
-    /** 模型列表：POST /api/public/work/cards */
-    public static void listCards(final Dtos.CardQuery query, final Callback<Dtos.Page<Dtos.WorkCard>> cb) {
+    private ApiClient() { }
+
+    public static void post(Runnable r) { net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(r); }
+    public static void io(Runnable r) { POOL.execute(r); }
+    public interface Callback<T> { void ok(T value); void fail(String message); }
+    private interface Task<T> { T get() throws Exception; }
+    private static <T> void run(Callback<T> cb, Task<T> task) {
+        final String requestedIdentity = identity();
         io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (query.sort == null) query.sort = "latest";
-                if (query.locale == null || query.locale.isEmpty()) query.locale = siteLocale();
-                if (query.size <= 0) query.size = 12;
-                if (query.current <= 0) query.current = 1;
-                String body = GSON.toJson(query);
-                Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"), body,
-                        Dtos.CardsResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
-            }
+            taskIdentity.set(requestedIdentity);
+            try { unchanged(requestedIdentity); syncState(); cb.ok(task.get()); }
+            catch (Exception e) {
+                // Do not log URLs, bodies, credentials or signed capabilities.
+                cb.fail(e instanceof Failure ? e.getMessage()
+                        : tr("ltsmodelshare.common.action_failed", safeMessage(e)));
+            } finally { taskIdentity.remove(); }
         });
     }
+    private static String safeMessage(Exception e) {
+        String message = e.getMessage();
+        String code = message == null ? "" : message.split(":", 2)[0];
+        if (code.matches("V2_[A-Z_]+")) return V2Errors.message(code, "CLIENT_ERROR", null, null, siteLocale());
+        // Exceptions can contain credential-bearing URLs. Never display arbitrary transport text.
+        return V2Errors.message("V2_NETWORK_ERROR", "CLIENT_ERROR", null, null, siteLocale());
+    }
+    private static final class Failure extends IOException {
+        final int status;
+        Failure(int status, String code, String message) {
+            this(status, code, null, message, null);
+        }
+        Failure(int status, String code, String type, String message, JsonObject parameters) {
+            super(V2Errors.message(code, type, message, parameters, siteLocale()));
+            this.status = status;
+        }
+    }
+    private static <K,V> Map<K,V> bounded() {
+        return new LinkedHashMap<K,V>(32, .75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<K,V> eldest) { return size() > 256; }
+        };
+    }
+    private static final class Access {
+        final long work; final String code; final String grant; final long expires;
+        Access(long work, String code, String grant) {
+            this.work = work; this.code = code; this.grant = grant;
+            expires = System.currentTimeMillis() + 100_000L;
+        }
+    }
+    private static final class Pending {
+        final long work, version; Long receipt;
+        Pending(long work, long version) { this.work = work; this.version = version; }
+    }
+    private static final class State {
+        final String identity;
+        final Map<Long,Access> access = bounded();
+        final Map<Long,Long> itemWorks = bounded();
+        final Map<String,Access> assets = bounded();
+        final Map<String,Long> imageIds = bounded();
+        final Map<Long,Pending> pending = bounded();
+        Pending lastSaved;
+        State(String identity) { this.identity = identity; }
+    }
+    /** A stable JWT session ID survives refresh; PAT identity is a non-reversible digest. */
+    private static String identity() {
+        ModConfig cfg = environment.config();
+        String token = cfg.token == null ? "" : cfg.token;
+        String session;
+        try {
+            String[] parts = token.split("\\.");
+            JsonObject claims = object(new JsonParser().parse(new String(
+                    Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8)));
+            String sid = text(claims, "sid"), sub = text(claims, "sub");
+            if (sid == null || sub == null) throw new IllegalArgumentException();
+            session = sub + ":" + sid;
+        } catch (Exception notJwt) {
+            try { session = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8))); }
+            catch (Exception impossible) { throw new IllegalStateException(impossible); }
+        }
+        return cfg.baseUrl + "|" + session;
+    }
+    private static void syncState() {
+        String current = identity();
+        if (!current.equals(state.identity)) state = new State(current);
+    }
+    private static void unchanged(String expected) throws IOException {
+        if (!expected.equals(identity())) throw new IOException("V2_SESSION_CHANGED: 会话已切换，请重试");
+    }
 
-    /** 作者主页（不区分 kind，保持旧行为）。 */
-    public static void authorHome(final long userId, final String keyword, final boolean exact,
-                                  final String locale, final int current, final int size,
-                                  final Callback<Dtos.AuthorHome> cb) {
+    private static JsonElement payload(V2Http.Response response) throws IOException {
+        JsonObject envelope;
+        try { envelope = object(new JsonParser().parse(response.text())); }
+        catch (Exception malformed) { throw new Failure(response.status, "V2_INVALID_RESPONSE", "网站返回了非预期响应"); }
+        if (response.status / 100 != 2 || !flag(envelope, "success")) {
+            String code = text(envelope, "error_code");
+            if (code == null) code = text(envelope, "code");
+            String message = text(envelope, "error_message");
+            if (message == null) message = text(envelope, "message");
+            throw new Failure(response.status, code == null ? "HTTP_" + response.status : code,
+                    text(envelope, "error_type"), message,
+                    has(envelope, "error_params") && envelope.get("error_params").isJsonObject()
+                            ? envelope.getAsJsonObject("error_params") : null);
+        }
+        if (!has(envelope, "payload")) throw new Failure(response.status, "V2_INVALID_RESPONSE", "网站缺少响应数据");
+        return envelope.get("payload");
+    }
+    private static V2Http.Response raw(String base, String path, String method, JsonElement body, String token) throws IOException {
+        byte[] bytes = body == null ? null : JSON.toJson(body).getBytes(StandardCharsets.UTF_8);
+        return HTTP.request(base, path, method, bytes, "application/json; charset=utf-8", token, 20000, JSON_LIMIT, siteLocale());
+    }
+    private static JsonElement request(String method, String path, JsonElement body) throws IOException {
+        checkTask();
+        V2Http.Response response = SessionRequests.execute(SESSION,
+                (base, token) -> raw(base, path, method, body, token),
+                r -> credentialStatus(r), true);
+        return payload(response);
+    }
+    private static int credentialStatus(V2Http.Response response) {
+        try { return V2Http.credentialTarget(environment.config().baseUrl, response.finalUrl) ? response.status : 0; }
+        catch (IOException invalid) { return 0; }
+    }
+    public static void validateSession() {
+        if (!environment.config().loggedIn()) return;
+        resolveUserId(new Callback<Long>() {
+            public void ok(Long id) { }
+            public void fail(String message) { }
+        });
+    }
+    public static byte[] imageBytes(String base, String path, String token) throws IOException {
+        ModConfig cfg = environment.config();
+        if (!Objects.equals(base, cfg.baseUrl) || !Objects.equals(token, cfg.token)) throw new IOException("V2_SESSION_CHANGED");
+        V2Http.Response response = SessionRequests.execute(SESSION,
+                (site, credential) -> HTTP.request(site,path,"GET",null,null,credential,12000,8L*1024*1024),
+                r -> credentialStatus(r), true);
+        if (response.status/100 != 2) throw new IOException("Image HTTP " + response.status);
+        return response.bytes;
+    }
+    private static JsonObject get(String path) throws IOException { return object(request("GET", path, null)); }
+    private static void requireLogin() throws IOException {
+        if (!environment.config().loggedIn()) {
+            environment.loginRequired(environment.config().baseUrl);
+            throw new Failure(401, "S00-401", tr("ltsmodelshare.api.login_required"));
+        }
+    }
+
+    /** Public state endpoints return anonymous false for expired JWTs; validate identity before reading them. */
+    private static void requireAuthenticated() throws IOException {
+        requireLogin();
+        positive(get("/api/v2/auth/me"), "id");
+    }
+    public static void login(String username, String password, Callback<Dtos.LoginPayload> cb) {
+        run(cb, () -> {
+            ModConfig cfg = environment.config();
+            String expected = identity();
+            JsonObject p = object(payload(raw(cfg.baseUrl, "/api/v2/auth/login", "POST",
+                    JSON.toJsonTree(new Dtos.LoginRequest(username, password)), null)));
+            unchanged(expected);
+            String access = text(p, "accessToken"), refresh = text(p, "refreshToken");
+            if (access == null || access.isEmpty() || refresh == null || refresh.isEmpty())
+                throw new IOException("V2_INVALID_RESPONSE: 登录缺少双令牌");
+            cfg.token = access; cfg.refreshToken = refresh; cfg.username = username; cfg.save();
+            syncState();
+            Dtos.LoginPayload out = new Dtos.LoginPayload(); out.token = access; out.refreshToken = refresh; return out;
+        });
+    }
+    public static boolean refreshBlocking() {
+        ModConfig cfg = environment.config();
+        String previous = cfg.refreshToken, token = cfg.token, base = cfg.baseUrl;
+        refreshRejected = false;
+        if (previous == null || previous.isEmpty()) { refreshRejected = true; return false; }
+        try {
+            V2Http.Response response = raw(base, "/api/v2/auth/refresh", "POST", body("refreshToken", previous), null);
+            refreshRejected = response.status == 400 || response.status == 401 || response.status == 403 || response.status == 410;
+            JsonObject p = object(payload(response));
+            String access = text(p, "accessToken"), refresh = text(p, "refreshToken");
+            if (access == null || access.isEmpty() || refresh == null || refresh.isEmpty()
+                    || !previous.equals(cfg.refreshToken) || !token.equals(cfg.token) || !base.equals(cfg.baseUrl)) return false;
+            cfg.token = access; cfg.refreshToken = refresh; cfg.save(); return true;
+        } catch (Exception failed) { return false; }
+    }
+    /** Capture credentials before the existing GUI immediately clears local configuration. */
+    public static void revokeRefreshQuietly(String refreshToken) {
+        ModConfig cfg = environment.config();
+        final String token = cfg.token, base = cfg.baseUrl, refresh = refreshToken;
+        if (token == null || token.isEmpty() || token.startsWith("lts_")) return; // local PAT exit is not revocation
+        io(() -> {
+            try {
+                V2Http.Response response = raw(base, "/api/v2/auth/logout", "POST", new JsonObject(), token);
+                if (response.status == 401 && refresh != null && !refresh.isEmpty()) {
+                    JsonObject p = object(payload(raw(base, "/api/v2/auth/refresh", "POST", body("refreshToken", refresh), null)));
+                    String access = text(p, "accessToken");
+                    if (access != null && !access.isEmpty()) raw(base, "/api/v2/auth/logout", "POST", new JsonObject(), access);
+                }
+            } catch (Exception ignored) { /* local exit must succeed; never restore revoked credentials */ }
+        });
+    }
+    public static void resolveUserId(Callback<Long> cb) {
+        run(cb, () -> { requireLogin(); return positive(get("/api/v2/auth/me"), "id"); });
+    }
+    public static void accountLocale(Callback<String> cb) {
+        run(cb, () -> {
+            if (!environment.config().loggedIn()) return null;
+            return text(get("/api/v2/auth/me"), "locale");
+        });
+    }
+    public static void listCards(Dtos.CardQuery query, Callback<Dtos.Page<Dtos.WorkCard>> cb) {
+        run(cb, () -> cards(request("GET", cardsPath(query), null)));
+    }
+    public static void authorHome(long userId, String keyword, boolean exact, String locale,
+                                  int current, int size, Callback<Dtos.AuthorHome> cb) {
         authorHome(userId, keyword, exact, locale, null, null, current, size, cb);
     }
-
-    /**
-     * 作者主页：POST /api/public/work/author（需登录）。
-     *
-     * @param kind single / collection / null（混排，旧行为）
-     * @param sort latest / hot / top；null = 服务端默认 top
-     */
-    public static void authorHome(final long userId, final String keyword, final boolean exact,
-                                  final String locale, final String kind, final String sort,
-                                  final int current, final int size,
-                                  final Callback<Dtos.AuthorHome> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/public/work/author?userId=" + userId
-                        + "&current=" + current + "&size=" + Math.max(1, Math.min(size, 100))
-                        + "&exact=" + exact
-                        + (kind == null || kind.isEmpty() ? "" : "&kind=" + encode(kind))
-                        + (sort == null || sort.isEmpty() ? "" : "&sort=" + encode(sort))
-                        + "&locale=" + encode(locale == null || locale.isEmpty() ? siteLocale() : locale)
-                        + (keyword == null || keyword.trim().isEmpty() ? "" : "&q=" + encode(keyword.trim())));
-                Dtos.AuthorHomeResp resp = postAuthed(url, "{}", Dtos.AuthorHomeResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
+    public static void authorHome(long userId, String keyword, boolean exact, String locale, String kind, String sort,
+                                  int current, int size, Callback<Dtos.AuthorHome> cb) {
+        run(cb, () -> {
+            if (environment.config().loggedIn()) requireAuthenticated();
+            Dtos.AuthorHome out = new Dtos.AuthorHome();
+            out.author = author(get("/api/v2/authors/" + userId));
+            String path = param("/api/v2/authors/" + userId + "/works", "q", keyword);
+            path = param(path, "locale", locale);
+            path = param(path, "exact", exact); path = param(path, "kind", kind); path = param(path, "sort", sort);
+            path = param(path, "page", Math.max(1, current)); path = param(path, "size", Math.max(1, Math.min(size,100)));
+            out.works = cards(request("GET", path, null)); return out;
+        });
+    }
+    /** Own published library: all visibilities and both kinds, never the public author list. */
+    public static void myWorks(Callback<Dtos.AuthorHome> cb) {
+        run(cb, () -> {
+            requireAuthenticated();
+            long id = positive(get("/api/v2/auth/me"), "id");
+            Dtos.AuthorHome out = new Dtos.AuthorHome();
+            out.author = author(get("/api/v2/authors/" + id));
+            Dtos.Page<Dtos.WorkCard> merged = new Dtos.Page<>();
+            merged.records = new ArrayList<>(); merged.current = 1;
+            for (int page = 1; page <= 100; page++) {
+                Dtos.Page<Dtos.WorkCard> part = cards(request("GET", libraryPath(page, siteLocale()), null));
+                merged.records.addAll(part.records); merged.total = part.total;
+                if (merged.records.size() >= part.total || part.records.isEmpty()) {
+                    merged.size = merged.records.size(); out.works = merged; return out;
                 }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.author_failed", e.getMessage()));
             }
+            throw new IOException("V2_LIBRARY_TOO_LARGE: Please use the website for this library");
         });
     }
 
-    /** 我的收藏：POST /api/studio/work/favorites（kind=collection/single，省略为全部） */
-    public static void favorites(final String kind, final int current, final int size,
-                                 final Callback<Dtos.Page<Dtos.WorkCard>> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/studio/work/favorites?current=" + Math.max(1, current)
-                        + "&size=" + Math.max(1, Math.min(size, 48))
-                        + (kind == null || kind.isEmpty() ? "" : "&kind=" + encode(kind))
-                        + "&locale=" + encode(siteLocale()));
-                Dtos.FavoriteResp resp = postAuthed(url, "{}", Dtos.FavoriteResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
+    public static void favorites(String kind, int current, int size, Callback<Dtos.Page<Dtos.WorkCard>> cb) {
+        run(cb, () -> {
+            requireLogin(); long id = positive(get("/api/v2/auth/me"), "id");
+            String path = param(param("/api/v2/authors/" + id + "/bookmarks", "kind", kind), "locale", siteLocale());
+            path = param(path, "page", Math.max(1, current)); path = param(path, "size", Math.max(1,Math.min(size,48)));
+            return cards(request("GET", path, null));
+        });
+    }
+    public static void followingUsers(long userId, int current, int size, Callback<Dtos.Page<Dtos.UserCard>> cb) {
+        run(cb, () -> {
+            requireAuthenticated();
+            JsonObject p = get(param(param("/api/v2/authors/" + userId + "/following",
+                    "page", Math.max(1,current)), "size", Math.max(1,Math.min(size,50))));
+            if (flag(p,"hidden")) throw new IOException("V2_LIST_HIDDEN: 作者未公开关注列表");
+            Dtos.Page<Dtos.UserCard> out = new Dtos.Page<>();
+            out.current = number(p,"current",1); out.total = number(p,"total",0); out.size = number(p,"size",size);
+            out.records = new ArrayList<>();
+            if (!has(p,"records")) throw new IOException("V2_INVALID_RESPONSE: missing records");
+            for (JsonElement e : p.getAsJsonArray("records")) {
+                Dtos.Author a = author(object(e));
+                Dtos.UserCard u = new Dtos.UserCard(); u.userId = a.userId; u.username = a.username;
+                u.displayName = a.displayName; u.avatarUrl = a.avatarUrl; u.bio = a.bio; u.followerCount = a.followerCount;
+                out.records.add(u);
             }
+            return out;
+        });
+    }
+    public static void followingFeed(Set<Long> authorIds, int pages, Callback<List<Dtos.WorkCard>> cb) {
+        run(cb, () -> {
+            if (authorIds.isEmpty()) return Collections.emptyList();
+            throw new IOException("V2_FOLLOWING_FEED_UNSUPPORTED");
+        });
+    }
+    public static void followingState(long userId, Callback<Boolean> cb) {
+        run(cb, () -> {
+            if (!environment.config().loggedIn()) return false;
+            requireAuthenticated();
+            return flag(get("/api/v2/accounts/" + userId + "/follow-state"), "following");
+        });
+    }
+    public static void toggleFollow(long userId, Callback<Dtos.SocialToggle> cb) {
+        run(cb, () -> {
+            requireAuthenticated();
+            JsonObject current = get("/api/v2/accounts/" + userId + "/follow-state");
+            if (!has(current,"following")) throw new IOException("V2_STATE_UNKNOWN: 无法读取关注状态");
+            return JSON.fromJson(request("POST","/api/v2/accounts/" + userId + "/follow",
+                    body("value", !flag(current,"following"))), Dtos.SocialToggle.class);
+        });
+    }
+    public static void toggleFavorite(long workId, Callback<Dtos.SocialToggle> cb) {
+        run(cb, () -> {
+            requireAuthenticated();
+            Access a = access(workId, null, false);
+            JsonObject current = get(withGrant("/api/v2/works/" + workId, a));
+            if (!has(current,"favorited")) throw new IOException("V2_STATE_UNKNOWN: 无法读取收藏状态");
+            return JSON.fromJson(request("POST",withGrant("/api/v2/works/" + workId + "/favorite", a),
+                    body("value", !flag(current,"favorited"))), Dtos.SocialToggle.class);
+        });
+    }
+    public static void listTags(Callback<List<Dtos.Tag>> cb) {
+        run(cb, () -> tags(request("GET","/api/v2/tags",null)));
+    }
+    public static void searchAuthors(String keyword, Callback<List<Dtos.Author>> cb) {
+        run(cb, () -> {
+            List<Dtos.Author> out = new ArrayList<>();
+            JsonElement p = request("GET",param(param("/api/v2/authors", "q", keyword == null ? "" : keyword.trim()),
+                    "exact", false),null);
+            for (JsonElement e : p.getAsJsonArray()) out.add(author(object(e)));
+            return out;
         });
     }
 
-    /** 关注列表：POST /api/public/work/stats/following（需登录，最多 50 个/页） */
-    public static void followingUsers(final long userId, final int current, final int size,
-                                      final Callback<Dtos.Page<Dtos.UserCard>> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/public/work/stats/following?userId=" + userId
-                        + "&current=" + Math.max(1, current)
-                        + "&size=" + Math.max(1, Math.min(size, 50)));
-                Dtos.FollowingUsersResp resp = postAuthed(url, "{}", Dtos.FollowingUsersResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /**
-     * 关注动态：公开卡片流按更新时间倒序，过滤出已关注作者的作品。
-     * 站点目前没有专门的「关注作品流」接口，这里只回看最近若干页，避免逐作者并发请求。
-     */
-    public static void followingFeed(final java.util.Set<Long> authorIds, final int pages,
-                                     final Callback<java.util.List<Dtos.WorkCard>> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                java.util.List<Dtos.WorkCard> out = new java.util.ArrayList<>();
-                java.util.Set<Long> seen = new java.util.HashSet<>();
-                int max = Math.max(1, Math.min(pages, 8));
-                for (int page = 1; page <= max; page++) {
-                    Dtos.CardQuery query = new Dtos.CardQuery("", "latest", page, 48, siteLocale());
-                    Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"),
-                            GSON.toJson(query), Dtos.CardsResp.class);
-                    if (resp == null || !resp.success || resp.payload == null) break;
-                    java.util.List<Dtos.WorkCard> records = resp.payload.records;
-                    if (records == null || records.isEmpty()) break;
-                    for (Dtos.WorkCard card : records) {
-                        if (card != null && card.author != null && authorIds.contains(card.author.userId)
-                                && seen.add(card.workId)) {
-                            out.add(card);
-                        }
-                    }
-                    if (records.size() < 48) break;
-                    if (out.size() >= 192) break;
-                }
-                cb.ok(out);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /** 解析当前登录用户 ID：密码登录的 JWT 里带 sub；个人访问令牌回退到按用户名精确搜索。 */
-    public static void resolveUserId(final Callback<Long> cb) {
-        io(() -> {
-            Long fromToken = jwtSubject(ModConfig.get().token);
-            if (fromToken != null) {
-                cb.ok(fromToken);
-                return;
-            }
-            try {
-                ModConfig cfg = ModConfig.get();
-                Dtos.UserContextResp resp = postAuthed(cfg.url("/api/account/info"), "{}",
-                        Dtos.UserContextResp.class);
-                if (resp == null || !resp.success || resp.payload == null || resp.payload.userId <= 0) {
-                    cb.fail(tr("ltsmodelshare.api.user_missing"));
-                    return;
-                }
-                cb.ok(resp.payload.userId);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.user_missing"));
-            }
-        });
-    }
-
-    private static Long jwtSubject(String token) {
-        try {
-            if (token == null) return null;
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) return null;
-            byte[] raw = java.util.Base64.getUrlDecoder().decode(parts[1]);
-            com.google.gson.JsonObject json = GSON.fromJson(
-                    new String(raw, StandardCharsets.UTF_8), com.google.gson.JsonObject.class);
-            if (json == null || !json.has("sub")) return null;
-            return Long.parseLong(json.get("sub").getAsString());
-        } catch (Exception ignored) {
-            return null;
+    private static String withGrant(String path, Access a) { return a == null ? path : param(path,"access",a.grant); }
+    private static Dtos.WorkDetail detailBlocking(long workId, String code) throws IOException {
+        if (environment.config().loggedIn()) requireAuthenticated();
+        JsonObject p = code == null || code.trim().isEmpty()
+                ? get(param("/api/v2/works/" + workId, "locale", siteLocale()))
+                : object(request("POST",param("/api/v2/works/" + workId + "/access","locale",siteLocale()), body("code",code.trim())));
+        Dtos.WorkDetail d = V2Contract.detail(p);
+        if (d.workId != workId) throw new IOException("V2_INVALID_RESPONSE: work ID mismatch");
+        Access a = has(p,"accessGrant") ? new Access(workId,code,text(p,"accessGrant")) : null;
+        if (a == null) state.access.remove(workId); else state.access.put(workId,a);
+        if (d.items != null) for (Dtos.Item i : d.items) {
+            state.itemWorks.put(i.itemId, workId);
+            if (i.preview != null && i.preview.assetUrl != null && a != null)
+                state.assets.put(V2Http.resolve(environment.config().baseUrl,i.preview.assetUrl).toExternalForm(),a);
         }
+        return d;
     }
-
-    /** 收藏 / 取消收藏：POST /api/work/social/favorite?workId=（点一下切一次） */
-    public static void toggleFavorite(final long workId, final Callback<Dtos.SocialToggle> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.fail(tr("ltsmodelshare.api.login_required"));
-                    return;
+    /** Re-exchange the original code when a capability expires; never treat it as an account token. */
+    private static Access access(long work, String code, boolean force) throws IOException {
+        Access cached = state.access.get(work);
+        boolean changedCode = code != null && (cached == null || !Objects.equals(code,cached.code));
+        if (force || changedCode || (cached != null && cached.expires <= System.currentTimeMillis()))
+            detailBlocking(work, code != null ? code : cached == null ? null : cached.code);
+        return state.access.get(work);
+    }
+    public static void recordWorkEvent(long workId, Long itemId, String eventId, Callback<Dtos.WorkStats> cb) {
+        run(cb, () -> {
+            JsonObject input = body("eventId", eventId);
+            if (itemId != null) input.addProperty("itemId", itemId);
+            Access a = access(workId, null, false);
+            String path = "/api/v2/works/" + workId + (itemId == null ? "/views" : "/downloads");
+            for (int attempt = 0; ; attempt++) {
+                try { return JSON.fromJson(request("POST", withGrant(path, a), input), Dtos.WorkStats.class); }
+                catch (IOException error) {
+                    if (attempt == 1) throw error;
+                    if (error instanceof Failure && ((Failure)error).status == 410) a = access(workId, null, true);
                 }
-                Dtos.SocialToggleResp resp = postAuthed(
-                        cfg.url("/api/work/social/favorite?workId=" + workId), "{}",
-                        Dtos.SocialToggleResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.common.action_failed", e.getMessage()));
             }
         });
     }
 
-    /** 关注 / 取消关注：POST /api/work/social/follow?userId= */
-    public static void toggleFollow(final long userId, final Callback<Dtos.SocialToggle> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.fail(tr("ltsmodelshare.api.login_required"));
-                    return;
-                }
-                Dtos.SocialToggleResp resp = postAuthed(
-                        cfg.url("/api/work/social/follow?userId=" + userId), "{}",
-                        Dtos.SocialToggleResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.common.action_failed", e.getMessage()));
-            }
+    public static void detail(long workId, Callback<Dtos.WorkDetail> cb) { detail(workId,null,cb); }
+    public static void detail(long workId, String code, Callback<Dtos.WorkDetail> cb) {
+        run(cb, () -> detailBlocking(workId,code));
+    }
+    public static void detailCard(long workId, String code, Callback<Dtos.WorkCard> cb) {
+        run(cb, () -> {
+            Dtos.WorkDetail d = detailBlocking(workId,code);
+            Dtos.WorkCard c = new Dtos.WorkCard(); c.workId=d.workId; c.kind=d.kind; c.title=d.title;
+            c.summary=d.summary; c.author=d.author; c.tags=d.tags; c.viewCount=d.viewCount; c.downloadCount=d.downloadCount;
+            c.cover=d.images.isEmpty()?null:d.images.get(0); return c;
         });
     }
-
-    /** 关注按钮的初始状态：POST /api/public/work/stats?userId= */
-    public static void followingState(final long userId, final Callback<Boolean> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.ok(false);
-                    return;
-                }
-                Dtos.ProfileStatsResp resp = postAuthed(
-                        cfg.url("/api/public/work/stats?userId=" + userId), "{}",
-                        Dtos.ProfileStatsResp.class);
-                cb.ok(resp != null && resp.success && resp.payload != null
-                        && Boolean.TRUE.equals(resp.payload.following));
-            } catch (Exception e) {
-                cb.ok(false);
+    public static void downloadInfo(long itemId, String version, Callback<Dtos.DownloadInfo> cb) {
+        downloadInfo(itemId,version,null,cb);
+    }
+    public static void downloadInfo(long itemId, String version, String code, Callback<Dtos.DownloadInfo> cb) {
+        run(cb, () -> {
+            requireLogin(); Long work = state.itemWorks.get(itemId);
+            if (code != null && !code.trim().isEmpty() && work == null)
+                throw new IOException("V2_DETAIL_REQUIRED: 请先打开邀请作品详情");
+            Access a = work == null ? null : access(work,code,false);
+            String path = param("/api/v2/works/download-info/" + itemId,"version",version);
+            JsonObject p;
+            try { p=get(withGrant(path,a)); }
+            catch (Failure expired) {
+                if (expired.status != 410 || a == null) throw expired;
+                a=access(a.work,a.code,true); p=get(withGrant(path,a));
             }
+            work=positive(p,"workId"); state.itemWorks.put(itemId,work);
+            Dtos.DownloadInfo out = JSON.fromJson(p,Dtos.DownloadInfo.class);
+            if (out.assetUrl == null || out.assetUrl.isEmpty()) throw new IOException("V2_INVALID_RESPONSE: missing assetUrl");
+            if (a != null) state.assets.put(V2Http.resolve(environment.config().baseUrl,out.assetUrl).toExternalForm(),a);
+            return out;
         });
     }
-
-    /** 账号设置的惯用语言（没设置过返回 null，由调用方回退到游戏语言）。 */
-    public static void accountLocale(final Callback<String> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.ok(null);
-                    return;
-                }
-                Dtos.UserContextResp resp = postAuthed(cfg.url("/api/account/info"), "{}",
-                        Dtos.UserContextResp.class);
-                cb.ok(resp != null && resp.success && resp.payload != null
-                        ? resp.payload.preferredLocale : null);
-            } catch (Exception e) {
-                cb.ok(null);
-            }
-        });
+    private static String replaceGrant(String url, Access a) throws IOException {
+        if (a == null || !V2Http.credentialTarget(environment.config().baseUrl,V2Http.resolve(environment.config().baseUrl,url))) return url;
+        String cleaned=url.replaceAll("([?&])access=[^&#]*", "$1").replace("?&","?").replaceAll("[?&]$","");
+        return param(cleaned,"access",a.grant);
     }
-
-    /** 标签列表：POST /api/public/work/tags */
-    public static void listTags(final Callback<java.util.List<Dtos.Tag>> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                Dtos.TagsResp resp = postWithSession(cfg.url("/api/public/work/tags"), "{}",
-                        Dtos.TagsResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.tags_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /** 搜作者：POST /api/public/work/authors?q=（返回最多若干个候选） */
-    public static void searchAuthors(final String keyword, final Callback<java.util.List<Dtos.Author>> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String q = keyword == null ? "" : keyword.trim();
-                String url = cfg.url("/api/public/work/authors?q=" + encode(q) + "&exact=false");
-                Dtos.AuthorsResp resp = postWithSession(url, "{}", Dtos.AuthorsResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.search_author_failed", e.getMessage()));
-            }
-        });
-    }
-
-    private static String encode(String s) {
-        try {
-            return java.net.URLEncoder.encode(s, "UTF-8");
-        } catch (Exception e) {
-            return s;
+    private static String asset(String rawUrl, long maxBytes) throws IOException {
+        checkTask();
+        ModConfig cfg=environment.config(); String expected=identity(), token=cfg.token;
+        String key=V2Http.resolve(cfg.baseUrl,rawUrl).toExternalForm();
+        Access original=state.assets.get(key), a=original;
+        if (a != null) a=access(a.work,a.code,false);
+        String path=replaceGrant(key,a);
+        final String assetPath = path;
+        V2Http.Response r = SessionRequests.execute(SESSION,
+                (base, credential) -> HTTP.request(base,assetPath,"GET",null,null,credential,20000,maxBytes,siteLocale()),
+                response -> credentialStatus(response), true);
+        if (r.status==410 && a!=null && V2Http.credentialTarget(cfg.baseUrl,r.finalUrl)) {
+            a=access(a.work,a.code,true);
+            r=HTTP.request(cfg.baseUrl,replaceGrant(key,a),"GET",null,null,cfg.token,20000,maxBytes,siteLocale());
+            unchanged(expected);
         }
-    }
-    /**
-     * 作品详情：POST /api/public/work/detail?workId=
-     *
-     * <p>不带访问码的版本（列表里点进来的公开作品）。unlisted 作品走
-     * {@link #detail(long, String, Callback)}，凭邀请入口用。</p>
-     */
-    public static void detail(final long workId, final Callback<Dtos.WorkDetail> cb) {
-        detail(workId, null, cb);
-    }
-
-    /**
-     * 作品详情（带访问码）：POST /api/public/work/detail?workId=&code=
-     *
-     * <p>仅 unlisted（凭链接）作品可携访问码：缺码回 M05-030、错码回 M05-031；
-     * 作品改成公开后，旧邀请携码请求回 M05-064，公开作品需走不带码的列表入口。</p>
-     */
-    public static void detail(final long workId, final String code,
-                              final Callback<Dtos.WorkDetail> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String tail = code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim());
-                Dtos.DetailResp resp = postWithSession(cfg.url("/api/public/work/detail?workId=" + workId + "&locale=" + encode(siteLocale()) + tail),
-                        "{}", Dtos.DetailResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.detail_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /**
-     * 凭邀请访问：先按 workId + code 取详情，成功后再拼一张 {@link Dtos.WorkCard}。
-     *
-     * <p>为什么要有这个：详情页 {@code GuiWorkDetail} 的构造参数是卡片（列表点进来那份），
-     * 而详情接口给的是 {@link Dtos.WorkDetail} —— 这里补一层转换，不动详情页现有构造。</p>
-     */
-    public static void detailCard(final long workId, final String code,
-                                  final Callback<Dtos.WorkCard> cb) {
-        detail(workId, code, new Callback<Dtos.WorkDetail>() {
-            @Override
-            public void ok(Dtos.WorkDetail value) {
-                cb.ok(cardOf(value));
-            }
-
-            @Override
-            public void fail(String message) {
-                cb.fail(message);
-            }
-        });
-    }
-
-    /** 详情 → 卡片：只填详情页显示要用的字段（ID / 标题 / 封面 / 作者 / 标签 / 数据） */
-    private static Dtos.WorkCard cardOf(Dtos.WorkDetail d) {
-        Dtos.WorkCard card = new Dtos.WorkCard();
-        card.kind = d.kind;
-        card.workId = d.workId;
-        card.title = d.title;
-        card.summary = d.summary;
-        card.cover = d.images == null || d.images.isEmpty() ? null : d.images.get(0);
-        card.tags = d.tags;
-        card.author = d.author;
-        card.viewCount = d.viewCount;
-        card.downloadCount = d.downloadCount;
-        return card;
-    }
-
-    /** 取下载地址（需要登录）：POST /api/work/download-snbt?itemId=&version= */
-    public static void downloadInfo(final long itemId, final String version,
-                                    final Callback<Dtos.DownloadInfo> cb) {
-        downloadInfo(itemId, version, null, cb);
-    }
-
-    /**
-     * 取下载地址（带访问码）：POST /api/work/download-snbt?itemId=&version=&code=
-     *
-     * <p>unlisted 作品设了访问码时，下载接口也要校验（M05-030 缺码 / M05-031 错码）。
-     * 公开作品传 null 即可，行为与以前一样。</p>
-     */
-    public static void downloadInfo(final long itemId, final String version, final String code,
-                                    final Callback<Dtos.DownloadInfo> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.fail(tr("ltsmodelshare.api.login_hint"));
-                    return;
-                }
-                String url = cfg.url("/api/work/download-snbt?itemId=" + itemId
-                        + (version == null || version.isEmpty() ? "" : "&version=" + version)
-                        + (code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim())));
-                Dtos.DownloadResp resp = postAuthed(url, "{}", Dtos.DownloadResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.download_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /**
-     * 把下载地址的内容读成**字符串**（SNBT 文本），不落盘。
-     *
-     * <p>蓝图是直接在内存里生成的（{@code StructureStringUtils.importStructure}），
-     * 所以不需要写文件 —— 界面上也不再有「保存到」。</p>
-     */
-    public static void fetchText(final Dtos.DownloadInfo info, final Callback<String> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String url = info.assetUrl;
-                if (url == null || url.isEmpty()) {
-                    cb.fail(tr("ltsmodelshare.api.download_empty"));
-                    return;
-                }
-                if (url.startsWith("/")) {
-                    url = cfg.baseUrl + url;
-                }
-                HttpURLConnection conn = open(url, "GET", null, null);
-                String text;
-                try {
-                    AssetHeaders.apply(conn, cfg.baseUrl);
-                    int code = conn.getResponseCode();
-                    if (code / 100 != 2) {
-                        cb.fail(tr("ltsmodelshare.api.structure_http", code));
-                        return;
-                    }
-                    try (InputStream in = conn.getInputStream()) {
-                        text = readAll(in);
-                    }
-                } finally {
-                    conn.disconnect();
-                }
-                if (text == null || text.trim().isEmpty()) {
-                    cb.fail(tr("ltsmodelshare.api.empty_response"));
-                    return;
-                }
-                cb.ok(text);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.structure_failed", e.getMessage()));
-            }
-        });
-    }
-    /** 读取站点生成的 OBJ 白模，限制响应字节数，防止恶意资源耗尽客户端内存。 */
-    public static void fetchObj(final String assetUrl, final long maxBytes, final Callback<String> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (assetUrl == null || assetUrl.trim().isEmpty()) throw new IOException("OBJ URL is empty");
-                URL url = new URL(new URL(cfg.baseUrl + "/"), assetUrl.startsWith("//") ? "https:" + assetUrl : assetUrl);
-                if (!"https".equalsIgnoreCase(url.getProtocol()) && !"http".equalsIgnoreCase(url.getProtocol())) {
-                    throw new IOException("Unsupported OBJ URL scheme");
-                }
-                HttpURLConnection conn = open(url.toExternalForm(), "GET", null, null);
-                try {
-                    AssetHeaders.apply(conn, cfg.baseUrl);
-                    if (conn.getResponseCode() / 100 != 2) throw new IOException("OBJ HTTP " + conn.getResponseCode());
-                    if (conn.getContentLengthLong() > maxBytes) throw new IOException("OBJ exceeds size limit");
-                    java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-                    try (InputStream stream = conn.getInputStream()) {
-                        byte[] buffer = new byte[8192];
-                        int n;
-                        while ((n = stream.read(buffer)) != -1) {
-                            if (bytes.size() + (long) n > maxBytes) throw new IOException("OBJ exceeds size limit");
-                            bytes.write(buffer, 0, n);
-                        }
-                    }
-                    cb.ok(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-                } finally {
-                    conn.disconnect();
-                }
-            } catch (Exception error) {
-                cb.fail(error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
-            }
-        });
-    }
-
-    // ==================== 上传 ====================
-
-    /**
-     * 上传 SNBT 文本：{@code POST /api/studio/work/upload-snbt}（multipart，字段名 file）。
-     *
-     * <p>站点只认 txt 文件，所以把文本包成一个 txt 再传 —— 跟网页端粘贴 SNBT 的做法一致，
-     * 哈希/去重/白模生成都在服务端，模组这边不重复实现。</p>
-     */
-    public static void uploadSnbt(final String text, final String fileNameHint,
-                                  final Callback<Dtos.SnbtUpload> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.fail(tr("ltsmodelshare.api.login_required"));
-                    return;
-                }
-                String boundary = "----ltsmodelshare" + System.currentTimeMillis();
-                String name = (fileNameHint == null || fileNameHint.isEmpty() ? "blueprint" : fileNameHint)
-                        .replaceAll("[^\\w\\-\\u4e00-\\u9fa5]", "_") + ".txt";
-
-                byte[] head = ("--" + boundary + "\r\n"
-                        + "Content-Disposition: form-data; name=\"file\"; filename=\"" + name + "\"\r\n"
-                        + "Content-Type: text/plain; charset=utf-8\r\n\r\n").getBytes(StandardCharsets.UTF_8);
-                byte[] body = text.getBytes(StandardCharsets.UTF_8);
-                byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
-
-                Dtos.SnbtUploadResp resp = multipartWithSession(cfg.url("/api/studio/work/upload-snbt"),
-                        boundary, head, body, tail, 120000, Dtos.SnbtUploadResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.upload_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /**
-     * 上传一张截图：{@code POST /api/studio/work/upload-image}（multipart，字段名 file）。
-     *
-     * @return 服务端返回的图片地址（预览档），直接放进 save 的 images 里
-     */
-    public static void uploadImage(final java.io.File file, final Callback<String> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
-                    cb.fail(tr("ltsmodelshare.api.login_required"));
-                    return;
-                }
-                if (file == null || !file.isFile()) {
-                    cb.fail(tr("ltsmodelshare.api.file_missing"));
-                    return;
-                }
-                String boundary = "----ltsmodelshare" + System.currentTimeMillis();
-                byte[] data = java.nio.file.Files.readAllBytes(file.toPath());
-                String ext = file.getName().toLowerCase().endsWith(".png") ? "png" : "jpg";
-
-                byte[] head = ("--" + boundary + "\r\n"
-                        + "Content-Disposition: form-data; name=\"file\"; filename=\"shot." + ext + "\"\r\n"
-                        + "Content-Type: " + ("png".equals(ext) ? "image/png" : "image/jpeg") + "\r\n\r\n")
-                        .getBytes(StandardCharsets.UTF_8);
-                byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
-
-                Dtos.ImageUploadResp resp = multipartWithSession(cfg.url("/api/studio/work/upload-image"),
-                        boundary, head, data, tail, 60000, Dtos.ImageUploadResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.image_failed", e.getMessage()));
-            }
-        });
-    }
-    /** 保存作品（{@code POST /api/studio/work/save}）→ 返回作品 ID */
-    public static void saveWork(final Dtos.WorkSaveRequest request, final Callback<Long> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String body = GSON.toJson(request);
-                Dtos.WorkSaveResp resp = postAuthed(cfg.url("/api/studio/work/save"), body,
-                        Dtos.WorkSaveResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.save_failed", e.getMessage()));
-            }
-        });
-    }
-    /**
-     * 同意「上传授权」协议，拿到本次提交要用的 consentId。
-     *
-     * <p>站点要求：**每次提交审核**都要新拿一个 consentId，不能复用很久以前的同意。</p>
-     */
-    public static void agreeUploadRights(final Callback<Long> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String body = "{\"consentType\":\"upload_rights\",\"agreed\":true}";
-                Dtos.ConsentResp resp = postAuthed(cfg.url("/api/account/notification/consent/agree"),
-                        body, Dtos.ConsentResp.class);
-                if (resp == null || !resp.success || resp.payload == null
-                        || resp.payload.consentId == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload.consentId);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.consent_failed", e.getMessage()));
-            }
-        });
-    }
-
-    /** 提交审核：{@code POST /api/studio/work/submit-review?workId=&keepOnline=&consentId=} */
-    public static void submitReview(final long workId, final boolean keepOnline, final long consentId,
-                                    final Callback<Dtos.SubmitReview> cb) {
-        io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/studio/work/submit-review?workId=" + workId
-                        + "&keepOnline=" + keepOnline + "&consentId=" + consentId);
-                Dtos.SubmitReviewResp resp = postAuthed(url, "{}", Dtos.SubmitReviewResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.review_failed", e.getMessage()));
-            }
-        });
-    }
-    // ==================== 底层 ====================
-
-    private static final class MultipartResponse {
-        final int status;
-        final String text;
-        MultipartResponse(int status, String text) { this.status = status; this.text = text; }
-    }
-
-    /** 多段上传与网站 authFetch 一样仅在 401 时续期并重试整个请求一次。 */
-    private static <T extends Dtos.Resp<?>> T multipartWithSession(String url, String boundary,
-            byte[] head, byte[] data, byte[] tail, int timeout, Class<T> type) throws IOException {
-        ModConfig cfg = ModConfig.get();
-        String tokenUsed = cfg.token;
-        MultipartResponse response = multipart(url, boundary, head, data, tail, timeout, tokenUsed);
-        if (response.status == 401) {
-            if (refreshBlocking()) {
-                response = multipart(url, boundary, head, data, tail, timeout, cfg.token);
-            } else if (tokenUsed.equals(cfg.token)) {
-                cfg.clearSession();
-            }
+        if(r.status/100!=2) {
+            // JSON failure bodies use the website's own error, otherwise report only the status.
+            try { payload(r); } catch(Failure failure) { throw failure; }
+            throw new Failure(r.status,"HTTP_"+r.status,"资源读取失败");
         }
-        return response.text == null || response.text.trim().isEmpty()
-                ? null : GSON.fromJson(response.text, type);
+        String text=LegacySnbt.utf8(r.bytes);
+        if(text.trim().isEmpty()) throw new IOException("V2_EMPTY_ASSET: 资源内容为空");
+        return text;
+    }
+    public static void fetchText(Dtos.DownloadInfo info, Callback<String> cb) {
+        run(cb, () -> {
+            if(info==null||info.assetUrl==null) throw new IOException(tr("ltsmodelshare.api.download_empty"));
+            String snbt = asset(info.assetUrl,10L*1024*1024);
+            LegacySnbt.requireLegacy(snbt);
+            long actualBytes = snbt.getBytes(StandardCharsets.UTF_8).length;
+            if (info.sizeBytes > 0 && info.sizeBytes != actualBytes)
+                throw new IOException("V2_SIZE_MISMATCH");
+            info.sizeBytes = actualBytes;
+            return snbt;
+        });
+    }
+    public static void fetchObj(String assetUrl, long maxBytes, Callback<String> cb) {
+        run(cb, () -> asset(assetUrl,Math.min(maxBytes,8L*1024*1024)));
     }
 
-    private static MultipartResponse multipart(String url, String boundary, byte[] head,
-            byte[] data, byte[] tail, int timeout, String token) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        try {
-            conn.setRequestMethod("POST");
-            conn.setConnectTimeout(15000);
-            conn.setReadTimeout(timeout);
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-            conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-            if (token != null && !token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
-            try (OutputStream out = conn.getOutputStream()) {
-                out.write(head);
-                out.write(data);
-                out.write(tail);
-            }
-            int status = conn.getResponseCode();
-            return new MultipartResponse(status,
-                    readAll(status / 100 == 2 ? conn.getInputStream() : conn.getErrorStream()));
-        } finally {
-            conn.disconnect();
-        }
+    private static JsonObject upload(byte[] data, String filename, String mime, String purpose, int timeout) throws IOException {
+        checkTask(); requireLogin(); ModConfig cfg=environment.config(); String expected=identity(), token=cfg.token;
+        String boundary="----ltsmodelshare"+UUID.randomUUID().toString().replace("-","");
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        out.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\""+filename+"\"\r\n"
+                +"Content-Type: "+mime+"\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+        out.write(data); out.write(("\r\n--"+boundary+"--\r\n").getBytes(StandardCharsets.UTF_8));
+        byte[] bytes=out.toByteArray();
+        String path=param(param("/api/v2/uploads","purpose",purpose),"module","community");
+        V2Http.Response r = SessionRequests.execute(SESSION,
+                (base, credential) -> HTTP.request(base,path,"POST",bytes,"multipart/form-data; boundary="+boundary,
+                        credential,timeout,JSON_LIMIT,siteLocale()), response -> credentialStatus(response), true);
+        return object(payload(r));
     }
-
-    private static <T> T post(String url, String body, String token, Class<T> type) throws IOException {
-        HttpURLConnection conn = open(url, "POST", body, token);
-        int code = conn.getResponseCode();
-        InputStream stream = code / 100 == 2 ? conn.getInputStream() : conn.getErrorStream();
-        String text = readAll(stream);
-        conn.disconnect();
-        if (text == null || text.trim().isEmpty()) {
-            return null;
-        }
-        return GSON.fromJson(text, type);
+    public static void uploadSnbt(String text, String fileNameHint, Callback<Dtos.SnbtUpload> cb) {
+        run(cb, () -> {
+            if(text==null||text.trim().isEmpty()) throw new IOException("SNBT内容为空");
+            byte[] bytes=text.getBytes(StandardCharsets.UTF_8);
+            if(bytes.length>10*1024*1024)throw new IOException("SNBT文件超过10MiB");
+            String name=(fileNameHint==null?"blueprint":fileNameHint).replaceAll("[^\\w\\-\\u4e00-\\u9fa5]","_");
+            if(name.length()>64)name=name.substring(0,64);
+            JsonObject p=upload(bytes,name+".txt","text/plain; charset=utf-8","work_snbt",120000);
+            Dtos.SnbtUpload out=new Dtos.SnbtUpload();
+            out.blobId=positive(p,"resourceId"); // GUI name retained; V2 save expects a resource ID here.
+            out.sha256=text(p,"sha256");out.sizeBytes=number(p,"size",bytes.length);out.assetUrl=text(p,"url");
+            return out;
+        });
     }
-
-    private static HttpURLConnection open(String url, String method, String body, String token) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setRequestMethod(method);
-        conn.setConnectTimeout(8000);
-        conn.setReadTimeout(20000);
-        conn.setInstanceFollowRedirects(true);
-        conn.setRequestProperty("Accept", "application/json, */*");
-        conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-        if (token != null && !token.isEmpty()) {
-            conn.setRequestProperty("Authorization", "Bearer " + token);
-        }
-        if (body != null) {
-            conn.setDoOutput(true);
-            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            try (Writer w = new OutputStreamWriter(conn.getOutputStream(), StandardCharsets.UTF_8)) {
-                w.write(body);
-            }
-        }
-        return conn;
+    public static void uploadImage(File file, Callback<String> cb) {
+        run(cb, () -> {
+            if(file==null||!file.isFile())throw new IOException(tr("ltsmodelshare.api.file_missing"));
+            if(file.length()>8L*1024*1024)throw new IOException("图片超过8MiB");
+            boolean png=file.getName().toLowerCase(Locale.ROOT).endsWith(".png");
+            JsonObject p=upload(java.nio.file.Files.readAllBytes(file.toPath()),png?"shot.png":"shot.jpg",
+                    png?"image/png":"image/jpeg","work_image",60000);
+            long id=positive(p,"resourceId");String url=text(p,"url");
+            if(url==null||url.isEmpty())throw new IOException("V2_INVALID_RESPONSE: missing image URL");
+            state.imageIds.put(url,id);return url;
+        });
     }
-
-    private static String readAll(InputStream in) throws IOException {
-        if (in == null) return "";
-        StringBuilder sb = new StringBuilder();
-        try (Reader r = new InputStreamReader(in, StandardCharsets.UTF_8)) {
-            BufferedReader br = new BufferedReader(r);
-            char[] buf = new char[4096];
-            int n;
-            while ((n = br.read(buf)) > 0) {
-                sb.append(buf, 0, n);
-            }
-        }
-        return sb.toString();
+    public static void saveWork(Dtos.WorkSaveRequest input, Callback<Long> cb) {
+        run(cb, () -> {
+            requireLogin();
+            JsonObject p=object(request("POST","/api/v2/works/save",saveBody(input,state.imageIds)));
+            Pending saved=new Pending(positive(p,"workId"),positive(p,"version"));
+            state.pending.put(saved.work,saved);state.lastSaved=saved;return saved.work;
+        });
     }
-
-    /** 把响应壳翻成人话 */
-    private static String describe(Dtos.Resp<?> resp) {
-        if (resp == null) return tr("ltsmodelshare.api.invalid_response");
-        String m = resp.error_message == null || resp.error_message.isEmpty() ? tr("ltsmodelshare.api.request_failed") : resp.error_message;
-        return resp.error_code == null || resp.error_code.isEmpty() ? m : m + "（" + resp.error_code + "）";
+    /**
+     * Preserve the old callback chain without fabricating first-time agreement to unseen text.
+     * An existing decision for the current text is bound to this just-saved draft.
+     */
+    public static void agreeUploadRights(Callback<Long> cb) {
+        run(cb, () -> {
+            requireLogin();Pending p=state.lastSaved;
+            if(p==null)throw new IOException("V2_DRAFT_CONTEXT_MISSING: 请先保存当前草稿");
+            JsonObject agreement=get(param("/api/v2/agreements/upload_rights","locale",siteLocale()));
+            JsonObject input=receiptBody(agreement,p.work,p.version);
+            JsonObject receipt=object(request("POST","/api/v2/agreements/"+positive(agreement,"releaseId")+"/consent",input));
+            if(number(receipt,"scopeId",0)!=p.work || number(receipt,"scopeVersion",0)!=p.version
+                    || !"work_upload".equals(text(receipt,"scopeType")) || !"granted".equals(text(receipt,"decision")))
+                throw new IOException("V2_INVALID_RESPONSE: 上传授权回执不匹配");
+            p.receipt=positive(receipt,"receiptId");return p.receipt;
+        });
     }
-
-    private static String nullToEmpty(String s) {
-        return s == null ? "" : s;
-    }
-
-    private static String sanitize(String name) {
-        String s = name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
-        return s.isEmpty() ? "model-" + System.currentTimeMillis() + ".snbt" : s;
-    }
-
-    /** 简易回调（都在后台线程回调；要动界面请自己包 {@link #post}） */
-    public interface Callback<T> {
-        void ok(T value);
-
-        void fail(String message);
+    /** {@code consentId} may be null: the site lets a token session submit without the web receipt. */
+    public static void submitReview(long workId, boolean keepOnline, Long consentId, Callback<Dtos.SubmitReview> cb) {
+        run(cb, () -> {
+            requireLogin();Pending p=state.pending.get(workId);
+            if(p==null)
+                throw new IOException("V2_DRAFT_CONTEXT_MISSING: 草稿上下文缺失，请重新保存后再提交");
+            if(consentId!=null && (p.receipt==null||p.receipt.longValue()!=consentId.longValue()))
+                throw new IOException("V2_DRAFT_CONTEXT_MISSING: 授权或草稿已变化，请重新确认");
+            JsonObject input=body("expectedVersion",p.version);
+            input.addProperty("keepOldOnline",keepOnline);
+            if(consentId!=null) input.addProperty("consentReceiptId",consentId);
+            JsonObject result=object(request("POST","/api/v2/works/"+workId+"/submit",input));
+            positive(result,"reviewId");
+            state.pending.remove(workId);if(state.lastSaved==p)state.lastSaved=null;
+            Dtos.SubmitReview out=new Dtos.SubmitReview();out.submitted=true;return out;
+        });
     }
 }

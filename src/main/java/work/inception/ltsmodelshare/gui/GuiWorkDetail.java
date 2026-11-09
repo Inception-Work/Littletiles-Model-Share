@@ -61,6 +61,7 @@ public class GuiWorkDetail extends GuiScreen {
     private final String accessCode;
 
     private Dtos.WorkDetail detail;
+    private final String viewEventId = java.util.UUID.randomUUID().toString();
     private final List<Dtos.Item> items = new ArrayList<>();
     private final List<Dtos.Item> allItems = new ArrayList<>();
     private boolean onlyThisVersion;
@@ -190,6 +191,28 @@ public class GuiWorkDetail extends GuiScreen {
 
     // ==================== 数据 ====================
 
+    private void recordVisibleVisit() {
+        if (mc.currentScreen != this || detail == null) return;
+        ApiClient.recordWorkEvent(card.workId, null, viewEventId, statisticsCallback());
+    }
+
+    private ApiClient.Callback<Dtos.WorkStats> statisticsCallback() {
+        return new ApiClient.Callback<Dtos.WorkStats>() {
+            @Override public void ok(Dtos.WorkStats counts) {
+                ApiClient.post(() -> {
+                    if (counts == null) return;
+                    card.viewCount = Math.max(card.viewCount, counts.views);
+                    card.downloadCount = Math.max(card.downloadCount, counts.downloads);
+                    if (detail != null) {
+                        detail.viewCount = Math.max(detail.viewCount, counts.views);
+                        detail.downloadCount = Math.max(detail.downloadCount, counts.downloads);
+                    }
+                });
+            }
+            @Override public void fail(String message) { /* Statistics never interrupt browsing or file use. */ }
+        };
+    }
+
     private void load() {
         if (loading || detail != null) {
             return;
@@ -202,6 +225,7 @@ public class GuiWorkDetail extends GuiScreen {
                 ApiClient.post(() -> {
                     loading = false;
                     detail = value;
+                    recordVisibleVisit();
                     allItems.clear();
                     if (value.items != null) {
                         allItems.addAll(value.items);
@@ -674,6 +698,7 @@ public class GuiWorkDetail extends GuiScreen {
      * </ol>
      */
     private void fetchBlueprint(final Dtos.Item item) {
+        final String downloadEventId = java.util.UUID.randomUUID().toString();
         if (!ModConfig.get().loggedIn()) {
             mc.displayGuiScreen(new GuiLogin(this));
             return;
@@ -708,7 +733,10 @@ public class GuiWorkDetail extends GuiScreen {
                 ApiClient.fetchText(info, new ApiClient.Callback<String>() {
                     @Override
                     public void ok(String text) {
-                        ApiClient.post(() -> handToLittleTiles(item, text));
+                        ApiClient.post(() -> {
+                            ApiClient.recordWorkEvent(card.workId, item.itemId, downloadEventId, statisticsCallback());
+                            handToLittleTiles(item, text);
+                        });
                     }
 
                     @Override

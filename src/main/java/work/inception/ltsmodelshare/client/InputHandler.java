@@ -32,6 +32,7 @@ public class InputHandler {
         } else {
             // 与网站相同：请求遇到失效令牌才刷新；单纯打开面板不延长两小时会话。
             mc.displayGuiScreen(new GuiModels());
+            work.inception.ltsmodelshare.api.ApiClient.validateSession();
         }
     }
 }

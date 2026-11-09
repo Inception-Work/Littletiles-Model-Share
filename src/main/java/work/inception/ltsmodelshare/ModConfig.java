@@ -27,16 +27,16 @@ public class ModConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     /** 站点根地址，例如 https://www.inception.work（不带结尾斜杠） */
-    public String baseUrl = DEFAULT_BASE_URL;
+    public volatile String baseUrl = DEFAULT_BASE_URL;
 
     /** 登录令牌（Bearer）；为空 = 未登录 */
-    public String token = "";
+    public volatile String token = "";
 
     /** 密码登录的刷新令牌（服务端滑动两小时，每次续期轮换）；个人访问令牌模式留空。 */
-    public String refreshToken = "";
+    public volatile String refreshToken = "";
 
     /** 上次登录的用户名（只用于回显，不存密码） */
-    public String username = "";
+    public volatile String username = "";
 
     /** 下载目录；空 = 用 gameDir/ltsmodels */
     public String downloadDir = "";

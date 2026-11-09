@@ -59,6 +59,24 @@ public final class ImageCache {
         return t;
     });
 
+    private static String sessionBase;
+    private static String sessionToken;
+    private static int sessionGeneration;
+
+    /** Called on the render thread; private textures and failures belong to one session. */
+    private static void syncSession() {
+        ModConfig cfg = ModConfig.get();
+        if (java.util.Objects.equals(sessionBase, cfg.baseUrl)
+                && java.util.Objects.equals(sessionToken, cfg.token)) return;
+        for (Img image : READY.values()) {
+            Minecraft.getMinecraft().getTextureManager().deleteTexture(image.tex);
+        }
+        READY.clear(); LOADING.clear(); FAILED.clear();
+        sessionBase = cfg.baseUrl;
+        sessionToken = cfg.token;
+        sessionGeneration++;
+    }
+
     private static int counter;
 
     private ImageCache() {
@@ -66,6 +84,7 @@ public final class ImageCache {
 
     /** 取贴图；还没加载好返回 null（调用方画占位） */
     public static Img img(String url) {
+        syncSession();
         if (url == null || url.isEmpty()) {
             return null;
         }
@@ -80,6 +99,8 @@ public final class ImageCache {
         if (FAILED.contains(key) || LOADING.size() >= 24 || !LOADING.add(key)) {
             return null;
         }
+        final String base = sessionBase, token = sessionToken;
+        final int generation = sessionGeneration;
         POOL.execute(() -> {
             BufferedImage image = null;
             try {
@@ -93,33 +114,26 @@ public final class ImageCache {
                         image = ImageIO.read(in);
                     }
                 } else {
-                    HttpURLConnection conn = (HttpURLConnection) new URL(key).openConnection();
-                    conn.setConnectTimeout(8000);
-                    conn.setReadTimeout(12000);
-                    conn.setRequestProperty("User-Agent", "ltsmodelshare-mod/0.1.0");
-                    try {
-                        work.inception.ltsmodelshare.api.AssetHeaders.apply(conn, ModConfig.get().baseUrl);
-                        int code = conn.getResponseCode();
-                        if (code / 100 != 2) {
-                            throw new java.io.IOException("Image HTTP " + code);
-                        }
-                        try (InputStream in = conn.getInputStream()) {
-                            image = ImageIO.read(in);
-                        }
-                    } finally {
-                        conn.disconnect();
+                    byte[] bytes = work.inception.ltsmodelshare.api.ApiClient.imageBytes(base, key, token);
+                    try (InputStream in = new java.io.ByteArrayInputStream(bytes)) {
+                        image = ImageIO.read(in);
                     }
                 }
             } catch (Exception e) {
-                LtsModelShare.LOG.debug("图片加载失败 {}：{}", key, e.toString());
+                LtsModelShare.LOG.debug("图片加载失败：{}", e.getClass().getSimpleName());
             }
             if (image == null) {
-                FAILED.add(key);
-                LOADING.remove(key);
+                Minecraft.getMinecraft().addScheduledTask(() -> {
+                    syncSession();
+                    if (generation != sessionGeneration) return;
+                    FAILED.add(key); LOADING.remove(key);
+                });
                 return;
             }
             final BufferedImage finalImage = downscale(image);
             Minecraft.getMinecraft().addScheduledTask(() -> {
+                syncSession();
+                if (generation != sessionGeneration) return;
                 try {
                     DynamicTexture tex = new DynamicTexture(finalImage);
                     ResourceLocation loc = new ResourceLocation(LtsModelShare.MODID, "img/" + (counter++));
@@ -129,7 +143,7 @@ public final class ImageCache {
                     evictOldest();
                 } catch (Exception e) {
                     FAILED.add(key);
-                    LtsModelShare.LOG.debug("图片上传失败 {}：{}", key, e.toString());
+                    LtsModelShare.LOG.debug("图片上传失败：{}", e.getClass().getSimpleName());
                 } finally {
                     LOADING.remove(key);
                 }

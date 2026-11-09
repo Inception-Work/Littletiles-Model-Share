@@ -1,3 +1,12 @@
+# 0.1.9 最新状态（2026-11-09）
+
+- 用户已逐个启动并确认六个平台的实机验收全部通过：Forge 1.12.2 / 1.19.4 / 1.20.1 / 1.20.2，NeoForge 1.20.1 / 1.21.1。
+- 本次修复“我的空间”私有作品、私有合集与凭码作品缺失，包含翻页及版本筛选；修复登录失效自动续期和回到登录界面；接入浏览/下载统计及重试去重；改善私有图片与 SNBT 的 CDN 加载体验；Forge 1.12.2 修复密码遮罩偏移。
+- 0.1.9 完整构建和协议回归检查通过。现代版各 Session 20 项、V2 23 项；1.12.2 Session 20 项、API 83 项，并通过七语言和 OBJ 检查。最终发行产物及哈希见 build/releases/ 对应 manifest。
+- 源码提交、标签及网站发布由主 agent 完成中；本段以下内容为历史交接记录，其中“未验收”等结论不代表本次状态。
+
+---
+
 # LittleTiles Model Share 开发交接
 
 > 更新：2026-10-28。此文档针对 `D:\DevelopmentProject\littletiles-model-share` 的**当前工作树**。0.1.3 测试版已发布，详见第 9 节；工作树尚未提交。项目原有工具链/历史排障详见 [README.md](README.md)。
@@ -113,3 +122,39 @@
 - 发布文件 `build/releases/0.1.4-beta/LittletilesModelShare-0.1.4.jar`，283158 字节，SHA256 `3af1bd760c9e4971547ce0eb01fe65bb37038f22b769541a3661148ec838d02a`；已从 `/api/public/mod/download?releaseId=5` 实际下载并核对哈希与大小一致。
 - 源码提交 `a2d6fe6`（`release: 0.1.4 beta`），本地与远端分支 `forge/1.12.2`、tag `v0.1.4` 均已推送；发布前数据库表备份在 `/www/backup/ltsmodelshare-0.1.4-beta/mod_release-before.sql`。
 - 构建、七语言键检查、OBJ 解析检查通过；游戏内界面与联机流程尚未作最终实机验收。
+
+## 2026-11-06：Forge 1.12.2 的 V2 预接入（未联机实测）
+
+本分支为主仓库 littletiles-model-share 的关联工作树，路径 D:/DevelopmentProject/lts-112，分支 forge/1.12.2。主目录仍为 forge/1.20.1，不应把本分支源码直接覆盖过去。
+
+架构保留 GUI -> ApiClient 单线程后台队列 -> 客户端主线程回调；LittleTiles 导出、预览、蓝图物品网络与布局未改。HTTP/协议边界新增 V2Http（有界读取、显式重定向、同源 API Bearer）和 V2Contract（V2字段转现有界面模型）。Dtos 名称只是界面兼容模型，HTTP 不再回退 V1。
+
+已接代码：V2 密码登录/me/双令牌轮换/捕获退出会话；基础分页与作者主页；收藏/关注先读状态再发显式 value；分享 code 换 accessGrant、缓存短期授权并用于下载；源文件 GET 带同源认证且不向 CDN 转发；SNBT/截图上传资源 ID、草稿 workId/version；版本绑定上传权利 receipt/submit。1.12.2 仍请求 legacy 下载目标，由网站负责转换；客户端不更改原 SNBT、Reader、服务端或任何 GUI 文件。
+
+当前限制需在服务器完成后联调，不能当完成：
+- 基础 works 接口尚缺标签/来源版本筛选、全站精确/热门排序：现有控件保留，调用会明确报 V2_QUERY_UNSUPPORTED，绝不静默丢条件或只筛当前页。
+- 全站列表仍取网站当前提供的标题模糊搜索/发布顺序及原文；locale 参数没有等价服务端能力，不能宣称多语言内容查询已恢复。
+- PAT 依网站既有 scope/路由白名单；作者/标签/互动/协议/分享部分路由会被网站拒绝。没有放宽权限，也未修改服务器。
+- 保持界面不动，未新增协议弹窗。只有网站已经记录了当前 release/text 的明确同意（不能用 inherited 或别的 text）才在现有“上传并送审”调用链创建 work_upload 回执；首次/更新正文需先在网站确认，否则保存的草稿保留并通过原提示区说明。服务器若调整此流程须再核对，不自动同意未展示正文。
+- 私密、下架、旧发布版本、分享授权撤销/过期以及遗留 SNBT 的实际转换结果均待联验；现代 SNBT 到 Reader v0.2 白模降级属于网站 worker，模组没有修改它。
+- PAT 输入框仍保持现有本地附加方式；实际身份和权限以网站响应为准，不把进入界面当作验证通过。
+
+验证只做离线：Java 8 的 --offline compileJava/testClasses、apiContractChecks（纯 JSON 与伪 HttpURLConnection，无 socket）、既有 localizationChecks 和 objModelChecks。没有启动 Minecraft、网站、迁移或真实接口，没有使用手测库，没有改账户/配置/服务。离线检查通过不等于模组实测通过。
+
+复核命令：Java 8 下 gradlew.bat --offline --no-daemon apiContractChecks localizationChecks objModelChecks。联机实测等服务器完成，另行在独立环境验证登录续期、分页/详情、下载字节和物品、上传草稿、授权送审、PAT 范围、私密与下架反例；不要修改既有 8100/5200、8080/5174 手测环境。
+
+
+## 2026-11-07：V2 开发转交 DeepSeek（未完成闭环、未发布）
+
+用户要求转交开发，已停止扩展。当前状态见 [完整交接报告](design/integration-audit/DeepSeek交接-ModelShare-V2-2026-11-07.md) 和 [网站接口集成请求](design/integration-audit/网站接口集成请求-2026-11-07.md)。上节关于 locale 的部分缺失结论已过时。
+
+- 已完善语言参数、下载方言门禁、CDN Referer、七语言错误和队列会话保护；GUI、游戏服务端和网站共享代码未改。
+- 最终 Java 8 编译与 79 项离线契约、七语言、OBJ 检查通过。最近真实 HTTP 记录 100 项，98 符合预期、2 个网站契约缺口；不能据此称闭环完成。
+- 最新扩展 LiveV2Checks 比 evidence 新：自然过期、旧修订、错标方言及 ApiClient 上传完整链路尚未重跑。
+- 专属 18126/13326 实例已停止，数据库和容器保留；5220/8120 人工环境未改。
+- Minecraft 实机未验收，本轮没有新 JAR 或产物 SHA-256；旧 build/libs 包不能验收本轮代码。build.gradle=0.1.7 与源码 VERSION=0.1.3 尚未统一。
+- 会话原子写回、上传任务/草稿重试上下文、网站元数据/转换/筛选/PAT 契约仍待处理。不得 reset/clean、自动提交或发布。
+
+## 2026-11-08：本人作品库预览包（未发布）
+
+详见 [本人作品库交接](design/integration/本人作品库-2026-11-08.md)。GuiMySpace 已改用认证的 /api/v2/studio/library，完整读取分页，包含本人已发布的公开、凭码、私有作品及合集；公开作者接口保持公开范围。对应服务器已上线。API 契约83项、完整build、七语言及OBJ检查通过；游戏内未手动验收。预览包在 inception-work/output/mod-owner-library，内部仍0.1.8，仅准备、不发布。原模组工作树已有大批未提交V2适配，本轮未整仓提交。

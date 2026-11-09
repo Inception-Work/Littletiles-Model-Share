@@ -487,35 +487,25 @@ public class GuiUpload extends GuiScreen {
                     finish(false, tr("ltsmodelshare.upload.screenshot_required"));
                     return;
                 }
-                setProgress(tr("ltsmodelshare.upload.consent"));
-                ApiClient.agreeUploadRights(new ApiClient.Callback<Long>() {
-                    @Override
-                    public void ok(Long consentId) {
-                        setProgress(tr("ltsmodelshare.upload.submitting"));
-                        ApiClient.submitReview(workId, false, consentId,
-                                new ApiClient.Callback<Dtos.SubmitReview>() {
-                                    @Override
-                                    public void ok(Dtos.SubmitReview value) {
-                                        finish(true, value.submitted
-                                                        ? tr("ltsmodelshare.upload.submitted", workId)
-                                                        + (value.message == null ? "" : "\n" + value.message)
-                                                        : tr("ltsmodelshare.upload.auto_submit", workId));
-                                    }
+                setProgress(tr("ltsmodelshare.upload.submitting"));
+                // 站长为游戏内提交开了免协议：不再先取上传权利回执，直接提交（服务端对令牌会话放行）。
+                ApiClient.submitReview(workId, false, (Long) null,
+                        new ApiClient.Callback<Dtos.SubmitReview>() {
+                            @Override
+                            public void ok(Dtos.SubmitReview value) {
+                                finish(true, value.submitted
+                                                ? tr("ltsmodelshare.upload.submitted", workId)
+                                                + (value.message == null ? "" : "\n" + value.message)
+                                                : tr("ltsmodelshare.upload.auto_submit", workId));
+                            }
 
-                                    @Override
-                                    public void fail(String message) {
-                                        finish(false, message != null && message.contains("M05-069")
-                                                ? tr("ltsmodelshare.upload.screenshot_required")
-                                                : tr("ltsmodelshare.upload.review_error", workId, message));
-                                    }
-                                });
-                    }
-
-                    @Override
-                    public void fail(String message) {
-                        finish(false, tr("ltsmodelshare.upload.consent_error", workId, message));
-                    }
-                });
+                            @Override
+                            public void fail(String message) {
+                                finish(false, message != null && message.contains("M05-069")
+                                        ? tr("ltsmodelshare.upload.screenshot_required")
+                                        : tr("ltsmodelshare.upload.review_error", workId, message));
+                            }
+                        });
             }
 
             @Override

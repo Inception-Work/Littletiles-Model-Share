@@ -15,8 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 我的空间：自己的公开作品与合集。
- * 数据复用作者主页接口（本人视角），作品总数不显示，只在本地按种类分页。
+ * 我的空间：本人已发布的公开、凭码访问、私有作品与合集。
+ * 数据使用认证的本人作品库接口，完整拉取分页后按种类在本地分页。
  */
 public class GuiMySpace extends GuiScreen {
     private static final int GAP = 6;
@@ -100,8 +100,7 @@ public class GuiMySpace extends GuiScreen {
                     failLater(currentRequest, tr("ltsmodelshare.api.user_missing"));
                     return;
                 }
-                ApiClient.authorHome(id, "", false,
-                        work.inception.ltsmodelshare.client.Translations.siteLocale(), 1, 100,
+                ApiClient.myWorks(
                         new ApiClient.Callback<Dtos.AuthorHome>() {
                             @Override public void ok(Dtos.AuthorHome value) {
                                 ApiClient.post(() -> {

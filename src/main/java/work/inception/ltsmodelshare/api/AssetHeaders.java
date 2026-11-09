@@ -9,7 +9,15 @@ public final class AssetHeaders {
     private AssetHeaders() { }
 
     public static void apply(HttpURLConnection connection, String siteUrl) {
-        connection.setRequestProperty("Referer", referer(siteUrl));
+        // CDN hotlink allowlist is the public website, even for a local development API.
+        String source = V2Http.sameOrigin(connection.getURL(), url(siteUrl))
+                ? referer(siteUrl) : "https://www.inception.work/";
+        connection.setRequestProperty("Referer", source);
+    }
+
+    private static java.net.URL url(String siteUrl) {
+        try { return new java.net.URL(siteUrl); }
+        catch (java.net.MalformedURLException e) { throw new IllegalArgumentException("Invalid website URL"); }
     }
 
     public static String referer(String siteUrl) {
