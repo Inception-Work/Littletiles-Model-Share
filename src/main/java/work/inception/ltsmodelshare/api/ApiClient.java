@@ -64,20 +64,13 @@ public final class ApiClient {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                String body = GSON.toJson(new Dtos.LoginRequest(username, password));
-                Dtos.LoginResp resp = post(cfg.url("/api/account/login/password-login"), body,
-                        null, Dtos.LoginResp.class);
-                if (resp == null || !resp.success || resp.payload == null
-                        || resp.payload.token == null || resp.payload.token.isEmpty()
-                        || resp.payload.refreshToken == null || resp.payload.refreshToken.isEmpty()) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cfg.token = resp.payload.token;
-                cfg.refreshToken = nullToEmpty(resp.payload.refreshToken);
+                Dtos.LoginPayload payload = V2Api.login(username, password);
+                V2Api.clearContext();
+                cfg.token = payload.token;
+                cfg.refreshToken = nullToEmpty(payload.refreshToken);
                 cfg.username = username;
                 cfg.save();
-                cb.ok(resp.payload);
+                cb.ok(payload);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.login_failed", e.getMessage()));
             }
@@ -87,11 +80,11 @@ public final class ApiClient {
     /** 登出时尽力通知网站撤销刷新令牌；本地退出不能依赖网络成功。 */
     public static void revokeRefreshQuietly(String refreshToken) {
         if (refreshToken == null || refreshToken.isEmpty()) return;
+        final String logoutBase=ModConfig.get().baseUrl,logoutToken=ModConfig.get().token;
         io(() -> {
             try {
-                ModConfig cfg = ModConfig.get();
-                post(cfg.url("/api/account/auth/logout"),
-                        GSON.toJson(new Dtos.RefreshRequest(refreshToken)), null, Dtos.Resp.class);
+                V2Api.clearContext();
+                V2Transport.request(logoutBase,"/api/v2/auth/logout","POST",new byte[]{123,125},"application/json",logoutToken,1024*1024);
             } catch (Exception error) {
                 LtsModelShare.LOG.debug("登出时撤销刷新令牌未成功", error);
             }
@@ -106,31 +99,71 @@ public final class ApiClient {
      *
      * @return true = 续期成功（cfg 里的 token/refreshToken 已更新并落盘）
      */
+    private static volatile boolean refreshRejected;
+    private static final SessionRequests.Session SESSION = new SessionRequests.Session() {
+        public String base() { return ModConfig.get().baseUrl; }
+        public String token() { return ModConfig.get().token; }
+        public SessionRequests.Refresh refresh() {
+            return refreshBlocking() ? SessionRequests.Refresh.UPDATED
+                    : refreshRejected ? SessionRequests.Refresh.REJECTED : SessionRequests.Refresh.UNAVAILABLE;
+        }
+        public void expired(String base, String token) {
+            ModConfig cfg = ModConfig.get();
+            if (!java.util.Objects.equals(base, cfg.baseUrl) || !java.util.Objects.equals(token, cfg.token)) return;
+            cfg.clearSession();
+            work.inception.ltsmodelshare.client.SessionLogin.required(base);
+        }
+    };
+
+    static V2Transport.Response sessionRequest(String path, String method, byte[] body,
+            String contentType, long limit, boolean authenticated) throws IOException {
+        return SessionRequests.execute(SESSION,
+                (base, token) -> V2Transport.request(base, path, method, body, contentType, token, limit),
+                r -> V2Transport.credentialTarget(SESSION.base(), r.finalUrl()) ? r.status() : 0,
+                authenticated);
+    }
+
+    /** Called when opening the panel: a stored token is not proof of a live session. */
+    public static void validateSession() {
+        if (!ModConfig.get().loggedIn()) return;
+        io(() -> {
+            try { V2Api.accountUserId(); }
+            catch (Exception error) { LtsModelShare.LOG.debug("Session validation failed: {}", error.getClass().getSimpleName()); }
+        });
+    }
+
+    /** Session-aware image path; the transport still strips credentials outside the origin API. */
+    public static byte[] imageBytes(String base, String path, String token) throws IOException {
+        if (!java.util.Objects.equals(base, ModConfig.get().baseUrl)
+                || !java.util.Objects.equals(token, ModConfig.get().token)) throw new IOException("V2_SESSION_CHANGED");
+        V2Transport.Response response = sessionRequest(path, "GET", null, null, 16L*1024*1024, true);
+        if (response.status()/100 != 2) throw new IOException("Image HTTP " + response.status());
+        return response.bytes();
+    }
+
     public static boolean refreshBlocking() {
         ModConfig cfg = ModConfig.get();
-        String previousRefresh = cfg.refreshToken;
+        String previousRefresh = cfg.refreshToken, previousToken = cfg.token, base = cfg.baseUrl;
+        refreshRejected = false;
         if (previousRefresh == null || previousRefresh.isEmpty()) {
+            refreshRejected = true;
             return false;
         }
         try {
-            String body = GSON.toJson(new Dtos.RefreshRequest(previousRefresh));
-            Dtos.RefreshResp resp = post(cfg.url("/api/account/auth/refresh"), body, null,
-                    Dtos.RefreshResp.class);
-            if (resp == null || !resp.success || resp.payload == null
-                    || resp.payload.token == null || resp.payload.token.isEmpty()
-                    || resp.payload.refreshToken == null || resp.payload.refreshToken.isEmpty()) {
-                LtsModelShare.LOG.warn("续期失败：{}", describe(resp));
-                return false;
-            }
-            // 登录或登出可能在网络请求期间发生；不能把旧会话写回新用户的配置。
-            if (!previousRefresh.equals(cfg.refreshToken)) return false;
-            cfg.token = resp.payload.token;
-            cfg.refreshToken = resp.payload.refreshToken;
+            Dtos.LoginPayload resp = V2Api.refresh(previousRefresh);
+            if (!java.util.Objects.equals(previousRefresh, cfg.refreshToken)
+                    || !java.util.Objects.equals(previousToken, cfg.token)
+                    || !java.util.Objects.equals(base, cfg.baseUrl)) return false;
+            cfg.token = resp.token;
+            cfg.refreshToken = resp.refreshToken;
             cfg.save();
-            LtsModelShare.LOG.info("登录已续期（access + refresh 都换了新的）");
             return true;
         } catch (Exception e) {
-            LtsModelShare.LOG.warn("续期异常：{}", e.toString());
+            if (e instanceof V2Api.HttpFailure) {
+                int status = ((V2Api.HttpFailure)e).status;
+                refreshRejected = status == 400 || status == 401 || status == 403 || status == 410;
+            }
+            LtsModelShare.LOG.debug("Session refresh failed: {}", e.getClass().getSimpleName());
             return false;
         }
     }
@@ -176,24 +209,16 @@ public final class ApiClient {
     public static void listCards(final Dtos.CardQuery query, final Callback<Dtos.Page<Dtos.WorkCard>> cb) {
         io(() -> {
             try {
-                ModConfig cfg = ModConfig.get();
                 if (query.sort == null) query.sort = "latest";
                 if (query.locale == null || query.locale.isEmpty()) query.locale = siteLocale();
                 if (query.size <= 0) query.size = 12;
                 if (query.current <= 0) query.current = 1;
-                String body = GSON.toJson(query);
                 LtsModelShare.LOG.info("[cards] 请求 page={} size={} sort={} author={} tags={}",
                         query.current, query.size, query.sort, query.authorId, query.tagCodes);
-                Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"), body,
-                        Dtos.CardsResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    LtsModelShare.LOG.warn("[cards] 失败：{}", describe(resp));
-                    cb.fail(describe(resp));
-                    return;
-                }
+                Dtos.Page<Dtos.WorkCard> page = V2Api.cards(query);
                 LtsModelShare.LOG.info("[cards] 返回 {} 条，total={}",
-                        resp.payload.records == null ? 0 : resp.payload.records.size(), resp.payload.total);
-                cb.ok(resp.payload);
+                        page.records == null ? 0 : page.records.size(), page.total);
+                cb.ok(page);
             } catch (Exception e) {
                 LtsModelShare.LOG.warn("[cards] 异常", e);
                 cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
@@ -221,19 +246,34 @@ public final class ApiClient {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/public/work/author?userId=" + userId
-                        + "&current=" + current + "&size=" + Math.max(1, Math.min(size, 100))
-                        + "&exact=" + exact
-                        + (kind == null || kind.isEmpty() ? "" : "&kind=" + encode(kind))
-                        + (sort == null || sort.isEmpty() ? "" : "&sort=" + encode(sort))
-                        + "&locale=" + encode(locale == null || locale.isEmpty() ? siteLocale() : locale)
-                        + (keyword == null || keyword.trim().isEmpty() ? "" : "&q=" + encode(keyword.trim())));
-                Dtos.AuthorHomeResp resp = postAuthed(url, "{}", Dtos.AuthorHomeResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
+                Dtos.AuthorHome home = V2Api.authorHome(userId, keyword, exact,
+                        locale == null || locale.isEmpty() ? siteLocale() : locale,
+                        current, size, kind, sort);
+                cb.ok(home);
+            } catch (Exception e) {
+                cb.fail(tr("ltsmodelshare.api.author_failed", e.getMessage()));
+            }
+        });
+    }
+
+    /** Own library; ownership is determined by the authenticated session. */
+    /** Send the same event ID again after a transient failure without double counting. */
+    public static void recordWorkEvent(final long workId, final Long itemId, final String eventId,
+                                      final Callback<Dtos.WorkStats> cb) {
+        io(() -> {
+            for (int attempt = 0; attempt < 2; attempt++) {
+                try { cb.ok(V2Api.recordWorkEvent(workId, itemId, eventId)); return; }
+                catch (Exception error) {
+                    if (attempt == 1) cb.fail(tr("ltsmodelshare.common.action_failed", error.getClass().getSimpleName()));
                 }
-                cb.ok(resp.payload);
+            }
+        });
+    }
+
+    public static void myWorks(final Callback<Dtos.AuthorHome> cb) {
+        io(() -> {
+            try {
+                cb.ok(V2Api.myWorks(siteLocale()));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.author_failed", e.getMessage()));
             }
@@ -246,16 +286,8 @@ public final class ApiClient {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/studio/work/favorites?current=" + Math.max(1, current)
-                        + "&size=" + Math.max(1, Math.min(size, 48))
-                        + (kind == null || kind.isEmpty() ? "" : "&kind=" + encode(kind))
-                        + "&locale=" + encode(siteLocale()));
-                Dtos.FavoriteResp resp = postAuthed(url, "{}", Dtos.FavoriteResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                Dtos.Page<Dtos.WorkCard> page = V2Api.bookmarks(kind, current, size);
+                cb.ok(page);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
             }
@@ -268,15 +300,8 @@ public final class ApiClient {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/public/work/stats/following?userId=" + userId
-                        + "&current=" + Math.max(1, current)
-                        + "&size=" + Math.max(1, Math.min(size, 50)));
-                Dtos.FollowingUsersResp resp = postAuthed(url, "{}", Dtos.FollowingUsersResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                Dtos.Page<Dtos.UserCard> page = V2Api.followingUsers(userId, current, size);
+                cb.ok(page);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
             }
@@ -297,10 +322,7 @@ public final class ApiClient {
                 int max = Math.max(1, Math.min(pages, 8));
                 for (int page = 1; page <= max; page++) {
                     Dtos.CardQuery query = new Dtos.CardQuery("", "latest", page, 48, siteLocale());
-                    Dtos.CardsResp resp = postWithSession(cfg.url("/api/public/work/cards"),
-                            GSON.toJson(query), Dtos.CardsResp.class);
-                    if (resp == null || !resp.success || resp.payload == null) break;
-                    java.util.List<Dtos.WorkCard> records = resp.payload.records;
+                    java.util.List<Dtos.WorkCard> records = V2Api.cards(query).records;
                     if (records == null || records.isEmpty()) break;
                     for (Dtos.WorkCard card : records) {
                         if (card != null && card.author != null && authorIds.contains(card.author.userId)
@@ -328,13 +350,12 @@ public final class ApiClient {
             }
             try {
                 ModConfig cfg = ModConfig.get();
-                Dtos.UserContextResp resp = postAuthed(cfg.url("/api/account/info"), "{}",
-                        Dtos.UserContextResp.class);
-                if (resp == null || !resp.success || resp.payload == null || resp.payload.userId <= 0) {
+                long id = V2Api.accountUserId();
+                if (id <= 0) {
                     cb.fail(tr("ltsmodelshare.api.user_missing"));
                     return;
                 }
-                cb.ok(resp.payload.userId);
+                cb.ok(id);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.user_missing"));
             }
@@ -365,14 +386,7 @@ public final class ApiClient {
                     cb.fail(tr("ltsmodelshare.api.login_required"));
                     return;
                 }
-                Dtos.SocialToggleResp resp = postAuthed(
-                        cfg.url("/api/work/social/favorite?workId=" + workId), "{}",
-                        Dtos.SocialToggleResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(V2Api.toggleFavorite(workId));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.common.action_failed", e.getMessage()));
             }
@@ -388,14 +402,7 @@ public final class ApiClient {
                     cb.fail(tr("ltsmodelshare.api.login_required"));
                     return;
                 }
-                Dtos.SocialToggleResp resp = postAuthed(
-                        cfg.url("/api/work/social/follow?userId=" + userId), "{}",
-                        Dtos.SocialToggleResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(V2Api.toggleFollow(userId));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.common.action_failed", e.getMessage()));
             }
@@ -411,11 +418,7 @@ public final class ApiClient {
                     cb.ok(false);
                     return;
                 }
-                Dtos.ProfileStatsResp resp = postAuthed(
-                        cfg.url("/api/public/work/stats?userId=" + userId), "{}",
-                        Dtos.ProfileStatsResp.class);
-                cb.ok(resp != null && resp.success && resp.payload != null
-                        && Boolean.TRUE.equals(resp.payload.following));
+                cb.ok(V2Api.followState(userId));
             } catch (Exception e) {
                 cb.ok(false);
             }
@@ -431,10 +434,7 @@ public final class ApiClient {
                     cb.ok(null);
                     return;
                 }
-                Dtos.UserContextResp resp = postAuthed(cfg.url("/api/account/info"), "{}",
-                        Dtos.UserContextResp.class);
-                cb.ok(resp != null && resp.success && resp.payload != null
-                        ? resp.payload.preferredLocale : null);
+                cb.ok(V2Api.accountLocale());
             } catch (Exception e) {
                 cb.ok(null);
             }
@@ -445,14 +445,7 @@ public final class ApiClient {
     public static void listTags(final Callback<java.util.List<Dtos.Tag>> cb) {
         io(() -> {
             try {
-                ModConfig cfg = ModConfig.get();
-                Dtos.TagsResp resp = postWithSession(cfg.url("/api/public/work/tags"), "{}",
-                        Dtos.TagsResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(V2Api.allTags());
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.tags_failed", e.getMessage()));
             }
@@ -465,13 +458,8 @@ public final class ApiClient {
             try {
                 ModConfig cfg = ModConfig.get();
                 String q = keyword == null ? "" : keyword.trim();
-                String url = cfg.url("/api/public/work/authors?q=" + encode(q) + "&exact=false");
-                Dtos.AuthorsResp resp = postWithSession(url, "{}", Dtos.AuthorsResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                java.util.List<Dtos.Author> found = V2Api.searchAuthors(q, false);
+                cb.ok(found);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.search_author_failed", e.getMessage()));
             }
@@ -505,15 +493,8 @@ public final class ApiClient {
                               final Callback<Dtos.WorkDetail> cb) {
         io(() -> {
             try {
-                ModConfig cfg = ModConfig.get();
-                String tail = code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim());
-                Dtos.DetailResp resp = postWithSession(cfg.url("/api/public/work/detail?workId=" + workId + "&locale=" + encode(siteLocale()) + tail),
-                        "{}", Dtos.DetailResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                boolean withCode = code != null && !code.trim().isEmpty();
+                cb.ok(withCode ? V2Api.detail(workId, code.trim()) : V2Api.detail(workId));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.detail_failed", e.getMessage()));
             }
@@ -572,20 +553,11 @@ public final class ApiClient {
                                     final Callback<Dtos.DownloadInfo> cb) {
         io(() -> {
             try {
-                ModConfig cfg = ModConfig.get();
-                if (!cfg.loggedIn()) {
+                if (!ModConfig.get().loggedIn()) {
                     cb.fail(tr("ltsmodelshare.api.login_hint"));
                     return;
                 }
-                String url = cfg.url("/api/work/download-snbt?itemId=" + itemId
-                        + (version == null || version.isEmpty() ? "" : "&version=" + version)
-                        + (code == null || code.trim().isEmpty() ? "" : "&code=" + encode(code.trim())));
-                Dtos.DownloadResp resp = postAuthed(url, "{}", Dtos.DownloadResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(V2Api.downloadInfo(itemId, version, code));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.download_failed", e.getMessage()));
             }
@@ -610,21 +582,9 @@ public final class ApiClient {
                 if (url.startsWith("/")) {
                     url = cfg.baseUrl + url;
                 }
-                HttpURLConnection conn = open(url, "GET", null, null);
-                String text;
-                try {
-                    AssetHeaders.apply(conn, cfg.baseUrl);
-                    int code = conn.getResponseCode();
-                    if (code / 100 != 2) {
-                        cb.fail(tr("ltsmodelshare.api.structure_http", code));
-                        return;
-                    }
-                    try (InputStream in = conn.getInputStream()) {
-                        text = readAll(in);
-                    }
-                } finally {
-                    conn.disconnect();
-                }
+                V2Transport.Response response=sessionRequest(url,"GET",null,null,10L*1024*1024,true);
+                if(response.status()/100!=2)throw new IOException("HTTP_"+response.status());
+                String text=response.text();
                 if (text == null || text.trim().isEmpty()) {
                     cb.fail(tr("ltsmodelshare.api.empty_response"));
                     return;
@@ -645,24 +605,9 @@ public final class ApiClient {
                 if (!"https".equalsIgnoreCase(url.getProtocol()) && !"http".equalsIgnoreCase(url.getProtocol())) {
                     throw new IOException("Unsupported OBJ URL scheme");
                 }
-                HttpURLConnection conn = open(url.toExternalForm(), "GET", null, null);
-                try {
-                    AssetHeaders.apply(conn, cfg.baseUrl);
-                    if (conn.getResponseCode() / 100 != 2) throw new IOException("OBJ HTTP " + conn.getResponseCode());
-                    if (conn.getContentLengthLong() > maxBytes) throw new IOException("OBJ exceeds size limit");
-                    java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-                    try (InputStream stream = conn.getInputStream()) {
-                        byte[] buffer = new byte[8192];
-                        int n;
-                        while ((n = stream.read(buffer)) != -1) {
-                            if (bytes.size() + (long) n > maxBytes) throw new IOException("OBJ exceeds size limit");
-                            bytes.write(buffer, 0, n);
-                        }
-                    }
-                    cb.ok(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
-                } finally {
-                    conn.disconnect();
-                }
+                V2Transport.Response response=sessionRequest(url.toExternalForm(),"GET",null,null,Math.min(maxBytes,8L*1024*1024),true);
+                if(response.status()/100!=2)throw new IOException("HTTP_"+response.status());
+                cb.ok(response.text());
             } catch (Exception error) {
                 cb.fail(error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
             }
@@ -686,23 +631,9 @@ public final class ApiClient {
                     cb.fail(tr("ltsmodelshare.api.login_required"));
                     return;
                 }
-                String boundary = "----ltsmodelshare" + System.currentTimeMillis();
-                String name = (fileNameHint == null || fileNameHint.isEmpty() ? "blueprint" : fileNameHint)
-                        .replaceAll("[^\\w\\-\\u4e00-\\u9fa5]", "_") + ".txt";
+                Dtos.SnbtUpload payload = V2Api.uploadSnbt(text, fileNameHint);
 
-                byte[] head = ("--" + boundary + "\r\n"
-                        + "Content-Disposition: form-data; name=\"file\"; filename=\"" + name + "\"\r\n"
-                        + "Content-Type: text/plain; charset=utf-8\r\n\r\n").getBytes(StandardCharsets.UTF_8);
-                byte[] body = text.getBytes(StandardCharsets.UTF_8);
-                byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
-
-                Dtos.SnbtUploadResp resp = multipartWithSession(cfg.url("/api/studio/work/upload-snbt"),
-                        boundary, head, body, tail, 120000, Dtos.SnbtUploadResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(payload);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.upload_failed", e.getMessage()));
             }
@@ -726,23 +657,10 @@ public final class ApiClient {
                     cb.fail(tr("ltsmodelshare.api.file_missing"));
                     return;
                 }
-                String boundary = "----ltsmodelshare" + System.currentTimeMillis();
-                byte[] data = java.nio.file.Files.readAllBytes(file.toPath());
-                String ext = file.getName().toLowerCase().endsWith(".png") ? "png" : "jpg";
+                String url = V2Api.uploadImage(java.nio.file.Files.readAllBytes(file.toPath()),
+                        file.getName(), file.getName().toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg");
 
-                byte[] head = ("--" + boundary + "\r\n"
-                        + "Content-Disposition: form-data; name=\"file\"; filename=\"shot." + ext + "\"\r\n"
-                        + "Content-Type: " + ("png".equals(ext) ? "image/png" : "image/jpeg") + "\r\n\r\n")
-                        .getBytes(StandardCharsets.UTF_8);
-                byte[] tail = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
-
-                Dtos.ImageUploadResp resp = multipartWithSession(cfg.url("/api/studio/work/upload-image"),
-                        boundary, head, data, tail, 60000, Dtos.ImageUploadResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(url);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.image_failed", e.getMessage()));
             }
@@ -753,14 +671,7 @@ public final class ApiClient {
         io(() -> {
             try {
                 ModConfig cfg = ModConfig.get();
-                String body = GSON.toJson(request);
-                Dtos.WorkSaveResp resp = postAuthed(cfg.url("/api/studio/work/save"), body,
-                        Dtos.WorkSaveResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                cb.ok(V2Api.save(request));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.save_failed", e.getMessage()));
             }
@@ -795,15 +706,10 @@ public final class ApiClient {
                                     final Callback<Dtos.SubmitReview> cb) {
         io(() -> {
             try {
-                ModConfig cfg = ModConfig.get();
-                String url = cfg.url("/api/studio/work/submit-review?workId=" + workId
-                        + "&keepOnline=" + keepOnline + "&consentId=" + consentId);
-                Dtos.SubmitReviewResp resp = postAuthed(url, "{}", Dtos.SubmitReviewResp.class);
-                if (resp == null || !resp.success || resp.payload == null) {
-                    cb.fail(describe(resp));
-                    return;
-                }
-                cb.ok(resp.payload);
+                boolean submitted = V2Api.submitCurrentDraft(workId);
+                Dtos.SubmitReview review = new Dtos.SubmitReview();
+                review.submitted = submitted;
+                cb.ok(review);
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.review_failed", e.getMessage()));
             }

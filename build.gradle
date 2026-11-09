@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.148'
 }
 
-version = '0.1.8'
+version = '0.1.9'
 group = 'work.inception'
 
 base {
@@ -63,14 +63,26 @@ jar {
     }
 }
 
-// Test release layout: build/releases/0.1.6-neoforge1.21.1-test/LittletilesModelShare-0.1.6-neoforge1.21.1.jar
+// Release layout: build/releases/0.1.9-neoforge1.21.1/LittletilesModelShare-0.1.9-neoforge1.21.1.jar
 tasks.register('neoForge1211Release', Copy) {
     dependsOn tasks.named('jar')
     from tasks.named('jar').flatMap { it.archiveFile }
-    into layout.buildDirectory.dir('releases/0.1.6-neoforge1.21.1-test')
-    rename { 'LittletilesModelShare-0.1.6-neoforge1.21.1.jar' }
+    into layout.buildDirectory.dir('releases/0.1.9-neoforge1.21.1')
+    rename { 'LittletilesModelShare-0.1.9-neoforge1.21.1.jar' }
 }
 
 tasks.named('build') {
     dependsOn 'neoForge1211Release'
 }
+
+// Protocol regression checks; no game or player configuration.
+tasks.register("neoV2Checks", JavaExec) {
+ dependsOn testClasses
+ classpath = sourceSets.test.runtimeClasspath
+ mainClass = "work.inception.ltsmodelshare.api.NeoV2Checks"
+ if (project.hasProperty("publicV2Read")) args "public"
+}
+
+// NeoForge exposes game libraries to main; include those same libraries for protocol tests.
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath

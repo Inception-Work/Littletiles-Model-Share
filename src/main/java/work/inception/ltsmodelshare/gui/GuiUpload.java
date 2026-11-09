@@ -281,28 +281,22 @@ public class GuiUpload extends Screen {
                     if (urls.isEmpty()) {
                         finish(false, tr("ltsmodelshare.upload.screenshot_required")); return;
                     }
-                    progress = tr("ltsmodelshare.upload.consent");
-                    ApiClient.agreeUploadRights(new ApiClient.Callback<Long>() {
-                        @Override public void ok(Long consentId) {
-                            ApiClient.post(() -> {
-                                progress = tr("ltsmodelshare.upload.submitting");
-                                ApiClient.submitReview(workId, false, consentId, new ApiClient.Callback<Dtos.SubmitReview>() {
-                                    @Override public void ok(Dtos.SubmitReview value) {
-                                        finish(true, value.submitted ? tr("ltsmodelshare.upload.submitted", workId)
-                                                + (value.message == null ? "" : "\n" + value.message)
-                                                : tr("ltsmodelshare.upload.auto_submit", workId));
-                                    }
-                                    @Override public void fail(String message) {
-                                        finish(false, message != null && message.contains("M05-069")
-                                                ? tr("ltsmodelshare.upload.screenshot_required")
-                                                : tr("ltsmodelshare.upload.review_error", workId, message));
-                                    }
-                                });
-                            });
-                        }
-                        @Override public void fail(String message) {
-                            finish(false, tr("ltsmodelshare.upload.consent_error", workId, message));
-                        }
+                    // The site drops the upload-rights screen for in-game submissions; go straight
+                    // to submit instead of asking for a consent receipt first.
+                    ApiClient.post(() -> {
+                        progress = tr("ltsmodelshare.upload.submitting");
+                        ApiClient.submitReview(workId, false, 0L, new ApiClient.Callback<Dtos.SubmitReview>() {
+                            @Override public void ok(Dtos.SubmitReview value) {
+                                finish(true, value.submitted ? tr("ltsmodelshare.upload.submitted", workId)
+                                        + (value.message == null ? "" : "\n" + value.message)
+                                        : tr("ltsmodelshare.upload.auto_submit", workId));
+                            }
+                            @Override public void fail(String message) {
+                                finish(false, message != null && message.contains("M05-069")
+                                        ? tr("ltsmodelshare.upload.screenshot_required")
+                                        : tr("ltsmodelshare.upload.review_error", workId, message));
+                            }
+                        });
                     });
                 });
             }
