@@ -10,10 +10,16 @@ import java.time.Duration;
 public final class V2Transport {
     private static final HttpClient CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15))
             .version(HttpClient.Version.HTTP_2).followRedirects(HttpClient.Redirect.NEVER).build();
-    public record Response(int status, byte[] bytes) {
+    public record Response(int status, byte[] bytes, URI finalUrl) {
         public String text() { return new String(bytes, StandardCharsets.UTF_8); }
     }
     private V2Transport() {}
+    /** Owner images need authentication too; request() confines it to same-origin V2 APIs. */
+    public static byte[] image(String base, String path, String token) throws IOException {
+        Response response = request(base, path, "GET", null, null, token, 16L*1024*1024);
+        if (response.status()/100 != 2) throw new IOException("Image HTTP " + response.status());
+        return response.bytes();
+    }
     static URI resolve(String base,String path) throws IOException {
         try {
             URI uri=URI.create(base.endsWith("/")?base:base+"/").resolve(path).normalize();
@@ -25,6 +31,10 @@ public final class V2Transport {
     static boolean sameOrigin(URI a,URI b){
         return a.getScheme().equalsIgnoreCase(b.getScheme())&&a.getHost().equalsIgnoreCase(b.getHost())
                 &&port(a)==port(b);
+    }
+    static boolean credentialTarget(String base, URI target) {
+        try { return sameOrigin(resolve(base,"/"),target) && target.getPath().startsWith("/api/v2/"); }
+        catch (IOException badBase) { return false; }
     }
     static int port(URI u){return u.getPort()<0?("https".equalsIgnoreCase(u.getScheme())?443:80):u.getPort();}
     public static Response request(String base,String path,String method,byte[] body,String contentType,
@@ -53,7 +63,7 @@ public final class V2Transport {
                     long budget=status/100==2?limit:Math.min(limit,1024*1024);
                     ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buf=new byte[8192];int n;
                     while((n=in.read(buf))!=-1){if(out.size()+(long)n>budget)throw new IOException("V2_TOO_LARGE");out.write(buf,0,n);}
-                    return new Response(status,out.toByteArray());
+                    return new Response(status,out.toByteArray(),current);
                 }
             }catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("V2_INTERRUPTED");}
         }

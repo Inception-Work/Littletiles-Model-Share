@@ -15,6 +15,7 @@ public final class InputHandler {
             mc.setScreen(new GuiLogin(new GuiModels()));
         } else {
             mc.setScreen(new GuiModels());
+            work.inception.ltsmodelshare.api.ApiClient.validateSession();
         }
     }
 }

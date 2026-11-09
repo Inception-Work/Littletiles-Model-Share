@@ -58,16 +58,16 @@ public class GuiMySpace extends Screen {
         int footerY = GuiNavigation.footerY(height);
         int backX = GuiNavigation.backX(width);
         addRenderableWidget(GuiNavigation.button(GuiNavigation.MARGIN, footerY, 42, 20,
-                "ltsmodelshare.common.previous", () -> { if (page > 1) { page--; load(); } }));
+                "ltsmodelshare.common.previous", () -> { if (page > 1) { page--; } }));
         versionX = backX - GAP - 64;
         addRenderableWidget(new FitButton(versionX, footerY, 64, 20,
                 Component.literal(work.inception.ltsmodelshare.LtsModelShare.GAME_VERSION), b -> {
             onlyThisVersion = !onlyThisVersion;
             page = 1;
-            load();
+            rebuild();
         }));
         addRenderableWidget(GuiNavigation.button(versionX - GAP - 42, footerY, 42, 20,
-                "ltsmodelshare.common.next", () -> { if (page < maxPage()) { page++; load(); } }));
+                "ltsmodelshare.common.next", () -> { if (page < maxPage()) { page++; } }));
         addRenderableWidget(GuiNavigation.button(backX, footerY, GuiNavigation.BACK_WIDTH, 20,
                 "ltsmodelshare.common.back", () -> minecraft.setScreen(parent)));
 
@@ -112,7 +112,7 @@ public class GuiMySpace extends Screen {
         if (tab != next) {
             tab = next;
             page = 1;
-            load();
+            rebuild();
         }
     }
 
@@ -122,45 +122,24 @@ public class GuiMySpace extends Screen {
         status = tr("ltsmodelshare.common.loading");
         all.clear();
         shown.clear();
-        ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
-            @Override public void ok(Long id) {
-                if (id == null) {
-                    ApiClient.post(() -> {
-                        if (currentRequest != requestId) return;
-                        loading = false;
-                        status = tr("ltsmodelshare.api.user_missing");
-                    });
-                    return;
-                }
-                ApiClient.authorHome(id, "", false,
-                        work.inception.ltsmodelshare.client.Translations.siteLocale(),
-                        tab == 1 ? "collection" : "single", "latest", page, perPage,
-                        new ApiClient.Callback<Dtos.AuthorHome>() {
-                            @Override public void ok(Dtos.AuthorHome value) {
-                                ApiClient.post(() -> {
-                                    if (currentRequest != requestId) return;
-                                    loading = false;
-                                    all.clear();
-                                    if (value.works != null && value.works.records != null) {
-                                        for (Dtos.WorkCard card : value.works.records) {
-                                            if (!onlyThisVersion || matchesThisVersion(card)) all.add(card);
-                                        }
-                                    }
-                                    total = onlyThisVersion ? all.size()
-                                            : (value.works == null ? 0 : value.works.total);
-                                    page = Math.min(page, maxPage());
-                                    rebuild();
-                                });
-                            }
-                            @Override public void fail(String message) {
-                                ApiClient.post(() -> {
-                                    if (currentRequest == requestId) { loading = false; status = message; }
-                                });
-                            }
-                        });
+        ApiClient.myWorks(new ApiClient.Callback<Dtos.AuthorHome>() {
+            @Override public void ok(Dtos.AuthorHome value) {
+                ApiClient.post(() -> {
+                    if (currentRequest != requestId) return;
+                    loading = false;
+                    all.clear();
+                    if (value.works != null && value.works.records != null) {
+                        all.addAll(value.works.records);
+                    }
+                    rebuild();
+                });
             }
             @Override public void fail(String message) {
-                ApiClient.post(() -> { if (currentRequest == requestId) { loading = false; status = message; } });
+                ApiClient.post(() -> {
+                    if (currentRequest != requestId) return;
+                    loading = false;
+                    status = message;
+                });
             }
         });
     }
@@ -174,7 +153,14 @@ public class GuiMySpace extends Screen {
 
     private void rebuild() {
         shown.clear();
-        shown.addAll(all);
+        boolean wantCollection = tab == 1;
+        for (Dtos.WorkCard card : all) {
+            if (card == null || wantCollection != "collection".equals(card.kind)) continue;
+            if (onlyThisVersion && !matchesThisVersion(card)) continue;
+            shown.add(card);
+        }
+        total = shown.size();
+        page = Math.min(page, maxPage());
         status = shown.isEmpty() ? tr("ltsmodelshare.library.empty_my") : "";
     }
 
