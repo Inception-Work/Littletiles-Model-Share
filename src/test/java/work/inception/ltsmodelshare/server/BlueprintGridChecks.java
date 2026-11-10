@@ -7,6 +7,7 @@ public final class BlueprintGridChecks {
     }
     public static void main(String[] args) throws Exception {
         LittleGridContext.loadGrid(1,16,6,2);
+        if(java.util.Arrays.stream(work.inception.ltsmodelshare.client.GridLimits.filterOptions()).max().getAsInt()!=32)throw new AssertionError("Grid cycle ignores config");
         BlueprintValidation.requireSupported("{grid:16,tiles:[],children:[{grid:32,tiles:[]}]}");
         BlueprintValidation.requireSupported("{tiles:[],children:[{tiles:[]}]}");
         BlueprintValidation.requireSupported("{grid:32,tiles:[],children:[{tiles:[]}]}");

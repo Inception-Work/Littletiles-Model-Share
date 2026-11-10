@@ -69,4 +69,14 @@ public final class GridLimits {
     public static int maxForScale(int scale) {
         return (int) Math.pow(2, scale - 1);
     }
+
+    /** All plus the actual configured slots, sorted and deduplicated. */
+    public static int[] filterOptions() {
+        java.util.TreeSet<Integer> values=new java.util.TreeSet<Integer>();
+        values.add(0);
+        if (LittleGridContext.context != null) for (LittleGridContext grid : LittleGridContext.context) if (grid != null && grid.size > 0 && grid.size <= maxGrid()) values.add(grid.size);
+        int[] result=new int[values.size()];int index=0;
+        for(int value:values) result[index++]=value;
+        return result;
+    }
 }

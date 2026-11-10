@@ -69,7 +69,7 @@ public class GuiModels extends GuiScreen {
     private GuiTextField searchField;
     private boolean onlyThisVersion;
     private int versionX;
-    private static final int[] GRID_OPTIONS = {0,2,4,8,16,32};
+    private final int[] GRID_OPTIONS = work.inception.ltsmodelshare.client.GridLimits.filterOptions();
     private int gridOption;
     /** 高级搜索的条件（作者 / 标签 / 排序） */
     private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
