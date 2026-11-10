@@ -38,7 +38,7 @@ public class GuiModels extends Screen {
     private long loadStartedAt;
     private int requestId;
     private boolean onlyThisVersion;
-    private static final int[] GRID_OPTIONS={0,2,4,8,16,32};
+    private final int[] GRID_OPTIONS = work.inception.ltsmodelshare.client.GridLimits.filterOptions();
     private int gridOption;
     private int versionX;
     private int versionY;
