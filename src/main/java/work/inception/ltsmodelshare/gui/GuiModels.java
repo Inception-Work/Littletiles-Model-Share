@@ -38,6 +38,8 @@ public class GuiModels extends Screen {
     private long loadStartedAt;
     private int requestId;
     private boolean onlyThisVersion;
+    private static final int[] GRID_OPTIONS={0,2,4,8,16,32};
+    private int gridOption;
     private int versionX;
     private int versionY;
     private int versionW;
@@ -61,8 +63,8 @@ public class GuiModels extends Screen {
         String keyword = search == null ? filter.q : search.getValue();
         boolean focused = search == null || search.isFocused();
         clearWidgets();
-        int topW = Math.min(440, width - 16);
-        int searchW = Math.max(60, topW - 202);
+        int topW = Math.min(504, width - 16);
+        int searchW = Math.max(40, topW - 262);
         int topX = width / 2 - topW / 2;
         search = new EditBox(font, topX, 24, searchW, 18, Component.translatable("ltsmodelshare.search.placeholder"));
         search.setMaxLength(64);
@@ -84,6 +86,11 @@ public class GuiModels extends Screen {
             onlyThisVersion = !onlyThisVersion;
             page = 1;
             reload();
+        }));
+
+        addRenderableWidget(new FitButton(versionX+52,versionY,60,20,Component.literal(gridLabel()),b -> {
+            gridOption=(gridOption+1)%GRID_OPTIONS.length;
+            b.setMessage(Component.literal(gridLabel()));page=1;reload();
         }));
 
         int pageY = GuiNavigation.footerY(height) - 26;
@@ -119,7 +126,7 @@ public class GuiModels extends Screen {
                 this::toggleLogin));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
-                "ltsmodelshare.models.upload", () -> minecraft.setScreen(new GuiUpload(this))));
+                "ltsmodelshare.models.upload", () -> minecraft.setScreen(ModConfig.get().loggedIn() ? new GuiUpload(this) : new GuiLogin(this))));
         bx += footerW + GAP;
         addRenderableWidget(GuiNavigation.button(bx, by, footerW, 20,
                 "ltsmodelshare.models.invitation", () -> minecraft.setScreen(new GuiInviteAccess(this))));
@@ -144,6 +151,10 @@ public class GuiModels extends Screen {
         gridTop = layout.top;
     }
 
+    private String gridLabel() {
+        return gridOption==0?tr("ltsmodelshare.models.all_grid"):"Grid "+GRID_OPTIONS[gridOption];
+    }
+
     private int maxPage() {
         return (int) Math.max(1, (total + perPage - 1) / perPage);
     }
@@ -158,6 +169,7 @@ public class GuiModels extends Screen {
                 filter.sort == null ? "latest" : filter.sort, page, perPage,
                 work.inception.ltsmodelshare.client.Translations.siteLocale());
         query.authorId = filter.authorId;
+        query.grid=GRID_OPTIONS[gridOption]==0?null:GRID_OPTIONS[gridOption];
         if (!filter.tagCodes.isEmpty()) query.tagCodes = new ArrayList<>(filter.tagCodes);
         if (onlyThisVersion) {
             query.sourceLoader = "forge";
@@ -269,7 +281,7 @@ public class GuiModels extends Screen {
         if (button != 0 || loading) return false;
         int index = cardAt((int) mouseX, (int) mouseY);
         if (index >= 0 && index < cards.size()) {
-            minecraft.setScreen(new GuiWorkDetail(cards.get(index), this));
+            minecraft.setScreen(new GuiWorkDetail(cards.get(index), this, GRID_OPTIONS[gridOption]==0?null:GRID_OPTIONS[gridOption]));
             return true;
         }
         return false;

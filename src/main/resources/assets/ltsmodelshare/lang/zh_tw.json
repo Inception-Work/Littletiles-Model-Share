@@ -108,7 +108,7 @@
   "ltsmodelshare.login.token_saved": "已儲存存取權杖，到期時間由網站控制",
   "ltsmodelshare.login.fields_required": "帳號和密碼都必須填寫",
   "ltsmodelshare.login.busy": "登入中…",
-  "ltsmodelshare.login.title": "LittleTiles Model Share · 登入",
+  "ltsmodelshare.login.title": "INC 帳號登入",
   "ltsmodelshare.login.token": "存取權杖",
   "ltsmodelshare.login.account": "帳號",
   "ltsmodelshare.login.password": "密碼",
@@ -119,7 +119,7 @@
   "ltsmodelshare.models.empty": "這裡沒有作品",
   "ltsmodelshare.models.pagination": "第 %s / %s 頁 · 共 %s 個",
   "ltsmodelshare.models.logged_in": " · 已登入 %s",
-  "ltsmodelshare.models.guest": " · 尚未登入（僅限瀏覽）",
+  "ltsmodelshare.models.guest": "未登入",
   "ltsmodelshare.upload.refresh_shots": "重新整理截圖",
   "ltsmodelshare.upload.visibility_public": "公開",
   "ltsmodelshare.upload.visibility_private": "私有",
@@ -236,5 +236,12 @@
   "ltsmodelshare.common.request_timeout": "請求逾時，請檢查網路或代理後重試。",
   "ltsmodelshare.blueprint.legacy_door": "這個作品裡的 1.12 門尚未轉換，請重新下載；舊藍圖不能放置。",
   "ltsmodelshare.blueprint.invalid_grid": "這個模型使用的網格超過 LittleTiles 設定上限。結束遊戲，開啟 config/littletiles.json，把 core.highest 調到 64/128/256（不小於模型網格），儲存後重新啟動再試。",
-  "ltsmodelshare.upload.screenshot_required": "請先截一張圖再提交審核。"
+  "ltsmodelshare.upload.screenshot_required": "請先截一張圖再提交審核。",
+  "ltsmodelshare.update.title": "偵測到 LittleTiles Model Share 模組有更新",
+  "ltsmodelshare.update.body": "新版本 %s，請在以下網址下載：\\n%s",
+  "ltsmodelshare.update.download": "前往下載",
+  "ltsmodelshare.update.later": "稍後提醒",
+  "ltsmodelshare.update.never": "永不提醒",
+  "ltsmodelshare.models.all_grid": "所有 Grid",
+  "ltsmodelshare.grid.unsupported": "目前 LittleTiles 設定不支援作品所需的 Grid %s。"
 }
