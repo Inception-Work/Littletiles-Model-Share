@@ -86,6 +86,7 @@ public final class BlueprintServer {
                 LtsModelShare.LOG.info("已移除旧版方块元数据：title={} 字符数 {} -> {}", title, snbt.length(), sanitized.length());
             }
             CompoundTag tag = TagParser.parseTag(sanitized);
+            BlueprintValidation.requireSupported(tag);
             // A converted 1.12 door/axis still says e.g. id:"door" but has no "states";
             // LittleTiles would crash the client when placing it. Check every structure
             // (including nested children), not just the top-level one.

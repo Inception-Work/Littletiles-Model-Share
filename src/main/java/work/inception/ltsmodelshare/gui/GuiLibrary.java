@@ -33,6 +33,7 @@ public class GuiLibrary extends Screen {
     private final List<Dtos.WorkCard> feed = new ArrayList<>();
     private long total;
     private long userTotal;
+    private long feedTotal;
     private int page = 1;
     private int feedPage = 1;
     private int perPage = 8;
@@ -61,6 +62,7 @@ public class GuiLibrary extends Screen {
     @Override
     protected void init() {
         clearWidgets();
+        ++usersRequestId;
         needLogin = !ModConfig.get().loggedIn();
         int cx = width / 2;
         addRenderableWidget(tabButton(cx - 96, 22, 92, "ltsmodelshare.library.favorites",
@@ -84,9 +86,9 @@ public class GuiLibrary extends Screen {
             gridTop = 48;
         } else {
             addRenderableWidget(GuiNavigation.button(GuiNavigation.MARGIN, footerY, 42, 20,
-                    "ltsmodelshare.common.previous", () -> { if (!needLogin && !loading && feedPage > 1) feedPage--; }));
+                    "ltsmodelshare.common.previous", () -> { if (!needLogin && !loading && feedPage > 1) { feedPage--; loadFeed(); } }));
             addRenderableWidget(GuiNavigation.button(backX - GAP - 42, footerY, 42, 20,
-                    "ltsmodelshare.common.next", () -> { if (!needLogin && !loading && feedPage < maxFeedPage()) feedPage++; }));
+                    "ltsmodelshare.common.next", () -> { if (!needLogin && !loading && feedPage < maxFeedPage()) { feedPage++; loadFeed(); } }));
             addRenderableWidget(GuiNavigation.button(width - GuiNavigation.MARGIN - 56, 44, 56, 16,
                     "ltsmodelshare.library.more", () -> {
                         if (!loading && myUserId > 0) minecraft.setScreen(new GuiFollowingUsers(this, myUserId, userTotal));
@@ -162,11 +164,11 @@ public class GuiLibrary extends Screen {
     }
 
     private int maxFeedPage() {
-        return (int) Math.max(1, (feed.size() + feedPerPage - 1) / feedPerPage);
+        return (int) Math.max(1, (feedTotal + feedPerPage - 1) / feedPerPage);
     }
 
     private int feedStart() {
-        return Math.max(0, (feedPage - 1) * feedPerPage);
+        return 0;
     }
 
     private void loadFavorites() {
@@ -193,49 +195,49 @@ public class GuiLibrary extends Screen {
                 });
     }
 
+    private int usersRequestId;
+
     private void loadFollowing() {
-        final int currentRequest = ++requestId;
-        loading = true;
+        loadFollowedAuthors();
+        loadFeed();
+    }
+
+    private void loadFollowedAuthors() {
+        final int currentRequest = ++usersRequestId;
         users.clear();
-        feed.clear();
-        status = tr("ltsmodelshare.common.loading");
         ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
             @Override public void ok(Long id) {
-                myUserId = id == null ? 0 : id;
-                ApiClient.followingUsers(myUserId, 1, 50, new ApiClient.Callback<Dtos.Page<Dtos.UserCard>>() {
-                    @Override public void ok(Dtos.Page<Dtos.UserCard> value) {
-                        ApiClient.post(() -> {
-                            if (currentRequest != requestId) return;
-                            userTotal = value.total;
-                            users.clear();
-                            if (value.records != null) users.addAll(value.records);
-                            if (users.isEmpty()) {
-                                loading = false;
-                                status = tr("ltsmodelshare.library.empty_following");
-                                return;
-                            }
-                            Set<Long> ids = new HashSet<>();
-                            for (Dtos.UserCard user : users) ids.add(user.userId);
-                            ApiClient.followingFeed(ids, 8, new ApiClient.Callback<List<Dtos.WorkCard>>() {
-                                @Override public void ok(List<Dtos.WorkCard> feedValue) {
-                                    ApiClient.post(() -> {
-                                        if (currentRequest != requestId) return;
-                                        loading = false;
-                                        feed.clear();
-                                        if (feedValue != null) feed.addAll(feedValue);
-                                        feedPage = 1;
-                                        status = feed.isEmpty() ? tr("ltsmodelshare.library.empty_feed") : "";
-                                    });
-                                }
-                                @Override public void fail(String message) {
-                                    ApiClient.post(() -> { if (currentRequest == requestId) { loading = false; status = message; } });
-                                }
+                ApiClient.post(() -> {
+                    if (currentRequest != usersRequestId) return;
+                    myUserId = id == null ? 0 : id;
+                    ApiClient.followingUsers(myUserId, 1, USER_SLOTS, new ApiClient.Callback<Dtos.Page<Dtos.UserCard>>() {
+                        @Override public void ok(Dtos.Page<Dtos.UserCard> value) {
+                            ApiClient.post(() -> {
+                                if (currentRequest != usersRequestId) return;
+                                userTotal = value.total; users.clear();
+                                if (value.records != null) users.addAll(value.records);
                             });
-                        });
-                    }
-                    @Override public void fail(String message) {
-                        ApiClient.post(() -> { if (currentRequest == requestId) { loading = false; status = message; } });
-                    }
+                        }
+                        @Override public void fail(String message) { }
+                    });
+                });
+            }
+            @Override public void fail(String message) { }
+        });
+    }
+
+    private void loadFeed() {
+        final int currentRequest = ++requestId;
+        loading = true; feed.clear();
+        status = tr("ltsmodelshare.common.loading");
+        ApiClient.followingFeed(feedPage, feedPerPage, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {
+            @Override public void ok(Dtos.Page<Dtos.WorkCard> value) {
+                ApiClient.post(() -> {
+                    if (currentRequest != requestId) return;
+                    loading = false; feedTotal = value.total; feed.clear();
+                    if (value.records != null) feed.addAll(value.records);
+                    if (feedPage > maxFeedPage()) { feedPage = maxFeedPage(); loadFeed(); return; }
+                    status = feed.isEmpty() ? tr("ltsmodelshare.library.empty_feed") : "";
                 });
             }
             @Override public void fail(String message) {

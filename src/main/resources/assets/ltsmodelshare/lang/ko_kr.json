@@ -108,7 +108,7 @@
   "ltsmodelshare.login.token_saved": "접근 토큰을 저장했습니다. 만료 시점은 웹사이트에서 관리합니다",
   "ltsmodelshare.login.fields_required": "아이디와 비밀번호를 모두 입력하세요",
   "ltsmodelshare.login.busy": "로그인 중…",
-  "ltsmodelshare.login.title": "LittleTiles Model Share · 로그인",
+  "ltsmodelshare.login.title": "INC 계정 로그인",
   "ltsmodelshare.login.token": "접근 토큰",
   "ltsmodelshare.login.account": "계정",
   "ltsmodelshare.login.password": "비밀번호",
@@ -119,7 +119,7 @@
   "ltsmodelshare.models.empty": "작품이 없습니다",
   "ltsmodelshare.models.pagination": "%s / %s 페이지 / 총 %s개",
   "ltsmodelshare.models.logged_in": " / 로그인: %s",
-  "ltsmodelshare.models.guest": " / 비로그인(탐색만 가능)",
+  "ltsmodelshare.models.guest": "로그인하지 않음",
   "ltsmodelshare.upload.refresh_shots": "사진 새로 고침",
   "ltsmodelshare.upload.visibility_public": "공개",
   "ltsmodelshare.upload.visibility_private": "비공개",
@@ -236,5 +236,12 @@
   "ltsmodelshare.common.request_timeout": "요청 시간이 초과되었습니다. 네트워크 또는 프록시를 확인한 뒤 다시 시도하세요.",
   "ltsmodelshare.blueprint.legacy_door": "이 작품에는 변환되지 않은 1.12 문이 있습니다. 다시 다운로드하세요(이전 청사진은 설치할 수 없습니다).",
   "ltsmodelshare.blueprint.invalid_grid": "이 모델의 그리드가 LittleTiles 설정 상한을 넘었습니다. 게임을 종료하고 config/littletiles.json의 core.highest를 64/128/256(모델 그리드 이상)으로 올린 뒤 저장하고 재시작하세요.",
-  "ltsmodelshare.upload.screenshot_required": "검토 제출 전에 스크린샷을 한 장 이상 찍어 주세요."
+  "ltsmodelshare.upload.screenshot_required": "검토 제출 전에 스크린샷을 한 장 이상 찍어 주세요.",
+  "ltsmodelshare.update.title": "LittleTiles Model Share 모드 업데이트가 있습니다",
+  "ltsmodelshare.update.body": "%s 버전을 사용할 수 있습니다. 다운로드 주소:\\n%s",
+  "ltsmodelshare.update.download": "다운로드 열기",
+  "ltsmodelshare.update.later": "나중에",
+  "ltsmodelshare.update.never": "다시 알리지 않음",
+  "ltsmodelshare.models.all_grid": "모든 Grid",
+  "ltsmodelshare.grid.unsupported": "현재 LittleTiles 설정은 필요한 Grid %s을 지원하지 않습니다."
 }

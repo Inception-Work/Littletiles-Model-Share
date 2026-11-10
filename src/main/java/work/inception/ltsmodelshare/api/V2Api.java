@@ -378,6 +378,11 @@ final class V2Api {
         return out;
     }
 
+    static Dtos.Page<Dtos.WorkCard> followingCards(int current, int size, String locale) throws IOException {
+        current = Math.max(1, current); size = Math.max(1, Math.min(100,size));
+        return page(get("/works/following?page="+current+"&size="+size+"&locale="+encode(locale)),current,size);
+    }
+
     static Dtos.Page<Dtos.WorkCard> bookmarks(String kind, int page, int size) throws IOException {
         long me = accountUserId();
         StringBuilder path = new StringBuilder("/authors/" + me + "/bookmarks?")
@@ -520,14 +525,15 @@ final class V2Api {
 
     // ---------------------------------------------------------------- endpoints
 
-    static Dtos.Page<Dtos.WorkCard> cards(Dtos.CardQuery query) throws IOException {
-        StringBuilder path = new StringBuilder(query.authorId != null
+    static String cardsPath(Dtos.CardQuery query) {
+        boolean byAuthor=query.authorId!=null && query.grid==null;
+        StringBuilder path = new StringBuilder(byAuthor
                 ? "/authors/" + query.authorId + "/works" : "/works");
         path.append("?q=").append(encode(query.q))
                 .append("&locale=").append(encode(query.locale))
                 .append("&page=").append(Math.max(1, query.current))
-                .append("&size=").append(Math.max(1, Math.min(query.size, query.authorId != null ? 100 : 50)));
-        if (query.authorId == null) {
+                .append("&size=").append(Math.max(1, Math.min(query.size, byAuthor ? 100 : 50)));
+        if (!byAuthor) {
             if (query.tagCodes != null && !query.tagCodes.isEmpty()) {
                 path.append("&tagCodes=").append(encode(String.join(",", query.tagCodes)));
             }
@@ -543,7 +549,13 @@ final class V2Api {
             if (query.exact) path.append("&exact=true");
             path.append("&sort=").append(sort(query.sort));
         }
-        JsonObject payload = get(path.toString());
+        if(query.grid!=null)path.append("&grid=").append(query.grid);
+        if(!byAuthor&&query.authorId!=null)path.append("&authorId=").append(query.authorId);
+        return path.toString();
+    }
+
+    static Dtos.Page<Dtos.WorkCard> cards(Dtos.CardQuery query) throws IOException {
+        JsonObject payload = get(cardsPath(query));
         List<Dtos.WorkCard> records = new ArrayList<>();
         JsonArray items = payload.has("items") && payload.get("items").isJsonArray()
                 ? payload.getAsJsonArray("items")

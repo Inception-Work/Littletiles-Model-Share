@@ -108,7 +108,7 @@
   "ltsmodelshare.login.token_saved": "Zugriffstoken gespeichert; Ablaufdatum wird von der Website verwaltet",
   "ltsmodelshare.login.fields_required": "Bitte Nutzername und Passwort eingeben",
   "ltsmodelshare.login.busy": "Anmeldung läuft...",
-  "ltsmodelshare.login.title": "LittleTiles Model Share · Anmeldung",
+  "ltsmodelshare.login.title": "Mit INC-Konto anmelden",
   "ltsmodelshare.login.token": "Zugriffstoken",
   "ltsmodelshare.login.account": "Konto",
   "ltsmodelshare.login.password": "Passwort",
@@ -119,7 +119,7 @@
   "ltsmodelshare.models.empty": "Keine Werke vorhanden",
   "ltsmodelshare.models.pagination": "Seite %s / %s / Gesamt: %s",
   "ltsmodelshare.models.logged_in": " / Angemeldet: %s",
-  "ltsmodelshare.models.guest": " / Gast (nur ansehen)",
+  "ltsmodelshare.models.guest": "Nicht angemeldet",
   "ltsmodelshare.upload.refresh_shots": "Bilder neu laden",
   "ltsmodelshare.upload.visibility_public": "Öffentlich",
   "ltsmodelshare.upload.visibility_private": "Privat",
@@ -236,5 +236,12 @@
   "ltsmodelshare.common.request_timeout": "Zeitüberschreitung. Netzwerk oder Proxy prüfen und erneut versuchen.",
   "ltsmodelshare.blueprint.legacy_door": "Dieses Werk enthält eine nicht konvertierte 1.12-Tür. Bitte erneut herunterladen (alte Baupläne lassen sich nicht platzieren).",
   "ltsmodelshare.blueprint.invalid_grid": "Dieses Modell überschreitet das LittleTiles-Rasterlimit. Spiel beenden, config/littletiles.json öffnen, core.highest auf 64/128/256 (mindestens das Modellraster) setzen, speichern und neu starten.",
-  "ltsmodelshare.upload.screenshot_required": "Bitte vor dem Einreichen mindestens einen Screenshot aufnehmen."
+  "ltsmodelshare.upload.screenshot_required": "Bitte vor dem Einreichen mindestens einen Screenshot aufnehmen.",
+  "ltsmodelshare.update.title": "Update für LittleTiles Model Share verfügbar",
+  "ltsmodelshare.update.body": "Version %s ist verfügbar. Download unter:\\n%s",
+  "ltsmodelshare.update.download": "Downloads öffnen",
+  "ltsmodelshare.update.later": "Später",
+  "ltsmodelshare.update.never": "Nie wieder erinnern",
+  "ltsmodelshare.models.all_grid": "Alle Grid",
+  "ltsmodelshare.grid.unsupported": "Die aktuelle LittleTiles-Konfiguration unterstützt das benötigte Grid %s nicht."
 }

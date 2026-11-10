@@ -27,7 +27,7 @@ public final class ImageCache {
     private static final int MAX_TEXTURES = 96;
     private static final int MAX_PENDING = 24;
     /** Separate from the API executor so a page full of covers can never starve list requests. */
-    private static final ExecutorService POOL = Executors.newFixedThreadPool(2, r -> {
+    private static final ExecutorService POOL = Executors.newFixedThreadPool(4, r -> {
         Thread thread = new Thread(r, "ltsmodelshare-images");
         thread.setDaemon(true);
         return thread;
