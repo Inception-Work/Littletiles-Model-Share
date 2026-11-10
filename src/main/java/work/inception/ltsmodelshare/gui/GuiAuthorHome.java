@@ -124,19 +124,9 @@ public class GuiAuthorHome extends Screen {
                 FOLLOW_W, 20, followLabel(), b -> toggleFollow()));
         refreshFollowButton();
 
-        if (!ModConfig.get().loggedIn()) {
-            ++requestId;
-            ++followRequestId;
-            loading = false;
-            needLogin = true;
-            all.clear();
-            status = tr("ltsmodelshare.author.login_required");
-            showLoginButton();
-        } else {
-            needLogin = false;
-            loadFollowState();
-            load();
-        }
+        needLogin = false;
+        if (ModConfig.get().loggedIn()) loadFollowState();
+        load();
     }
 
     private FitButton tabButton(int x, int y, int w, String key, int value,
@@ -248,25 +238,19 @@ public class GuiAuthorHome extends Screen {
         followButton.active = !followBusy && !ownProfile;
     }
 
+    private int passiveFollowRequest;
+
     private void loadFollowState() {
-        final int request = ++followRequestId;
-        ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
-            @Override public void ok(Long myId) {
+        if (!ModConfig.get().loggedIn()) return;
+        final int requested = ++passiveFollowRequest;
+        ownProfile = author != null && author.username != null && author.username.equals(ModConfig.get().username);
+        refreshFollowButton();
+        if (ownProfile) return;
+        ApiClient.followingState(userId, new ApiClient.Callback<Boolean>() {
+            @Override public void ok(Boolean value) {
                 ApiClient.post(() -> {
-                    if (request != followRequestId) return;
-                    ownProfile = myId != null && myId == userId;
-                    refreshFollowButton();
-                    if (ownProfile) return;
-                    ApiClient.followingState(userId, new ApiClient.Callback<Boolean>() {
-                        @Override public void ok(Boolean value) {
-                            ApiClient.post(() -> {
-                                if (request != followRequestId) return;
-                                following = Boolean.TRUE.equals(value);
-                                refreshFollowButton();
-                            });
-                        }
-                        @Override public void fail(String message) { }
-                    });
+                    if (requested != passiveFollowRequest) return;
+                    following = Boolean.TRUE.equals(value); refreshFollowButton();
                 });
             }
             @Override public void fail(String message) { }

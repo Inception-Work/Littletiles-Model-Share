@@ -82,6 +82,7 @@ public final class BlueprintServer {
                 return;
             }
             CompoundTag tag = TagParser.parseTag(snbt);
+            BlueprintValidation.requireSupported(tag);
             // A converted 1.12 door/axis still says e.g. id:"door" but has no "states";
             // LittleTiles would crash the client when placing it. Check every structure
             // (including nested children), not just the top-level one.
