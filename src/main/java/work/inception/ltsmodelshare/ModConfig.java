@@ -20,6 +20,7 @@ import java.nio.file.Files;
  * （比如换成测试服或者本地起的后端）。</p>
  */
 public class ModConfig {
+    public volatile boolean updateNever=false;
 
     /** 默认站点地址 */
     public static final String DEFAULT_BASE_URL = "https://www.inception.work";

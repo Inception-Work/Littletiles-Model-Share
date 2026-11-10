@@ -40,6 +40,7 @@ public final class ClientInit {
                 InputHandler.openPanel();
             }
             BlueprintClient.tick();
+                work.inception.ltsmodelshare.client.UpdateClient.tick();
             // Dev-only smoke hook: -Dltsmodelshare.debugOpen=true opens the browser once.
             if (Boolean.getBoolean("ltsmodelshare.debugOpen") && !debugOpened
                     && (net.minecraft.client.Minecraft.getInstance().screen == null

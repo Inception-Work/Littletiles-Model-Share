@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.moddev' version '2.0.148'
 }
 
-version = '0.1.9'
+version = '1.0.0'
 group = 'work.inception'
 
 base {
@@ -63,12 +63,12 @@ jar {
     }
 }
 
-// Release layout: build/releases/0.1.9-neoforge1.21.1/LittletilesModelShare-0.1.9-neoforge1.21.1.jar
+// Release layout: build/releases/1.0.0-neoforge1.21.1/LittletilesModelShare-1.0.0-neoforge1.21.1.jar
 tasks.register('neoForge1211Release', Copy) {
     dependsOn tasks.named('jar')
     from tasks.named('jar').flatMap { it.archiveFile }
-    into layout.buildDirectory.dir('releases/0.1.9-neoforge1.21.1')
-    rename { 'LittletilesModelShare-0.1.9-neoforge1.21.1.jar' }
+    into layout.buildDirectory.dir('releases/1.0.0-neoforge1.21.1')
+    rename { 'LittletilesModelShare-1.0.0-neoforge1.21.1.jar' }
 }
 
 tasks.named('build') {
@@ -86,3 +86,38 @@ tasks.register("neoV2Checks", JavaExec) {
 // NeoForge exposes game libraries to main; include those same libraries for protocol tests.
 sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
 sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath
+
+// The release channel belongs to the build: stable checks stable, test checks test.
+processResources {
+    def updateChannel = project.findProperty('modChannel') ?: 'test'
+    if (!(updateChannel in ['test', 'stable'])) throw new GradleException('modChannel must be test or stable')
+    inputs.property 'updateChannel', updateChannel
+    inputs.property 'updateVersion', project.version
+    filesMatching('lts-update.properties') {
+        expand version: project.version, updateChannel: updateChannel
+    }
+}
+
+task updateChannelChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath
+    main = 'work.inception.ltsmodelshare.api.UpdateCheckTest'
+}
+check.dependsOn updateChannelChecks
+
+task modernGridChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.server.ModernGridChecks'
+}
+check.dependsOn modernGridChecks
+
+task gridQueryChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.api.GridQueryChecks'
+}
+check.dependsOn gridQueryChecks
+
+task collectionGridChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.gui.CollectionGridChecks'
+}
+check.dependsOn collectionGridChecks

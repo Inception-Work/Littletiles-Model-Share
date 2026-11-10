@@ -120,7 +120,7 @@ public final class ApiClient {
         return SessionRequests.execute(SESSION,
                 (base, token) -> V2Transport.request(base, path, method, body, contentType, token, limit),
                 r -> V2Transport.credentialTarget(SESSION.base(), r.finalUrl()) ? r.status() : 0,
-                authenticated);
+                authenticated && ModConfig.get().loggedIn());
     }
 
     /** Called when opening the panel: a stored token is not proof of a live session. */
@@ -312,35 +312,14 @@ public final class ApiClient {
      * 关注动态：公开卡片流按更新时间倒序，过滤出已关注作者的作品。
      * 站点目前没有专门的「关注作品流」接口，这里只回看最近若干页，避免逐作者并发请求。
      */
-    public static void followingFeed(final java.util.Set<Long> authorIds, final int pages,
-                                     final Callback<java.util.List<Dtos.WorkCard>> cb) {
+    public static void followingFeed(final int page, final int size,
+                                     final Callback<Dtos.Page<Dtos.WorkCard>> cb) {
         io(() -> {
-            try {
-                ModConfig cfg = ModConfig.get();
-                java.util.List<Dtos.WorkCard> out = new java.util.ArrayList<>();
-                java.util.Set<Long> seen = new java.util.HashSet<>();
-                int max = Math.max(1, Math.min(pages, 8));
-                for (int page = 1; page <= max; page++) {
-                    Dtos.CardQuery query = new Dtos.CardQuery("", "latest", page, 48, siteLocale());
-                    java.util.List<Dtos.WorkCard> records = V2Api.cards(query).records;
-                    if (records == null || records.isEmpty()) break;
-                    for (Dtos.WorkCard card : records) {
-                        if (card != null && card.author != null && authorIds.contains(card.author.userId)
-                                && seen.add(card.workId)) {
-                            out.add(card);
-                        }
-                    }
-                    if (records.size() < 48) break;
-                    if (out.size() >= 192) break;
-                }
-                cb.ok(out);
-            } catch (Exception e) {
-                cb.fail(tr("ltsmodelshare.api.list_failed", e.getMessage()));
-            }
+            try { cb.ok(V2Api.followingCards(page, size, siteLocale())); }
+            catch (Exception error) { cb.fail(tr("ltsmodelshare.api.list_failed", error.getMessage())); }
         });
     }
 
-    /** 解析当前登录用户 ID：密码登录的 JWT 里带 sub；个人访问令牌回退到按用户名精确搜索。 */
     public static void resolveUserId(final Callback<Long> cb) {
         io(() -> {
             Long fromToken = jwtSubject(ModConfig.get().token);
@@ -553,10 +532,6 @@ public final class ApiClient {
                                     final Callback<Dtos.DownloadInfo> cb) {
         io(() -> {
             try {
-                if (!ModConfig.get().loggedIn()) {
-                    cb.fail(tr("ltsmodelshare.api.login_hint"));
-                    return;
-                }
                 cb.ok(V2Api.downloadInfo(itemId, version, code));
             } catch (Exception e) {
                 cb.fail(tr("ltsmodelshare.api.download_failed", e.getMessage()));

@@ -50,6 +50,7 @@ public class GuiWorkDetail extends Screen {
     private final List<Dtos.Item> items = new ArrayList<>();
     private final List<Dtos.Item> allItems = new ArrayList<>();
     private boolean onlyThisVersion;
+    private Integer selectedGrid;
     private int versionX;
     private final List<String> gallery = new ArrayList<>();
     private final Map<Long, Integer> itemImageIndex = new HashMap<>();
@@ -65,6 +66,10 @@ public class GuiWorkDetail extends Screen {
     private boolean blueprintPending;
     private Long pendingItemId;
     private FitButton favoriteButton;
+
+    public GuiWorkDetail(Dtos.WorkCard card,Screen parent,Integer selectedGrid) {
+        this(card,parent);this.selectedGrid=selectedGrid;
+    }
 
     public GuiWorkDetail(Dtos.WorkCard card, Screen parent) {
         this(card, null, parent);
@@ -107,7 +112,7 @@ public class GuiWorkDetail extends Screen {
     private void applyItemFilter() {
         items.clear();
         for (Dtos.Item item : allItems) {
-            if (!onlyThisVersion || matchesThisVersion(item)) items.add(item);
+            if ((!onlyThisVersion || matchesThisVersion(item)) && CollectionGridFilter.matches(item,selectedGrid)) items.add(item);
         }
     }
 
@@ -502,7 +507,7 @@ public class GuiWorkDetail extends Screen {
         StringBuilder meta = new StringBuilder("#" + item.itemId);
         if (item.mcVersion != null) meta.append("  ").append(item.mcVersion);
         if (item.boxCount != null) meta.append("  ").append(item.boxCount).append(" box");
-        if (item.grid != null) meta.append("  grid ").append(item.grid);
+        if (item.grid != null) meta.append(work.inception.ltsmodelshare.client.GridLimits.exceeds(item.grid)?net.minecraft.ChatFormatting.RED:net.minecraft.ChatFormatting.GRAY).append("  grid ").append(item.grid);
         if (item.modNamespaces != null && !item.modNamespaces.isEmpty()) {
             String mods = String.join(", ", item.modNamespaces.subList(0, Math.min(3, item.modNamespaces.size())));
             if (item.modNamespaces.size() > 3) mods += "…";
@@ -511,16 +516,16 @@ public class GuiWorkDetail extends Screen {
         graphics.drawString(font, TextUtil.trim(font, meta.toString(), textWidth), tx, ty + 2, 0xAAAAAA, true);
 
         drawAction(graphics, previewBounds(g, rowY), tr("ltsmodelshare.detail.preview"),
-                mouseX, mouseY, inBody, false, false);
+                mouseX, mouseY, inBody, false, false, false);
         boolean done = madeBlueprint.contains(item.itemId);
         drawAction(graphics, downloadBounds(g, rowY), tr(done ? "ltsmodelshare.detail.generated"
-                : "ltsmodelshare.detail.get_blueprint"), mouseX, mouseY, inBody, true, done);
+                : "ltsmodelshare.detail.get_blueprint"), mouseX, mouseY, inBody, true, done, work.inception.ltsmodelshare.client.GridLimits.exceeds(item.grid));
     }
 
     private void drawAction(GuiGraphics graphics, Rect b, String label, int mouseX, int mouseY,
-                            boolean inBody, boolean download, boolean done) {
+                            boolean inBody, boolean download, boolean done, boolean blocked) {
         boolean hover = inBody && b.contains(mouseX, mouseY);
-        int color = download ? done ? 0xFF2B4A20 : hover ? 0xFF3E7A2C : 0xFF2F5424
+        int color = blocked ? 0xFF444444 : download ? done ? 0xFF2B4A20 : hover ? 0xFF3E7A2C : 0xFF2F5424
                 : hover ? 0xFF48718A : 0xFF304858;
         graphics.fill(b.x, b.y, b.x + b.w, b.y + b.h, color);
         TextUtil.drawCenteredFit(graphics, font, label, b.x + b.w / 2, b.y + 5, b.w - 8, 0xFFFFFF);
@@ -580,7 +585,10 @@ public class GuiWorkDetail extends Screen {
     // Existing 1.20.1 blueprint/native-preview pipeline; no changes to the preview renderer.
     private void fetchBlueprint(Dtos.Item item) {
         if (blueprintPending) return;
-        if (!ModConfig.get().loggedIn()) { minecraft.setScreen(new GuiLogin(this)); return; }
+        if(work.inception.ltsmodelshare.client.GridLimits.exceeds(item.grid)) {
+            minecraft.setScreen(GuiMessage.info(this,"ltsmodelshare.detail.grid_incompatible",
+                    tr("ltsmodelshare.grid.unsupported",item.grid)));return;
+        }
         if (minecraft.player == null) {
             minecraft.setScreen(GuiMessage.info(this, "ltsmodelshare.detail.get_blueprint",
                     tr("ltsmodelshare.detail.world_required")));

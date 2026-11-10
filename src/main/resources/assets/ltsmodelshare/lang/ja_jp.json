@@ -108,7 +108,7 @@
   "ltsmodelshare.login.token_saved": "アクセストークンを保存しました。有効期限はウェブサイトで管理されます",
   "ltsmodelshare.login.fields_required": "ユーザー名とパスワードを入力してください",
   "ltsmodelshare.login.busy": "ログイン中…",
-  "ltsmodelshare.login.title": "LittleTiles Model Share · ログイン",
+  "ltsmodelshare.login.title": "INC アカウントにログイン",
   "ltsmodelshare.login.token": "アクセストークン",
   "ltsmodelshare.login.account": "アカウント",
   "ltsmodelshare.login.password": "パスワード",
@@ -119,7 +119,7 @@
   "ltsmodelshare.models.empty": "作品がありません",
   "ltsmodelshare.models.pagination": "%s / %s ページ · 合計 %s 件",
   "ltsmodelshare.models.logged_in": " · ログイン中: %s",
-  "ltsmodelshare.models.guest": " · ゲスト（閲覧のみ）",
+  "ltsmodelshare.models.guest": "未ログイン",
   "ltsmodelshare.upload.refresh_shots": "画像を更新",
   "ltsmodelshare.upload.visibility_public": "公開",
   "ltsmodelshare.upload.visibility_private": "非公開",
@@ -236,5 +236,12 @@
   "ltsmodelshare.common.request_timeout": "リクエストがタイムアウトしました。ネットワークまたはプロキシを確認して再試行してください。",
   "ltsmodelshare.blueprint.legacy_door": "この作品には未変換の 1.12 ドアが含まれています。再ダウンロードしてください（古いブループリントは設置できません）。",
   "ltsmodelshare.blueprint.invalid_grid": "このモデルのグリッドが LittleTiles の上限を超えています。ゲームを終了し、config/littletiles.json の core.highest を 64/128/256（モデルのグリッド以上）に上げて保存し、再起動してください。",
-  "ltsmodelshare.upload.screenshot_required": "審査に提出する前にスクリーンショットを1枚以上撮ってください。"
+  "ltsmodelshare.upload.screenshot_required": "審査に提出する前にスクリーンショットを1枚以上撮ってください。",
+  "ltsmodelshare.update.title": "LittleTiles Model Share の更新があります",
+  "ltsmodelshare.update.body": "バージョン %s が利用可能です。ダウンロード：\\n%s",
+  "ltsmodelshare.update.download": "ダウンロード",
+  "ltsmodelshare.update.later": "後で",
+  "ltsmodelshare.update.never": "今後表示しない",
+  "ltsmodelshare.models.all_grid": "全 Grid",
+  "ltsmodelshare.grid.unsupported": "現在の LittleTiles 設定では必要な Grid %s を使用できません。"
 }

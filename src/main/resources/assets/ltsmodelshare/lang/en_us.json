@@ -108,7 +108,7 @@
   "ltsmodelshare.login.token_saved": "Access token saved; expiry is managed by the website",
   "ltsmodelshare.login.fields_required": "Enter both username and password",
   "ltsmodelshare.login.busy": "Logging in...",
-  "ltsmodelshare.login.title": "LittleTiles Model Share - Login",
+  "ltsmodelshare.login.title": "Sign in to your INC account",
   "ltsmodelshare.login.token": "Access token",
   "ltsmodelshare.login.account": "Account",
   "ltsmodelshare.login.password": "Password",
@@ -119,7 +119,7 @@
   "ltsmodelshare.models.empty": "No works here",
   "ltsmodelshare.models.pagination": "Page %s / %s / Total: %s",
   "ltsmodelshare.models.logged_in": " / Logged in: %s",
-  "ltsmodelshare.models.guest": " / Guest (browse only)",
+  "ltsmodelshare.models.guest": "Not signed in",
   "ltsmodelshare.upload.refresh_shots": "Refresh shots",
   "ltsmodelshare.upload.visibility_public": "Public",
   "ltsmodelshare.upload.visibility_private": "Private",
@@ -236,5 +236,12 @@
   "ltsmodelshare.common.request_timeout": "Request timed out. Check your network or proxy, then retry.",
   "ltsmodelshare.blueprint.legacy_door": "This work still contains an unconverted 1.12 door; please download it again (old blueprints cannot be placed).",
   "ltsmodelshare.blueprint.invalid_grid": "This model exceeds LittleTiles' grid limit. Quit the game, open config/littletiles.json, raise core.highest to 64/128/256 (at least the model's grid), save and restart.",
-  "ltsmodelshare.upload.screenshot_required": "Take at least one screenshot before submitting for review."
+  "ltsmodelshare.upload.screenshot_required": "Take at least one screenshot before submitting for review.",
+  "ltsmodelshare.update.title": "LittleTiles Model Share update available",
+  "ltsmodelshare.update.body": "Version %s is available. Download it from:\\n%s",
+  "ltsmodelshare.update.download": "Open downloads",
+  "ltsmodelshare.update.later": "Later",
+  "ltsmodelshare.update.never": "Never remind",
+  "ltsmodelshare.models.all_grid": "All Grid",
+  "ltsmodelshare.grid.unsupported": "The current LittleTiles configuration does not support the required Grid %s."
 }
