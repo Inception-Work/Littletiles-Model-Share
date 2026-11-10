@@ -174,7 +174,7 @@ public final class ApiClient {
         checkTask();
         V2Http.Response response = SessionRequests.execute(SESSION,
                 (base, token) -> raw(base, path, method, body, token),
-                r -> credentialStatus(r), true);
+                r -> credentialStatus(r), environment.config().loggedIn());
         return payload(response);
     }
     private static int credentialStatus(V2Http.Response response) {
@@ -193,7 +193,7 @@ public final class ApiClient {
         if (!Objects.equals(base, cfg.baseUrl) || !Objects.equals(token, cfg.token)) throw new IOException("V2_SESSION_CHANGED");
         V2Http.Response response = SessionRequests.execute(SESSION,
                 (site, credential) -> HTTP.request(site,path,"GET",null,null,credential,12000,8L*1024*1024),
-                r -> credentialStatus(r), true);
+                r -> credentialStatus(r), environment.config().loggedIn());
         if (response.status/100 != 2) throw new IOException("Image HTTP " + response.status);
         return response.bytes;
     }
@@ -275,7 +275,7 @@ public final class ApiClient {
     public static void authorHome(long userId, String keyword, boolean exact, String locale, String kind, String sort,
                                   int current, int size, Callback<Dtos.AuthorHome> cb) {
         run(cb, () -> {
-            if (environment.config().loggedIn()) requireAuthenticated();
+            
             Dtos.AuthorHome out = new Dtos.AuthorHome();
             out.author = author(get("/api/v2/authors/" + userId));
             String path = param("/api/v2/authors/" + userId + "/works", "q", keyword);
@@ -332,16 +332,18 @@ public final class ApiClient {
             return out;
         });
     }
-    public static void followingFeed(Set<Long> authorIds, int pages, Callback<List<Dtos.WorkCard>> cb) {
+    public static void followingFeed(int page, int size, Callback<Dtos.Page<Dtos.WorkCard>> cb) {
         run(cb, () -> {
-            if (authorIds.isEmpty()) return Collections.emptyList();
-            throw new IOException("V2_FOLLOWING_FEED_UNSUPPORTED");
+            requireAuthenticated();
+            String path = param(param(param("/api/v2/works/following", "page", Math.max(1,page)),
+                    "size", Math.max(1,Math.min(size,100))), "locale", siteLocale());
+            return cards(request("GET", path, null));
         });
     }
+
     public static void followingState(long userId, Callback<Boolean> cb) {
         run(cb, () -> {
             if (!environment.config().loggedIn()) return false;
-            requireAuthenticated();
             return flag(get("/api/v2/accounts/" + userId + "/follow-state"), "following");
         });
     }
@@ -379,7 +381,7 @@ public final class ApiClient {
 
     private static String withGrant(String path, Access a) { return a == null ? path : param(path,"access",a.grant); }
     private static Dtos.WorkDetail detailBlocking(long workId, String code) throws IOException {
-        if (environment.config().loggedIn()) requireAuthenticated();
+        
         JsonObject p = code == null || code.trim().isEmpty()
                 ? get(param("/api/v2/works/" + workId, "locale", siteLocale()))
                 : object(request("POST",param("/api/v2/works/" + workId + "/access","locale",siteLocale()), body("code",code.trim())));
@@ -435,7 +437,7 @@ public final class ApiClient {
     }
     public static void downloadInfo(long itemId, String version, String code, Callback<Dtos.DownloadInfo> cb) {
         run(cb, () -> {
-            requireLogin(); Long work = state.itemWorks.get(itemId);
+            Long work = state.itemWorks.get(itemId);
             if (code != null && !code.trim().isEmpty() && work == null)
                 throw new IOException("V2_DETAIL_REQUIRED: 请先打开邀请作品详情");
             Access a = work == null ? null : access(work,code,false);
@@ -468,7 +470,7 @@ public final class ApiClient {
         final String assetPath = path;
         V2Http.Response r = SessionRequests.execute(SESSION,
                 (base, credential) -> HTTP.request(base,assetPath,"GET",null,null,credential,20000,maxBytes,siteLocale()),
-                response -> credentialStatus(response), true);
+                response -> credentialStatus(response), environment.config().loggedIn());
         if (r.status==410 && a!=null && V2Http.credentialTarget(cfg.baseUrl,r.finalUrl)) {
             a=access(a.work,a.code,true);
             r=HTTP.request(cfg.baseUrl,replaceGrant(key,a),"GET",null,null,cfg.token,20000,maxBytes,siteLocale());
@@ -510,7 +512,7 @@ public final class ApiClient {
         String path=param(param("/api/v2/uploads","purpose",purpose),"module","community");
         V2Http.Response r = SessionRequests.execute(SESSION,
                 (base, credential) -> HTTP.request(base,path,"POST",bytes,"multipart/form-data; boundary="+boundary,
-                        credential,timeout,JSON_LIMIT,siteLocale()), response -> credentialStatus(response), true);
+                        credential,timeout,JSON_LIMIT,siteLocale()), response -> credentialStatus(response), environment.config().loggedIn());
         return object(payload(r));
     }
     public static void uploadSnbt(String text, String fileNameHint, Callback<Dtos.SnbtUpload> cb) {

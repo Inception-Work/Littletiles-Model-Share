@@ -41,11 +41,13 @@ public final class BlueprintServer {
                 reply(player, false, "ltsmodelshare.server.too_large", snbt.length());
                 return;
             }
+            BlueprintValidation.requireSupported(snbt);
             ItemStack stack = StructureStringUtils.importStructure(snbt);
             if (stack == null || stack.isEmpty()) {
                 reply(player, false, "ltsmodelshare.common.parse_incompatible");
                 return;
             }
+            BlueprintValidation.requireRenderable(stack);
             // 名字统一用站点标题：LittleTiles 从 SNBT 里取的名字在某些结构上会变成乱码
             // （结构里没有 name 字段时更明显），这里用 UTF-16 的标题覆盖掉，中文一定正常。
             String cleanTitle = title == null ? "" : title.trim();

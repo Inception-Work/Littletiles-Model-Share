@@ -25,9 +25,6 @@ public final class GridLimits {
 
     /** 客户端当前支持的最大 grid；拿不到返回 0（表示"无法判断，不做拦截"） */
     public static int maxGrid() {
-        if (cachedMax >= 0) {
-            return cachedMax;
-        }
         try {
             LittleGridContext max = LittleGridContext.getMax();
             cachedMax = max == null ? 0 : max.size;
@@ -40,8 +37,9 @@ public final class GridLimits {
 
     /** 结构用的 grid 是否超出客户端上限 */
     public static boolean exceeds(Integer grid) {
-        int max = maxGrid();
-        return grid != null && max > 0 && grid > max;
+        if(grid==null)return false; // Unknown metadata is checked against the actual file before import.
+        try { return LittleGridContext.get(grid)==null; }
+        catch(RuntimeException unsupported) { return true; }
     }
 
     /** 给玩家看的「怎么改配置」的提示 */

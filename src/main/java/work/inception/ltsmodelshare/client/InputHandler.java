@@ -5,7 +5,6 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.InputEvent;
 import work.inception.ltsmodelshare.LtsModelShare;
 import work.inception.ltsmodelshare.ModConfig;
-import work.inception.ltsmodelshare.gui.GuiLogin;
 import work.inception.ltsmodelshare.gui.GuiModels;
 
 /**
@@ -27,12 +26,6 @@ public class InputHandler {
     public static void openPanel() {
         Minecraft mc = Minecraft.getMinecraft();
         ModConfig cfg = ModConfig.get();
-        if (!cfg.loggedIn()) {
-            mc.displayGuiScreen(new GuiLogin(new GuiModels()));
-        } else {
-            // 与网站相同：请求遇到失效令牌才刷新；单纯打开面板不延长两小时会话。
-            mc.displayGuiScreen(new GuiModels());
-            work.inception.ltsmodelshare.api.ApiClient.validateSession();
-        }
+        mc.displayGuiScreen(new GuiModels());
     }
 }

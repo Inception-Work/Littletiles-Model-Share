@@ -190,6 +190,7 @@ public final class Dtos {
 
     /** 列表查询条件（POST /api/public/work/cards 的 body） */
     public static class CardQuery {
+        public Integer grid;
         public String q;
         public boolean exact;
         public List<String> tagCodes;

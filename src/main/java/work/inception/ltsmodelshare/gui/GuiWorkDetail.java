@@ -65,6 +65,7 @@ public class GuiWorkDetail extends GuiScreen {
     private final List<Dtos.Item> items = new ArrayList<>();
     private final List<Dtos.Item> allItems = new ArrayList<>();
     private boolean onlyThisVersion;
+    private Integer selectedGrid;
     private int versionX;
     private final List<String> gallery = new ArrayList<>();
     private int galleryIndex;
@@ -130,6 +131,11 @@ public class GuiWorkDetail extends GuiScreen {
     private int[] previewBounds(int rowY) {
         int[] download = downloadBounds(rowY);
         return new int[]{download[0] - ACTION_GAP - PREVIEW_W, download[1], PREVIEW_W, DL_H};
+    }
+
+    public GuiWorkDetail(Dtos.WorkCard card, GuiScreen parent, Integer selectedGrid) {
+        this(card, parent);
+        this.selectedGrid = selectedGrid;
     }
 
     public GuiWorkDetail(Dtos.WorkCard card, GuiScreen parent) {
@@ -264,7 +270,7 @@ public class GuiWorkDetail extends GuiScreen {
     private void applyItemFilter() {
         items.clear();
         for (Dtos.Item item : allItems) {
-            if (!onlyThisVersion || matchesThisVersion(item)) items.add(item);
+            if ((!onlyThisVersion || matchesThisVersion(item)) && CollectionGridFilter.matches(item, selectedGrid)) items.add(item);
         }
     }
 
@@ -665,12 +671,8 @@ public class GuiWorkDetail extends GuiScreen {
             int[] preview = previewBounds(rowY);
             if (ModelPreviewPanel.canOpen(item) && hit(mouseX, cy, preview)
                     && mouseY >= bodyTop && mouseY <= bodyBottom) {
-                if (!ModConfig.get().loggedIn()) {
-                    mc.displayGuiScreen(new GuiLogin(this));
-                } else {
-                    modelPreview = new ModelPreviewPanel(this, item, accessCode);
-                    modelPreview.load();
-                }
+                modelPreview = new ModelPreviewPanel(this, item, accessCode);
+                modelPreview.load();
                 return;
             }
             int[] b = downloadBounds(rowY);
@@ -699,10 +701,6 @@ public class GuiWorkDetail extends GuiScreen {
      */
     private void fetchBlueprint(final Dtos.Item item) {
         final String downloadEventId = java.util.UUID.randomUUID().toString();
-        if (!ModConfig.get().loggedIn()) {
-            mc.displayGuiScreen(new GuiLogin(this));
-            return;
-        }
         if (Minecraft.getMinecraft().player == null) {
             status = TextFormatting.RED + tr("ltsmodelshare.detail.world_required");
             return;
@@ -770,6 +768,18 @@ public class GuiWorkDetail extends GuiScreen {
             return;
         }
 
+        try {
+            work.inception.ltsmodelshare.server.BlueprintValidation.requireSupported(snbt);
+        } catch (work.inception.ltsmodelshare.server.BlueprintValidation.UnsupportedGrid invalid) {
+            status = TextFormatting.RED + tr("ltsmodelshare.detail.grid_exceeded", invalid.needed, GridLimits.maxGrid());
+            mc.displayGuiScreen(new GuiNotice(tr("ltsmodelshare.detail.get_blueprint"), java.util.Arrays.asList(
+                    status, tr("ltsmodelshare.detail.grid_config"), GridLimits.fixHint(invalid.needed)), this, null));
+            return;
+        } catch (Exception invalid) {
+            setStatus(TextFormatting.RED + tr("ltsmodelshare.common.error_generate", invalid.getMessage()));
+            return;
+        }
+
         // ===== 单人 / 局域网主机：直接在集成服务端生成道具 =====
         net.minecraft.server.integrated.IntegratedServer server = mc.getIntegratedServer();
         if (server != null) {
@@ -782,11 +792,13 @@ public class GuiWorkDetail extends GuiScreen {
                         setStatus(TextFormatting.RED + tr("ltsmodelshare.detail.player_missing"));
                         return;
                     }
+                    work.inception.ltsmodelshare.server.BlueprintValidation.requireSupported(snbt);
                     ItemStack stack = StructureStringUtils.importStructure(snbt);
                     if (stack == null || stack.isEmpty()) {
                         setStatus(TextFormatting.RED + tr("ltsmodelshare.common.parse_incompatible"));
                         return;
                     }
+                    work.inception.ltsmodelshare.server.BlueprintValidation.requireRenderable(stack);
                     if (item.title != null && !item.title.trim().isEmpty()) {
                         stack.setStackDisplayName(item.title.trim());
                     }
@@ -1009,9 +1021,6 @@ public class GuiWorkDetail extends GuiScreen {
             if (item.grid != null) {
                 meta.append("  ").append(gridTooBig ? TextFormatting.RED : TextFormatting.DARK_GRAY)
                         .append("grid ").append(item.grid);
-                if (gridTooBig) {
-                    meta.append(tr("ltsmodelshare.detail.limit", GridLimits.maxGrid()));
-                }
             }
             if (item.modNamespaces != null && !item.modNamespaces.isEmpty()) {
                 meta.append(tr("ltsmodelshare.detail.mods", join(item.modNamespaces)));
@@ -1029,7 +1038,7 @@ public class GuiWorkDetail extends GuiScreen {
             boolean done = madeBlueprint.contains(item.itemId);
             boolean hover = hit(mouseX, mouseY, b);
             Gui.drawRect(b[0], b[1], b[0] + b[2], b[1] + b[3],
-                    done ? 0xFF2B4A20 : (hover ? 0xFF3E7A2C : 0xFF2F5424));
+                    gridTooBig ? 0xFF444444 : (done ? 0xFF2B4A20 : (hover ? 0xFF3E7A2C : 0xFF2F5424)));
             TextUtil.drawCenteredFit(fontRenderer, done ? tr("ltsmodelshare.detail.generated") : tr("ltsmodelshare.detail.get_blueprint"), b[0] + b[2] / 2, b[1] + 5, b[2] - 8, 0xFFFFFF);
         }
 

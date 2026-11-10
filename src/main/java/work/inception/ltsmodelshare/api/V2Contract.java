@@ -46,8 +46,9 @@ public final class V2Contract {
 
     /** V2 now honours the catalogue filters, so the client sends them instead of refusing. */
     public static String cardsPath(Dtos.CardQuery q) throws IOException {
-        boolean byAuthor = q.authorId != null;
+        boolean byAuthor = q.authorId != null && q.grid == null;
         String p = byAuthor ? "/api/v2/authors/" + q.authorId + "/works" : "/api/v2/works";
+        if (!byAuthor && q.authorId != null) p = param(p, "authorId", q.authorId);
         p = param(p, "q", q.q);
         p = param(p, "locale", q.locale);
         p = param(p, "page", Math.max(1, q.current));
@@ -66,6 +67,7 @@ public final class V2Contract {
         if (q.sourceGameVersions != null && !q.sourceGameVersions.isEmpty()) {
             p = param(p, "sourceGameVersions", String.join(",", q.sourceGameVersions));
         }
+        if (q.grid != null) p = param(p, "grid", q.grid);
         if (q.exact) p = param(p, "exact", true);
         p = param(p, "sort", mapSort(q.sort));
         return p;

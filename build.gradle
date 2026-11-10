@@ -21,7 +21,7 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle.forge'
 
-version = '0.1.9'
+version = '1.0.0'
 group = 'work.inception'
 archivesBaseName = 'LittletilesModelShare'
 
@@ -29,7 +29,7 @@ sourceCompatibility = targetCompatibility = '1.8'
 
 minecraft {
     version = '1.12.2-14.23.5.2847'
-    runDir = 'run'
+    runDir = project.findProperty('ltsReviewRun') ?: 'run'
     // 1.12.2 Ã§Å¡â€žÃ¤Â¸Â»Ã¦ÂµÂÃ§Â¨Â³Ã¥Â®Å¡Ã¦ËœÂ Ã¥Â°â€ž
     mappings = 'stable_39'
 
@@ -191,3 +191,40 @@ task apiContractChecks(type: JavaExec, dependsOn: testClasses) {
     main = 'work.inception.ltsmodelshare.api.ApiContractChecks'
 }
 check.dependsOn apiContractChecks
+
+// The release channel belongs to the build: stable checks stable, test checks test.
+processResources {
+    def updateChannel = project.findProperty('modChannel') ?: 'test'
+    if (!(updateChannel in ['test', 'stable'])) throw new GradleException('modChannel must be test or stable')
+    inputs.property 'updateChannel', updateChannel
+    inputs.property 'updateVersion', project.version
+    filesMatching('lts-update.properties') {
+        expand version: project.version, updateChannel: updateChannel
+    }
+}
+
+task updateChannelChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath
+    main = 'work.inception.ltsmodelshare.api.UpdateCheckTest'
+}
+check.dependsOn updateChannelChecks
+
+if (project.hasProperty('ltsDebugOpen')) minecraft.clientJvmArgs += ['-Dltsmodelshare.debugOpen=true']
+
+task blueprintGridChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath
+    main = 'work.inception.ltsmodelshare.server.BlueprintGridChecks'
+}
+check.dependsOn blueprintGridChecks
+
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.compileClasspath
+
+blueprintGridChecks.classpath += sourceSets.main.compileClasspath
+
+
+task collectionGridChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath
+    main = 'work.inception.ltsmodelshare.gui.CollectionGridChecks'
+}
+check.dependsOn collectionGridChecks

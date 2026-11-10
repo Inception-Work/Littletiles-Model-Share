@@ -37,6 +37,7 @@ public class GuiLibrary extends GuiScreen {
     private final List<Dtos.WorkCard> feed = new ArrayList<>();
     private long total;
     private long userTotal;
+    private long feedTotal;
     private int page = 1;
     private int feedPage = 1;
     private int perPage = 8;
@@ -65,6 +66,7 @@ public class GuiLibrary extends GuiScreen {
     @Override
     public void initGui() {
         buttonList.clear();
+        ++usersRequestId;
         needLogin = !ModConfig.get().loggedIn();
         int cx = width / 2;
         buttonList.add(new TabButton(20, cx - 96, 22, 92, 20,
@@ -136,7 +138,7 @@ public class GuiLibrary extends GuiScreen {
     }
 
     private int maxFeedPage() {
-        return (int) Math.max(1, (feed.size() + feedPerPage - 1) / feedPerPage);
+        return (int) Math.max(1, (feedTotal + feedPerPage - 1) / feedPerPage);
     }
 
     private void loadFavorites() {
@@ -172,74 +174,53 @@ public class GuiLibrary extends GuiScreen {
         });
     }
 
+    private int usersRequestId;
+
     private void loadFollowing() {
-        final int currentRequest = ++requestId;
-        loading = true;
+        loadFollowedAuthors();
+        loadFeed();
+    }
+
+    private void loadFollowedAuthors() {
+        final int currentRequest = ++usersRequestId;
         users.clear();
-        feed.clear();
-        status = TextFormatting.GRAY + tr("ltsmodelshare.common.loading");
         ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
             @Override public void ok(Long id) {
-                myUserId = id == null ? 0 : id;
-                loadUsers(currentRequest);
-            }
-            @Override public void fail(String message) {
                 ApiClient.post(() -> {
-                    if (currentRequest != requestId) return;
-                    loading = false;
-                    status = TextFormatting.RED + message;
+                    if (currentRequest != usersRequestId) return;
+                    myUserId = id == null ? 0 : id;
+                    ApiClient.followingUsers(myUserId, 1, USER_SLOTS, new ApiClient.Callback<Dtos.Page<Dtos.UserCard>>() {
+                        @Override public void ok(Dtos.Page<Dtos.UserCard> value) {
+                            ApiClient.post(() -> {
+                                if (currentRequest != usersRequestId) return;
+                                userTotal = value.total; users.clear();
+                                if (value.records != null) users.addAll(value.records);
+                            });
+                        }
+                        @Override public void fail(String message) { }
+                    });
                 });
             }
+            @Override public void fail(String message) { }
         });
     }
 
-    private void loadUsers(final int currentRequest) {
-        ApiClient.followingUsers(myUserId, 1, 50, new ApiClient.Callback<Dtos.Page<Dtos.UserCard>>() {
-            @Override public void ok(Dtos.Page<Dtos.UserCard> value) {
+    private void loadFeed() {
+        final int currentRequest = ++requestId;
+        loading = true; feed.clear();
+        status = tr("ltsmodelshare.common.loading");
+        ApiClient.followingFeed(feedPage, feedPerPage, new ApiClient.Callback<Dtos.Page<Dtos.WorkCard>>() {
+            @Override public void ok(Dtos.Page<Dtos.WorkCard> value) {
                 ApiClient.post(() -> {
                     if (currentRequest != requestId) return;
-                    userTotal = value.total;
-                    users.clear();
-                    if (value.records != null) users.addAll(value.records);
-                    if (users.isEmpty()) {
-                        loading = false;
-                        status = TextFormatting.GRAY + tr("ltsmodelshare.library.empty_following");
-                        return;
-                    }
-                    Set<Long> ids = new HashSet<>();
-                    for (Dtos.UserCard user : users) ids.add(user.userId);
-                    loadFeed(currentRequest, ids);
+                    loading = false; feedTotal = value.total; feed.clear();
+                    if (value.records != null) feed.addAll(value.records);
+                    if (feedPage > maxFeedPage()) { feedPage = maxFeedPage(); loadFeed(); return; }
+                    status = feed.isEmpty() ? tr("ltsmodelshare.library.empty_feed") : "";
                 });
             }
             @Override public void fail(String message) {
-                ApiClient.post(() -> {
-                    if (currentRequest != requestId) return;
-                    loading = false;
-                    status = TextFormatting.RED + message;
-                });
-            }
-        });
-    }
-
-    private void loadFeed(final int currentRequest, Set<Long> ids) {
-        ApiClient.followingFeed(ids, 8, new ApiClient.Callback<List<Dtos.WorkCard>>() {
-            @Override public void ok(List<Dtos.WorkCard> value) {
-                ApiClient.post(() -> {
-                    if (currentRequest != requestId) return;
-                    loading = false;
-                    feed.clear();
-                    if (value != null) feed.addAll(value);
-                    feedPage = 1;
-                    status = feed.isEmpty()
-                            ? TextFormatting.GRAY + tr("ltsmodelshare.library.empty_feed") : "";
-                });
-            }
-            @Override public void fail(String message) {
-                ApiClient.post(() -> {
-                    if (currentRequest != requestId) return;
-                    loading = false;
-                    status = TextFormatting.RED + message;
-                });
+                ApiClient.post(() -> { if (currentRequest == requestId) { loading = false; status = message; } });
             }
         });
     }
@@ -277,7 +258,7 @@ public class GuiLibrary extends GuiScreen {
                 if (tab == TAB_FAVORITES) {
                     if (page > 1) { page--; loadFavorites(); }
                 } else if (feedPage > 1) {
-                    feedPage--;
+                    feedPage--; loadFeed();
                 }
                 break;
             case 4:
@@ -285,7 +266,7 @@ public class GuiLibrary extends GuiScreen {
                 if (tab == TAB_FAVORITES) {
                     if (page < maxPage()) { page++; loadFavorites(); }
                 } else if (feedPage < maxFeedPage()) {
-                    feedPage++;
+                    feedPage++; loadFeed();
                 }
                 break;
             case 10:
@@ -357,7 +338,7 @@ public class GuiLibrary extends GuiScreen {
     }
 
     private int feedPageStart() {
-        return Math.max(0, (feedPage - 1) * feedPerPage);
+        return 0;
     }
 
     // ==================== 绘制 ====================

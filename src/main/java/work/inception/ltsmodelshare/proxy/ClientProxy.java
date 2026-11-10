@@ -44,11 +44,18 @@ public class ClientProxy extends CommonProxy {
 
     /** 每 tick 检查一次：等了太久没收到服务端回执（对方没装本模组）就退回剪贴板方案 */
     public static class ClientTickHandler {
+        private static boolean reviewOpened;
 
         @net.minecraftforge.fml.common.eventhandler.SubscribeEvent
         public void onClientTick(net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent event) {
             if (event.phase == net.minecraftforge.fml.common.gameevent.TickEvent.Phase.END) {
+                if (Boolean.getBoolean("ltsmodelshare.debugOpen") && !reviewOpened
+                        && net.minecraft.client.Minecraft.getMinecraft().currentScreen instanceof net.minecraft.client.gui.GuiMainMenu) {
+                    reviewOpened = true;
+                    work.inception.ltsmodelshare.client.InputHandler.openPanel();
+                }
                 BlueprintClient.tick();
+                work.inception.ltsmodelshare.client.UpdateClient.tick();
             }
         }
     }

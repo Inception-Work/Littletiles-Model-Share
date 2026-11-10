@@ -41,6 +41,9 @@ public class ModConfig {
     /** 下载目录；空 = 用 gameDir/ltsmodels */
     public String downloadDir = "";
 
+    /** 玩家在更新弹窗里点过「永不提醒」：以后不再检查、也不再弹更新提示（改配置可恢复）。 */
+    public volatile boolean updateNever = false;
+
     // ==================== 读写 ====================
 
     private static File file() {

@@ -69,6 +69,8 @@ public class GuiModels extends GuiScreen {
     private GuiTextField searchField;
     private boolean onlyThisVersion;
     private int versionX;
+    private static final int[] GRID_OPTIONS = {0,2,4,8,16,32};
+    private int gridOption;
     /** 高级搜索的条件（作者 / 标签 / 排序） */
     private GuiAdvancedSearch.Filter filter = new GuiAdvancedSearch.Filter();
     private int gridLeft;
@@ -84,8 +86,8 @@ public class GuiModels extends GuiScreen {
         buttonList.clear();
         int cx = width / 2;
 
-        int topW = Math.min(440, width - 16);
-        int searchW = Math.max(60, topW - 202);
+        int topW = Math.min(504, width - 16);
+        int searchW = Math.max(40, topW - 262);
         int topX = cx - topW / 2;
         searchField = new GuiTextField(0, fontRenderer, topX, 24, searchW, 18);
         searchField.setMaxStringLength(64);
@@ -97,6 +99,7 @@ public class GuiModels extends GuiScreen {
         buttonList.add(new LocalizedButton(8, topX + searchW + 96, 23, 50, 20, tr("ltsmodelshare.search.filters")));
         versionX = topX + searchW + 150;
         buttonList.add(new LocalizedButton(12, versionX, 23, 48, 20, "1.12.2"));
+        buttonList.add(new LocalizedButton(13, versionX + 52, 23, 60, 20, gridLabel()));
         /*
          * 底栏四个按钮平均铺满一整行；关闭按钮宽度同时决定分页行里
          * 「收藏与关注 + 我的空间」的总宽，保证右侧两处对齐。
@@ -144,6 +147,7 @@ public class GuiModels extends GuiScreen {
         Dtos.CardQuery query = new Dtos.CardQuery(searchField.getText().trim(),
                 filter.sort == null ? "latest" : filter.sort, page, perPage, languageTag());
         query.authorId = filter.authorId;
+        query.grid = GRID_OPTIONS[gridOption] == 0 ? null : GRID_OPTIONS[gridOption];
         if (!filter.tagCodes.isEmpty()) {
             query.tagCodes = new java.util.ArrayList<>(filter.tagCodes);
         }
@@ -203,6 +207,10 @@ public class GuiModels extends GuiScreen {
         reload();
     }
 
+    private String gridLabel() {
+        return gridOption == 0 ? tr("ltsmodelshare.models.all_grid") : "Grid " + GRID_OPTIONS[gridOption];
+    }
+
     private int maxPage() {
         return (int) Math.max(1, (total + perPage - 1) / perPage);
     }
@@ -250,7 +258,7 @@ public class GuiModels extends GuiScreen {
                 }
                 break;
             case 7:
-                mc.displayGuiScreen(new GuiUpload(this));
+                mc.displayGuiScreen(ModConfig.get().loggedIn() ? new GuiUpload(this) : new GuiLogin(this));
                 break;
             case 8:
                 mc.displayGuiScreen(new GuiAdvancedSearch(this, filter));
@@ -264,6 +272,12 @@ public class GuiModels extends GuiScreen {
                 } else {
                     mc.displayGuiScreen(new GuiLibrary(this));
                 }
+                break;
+            case 13:
+                gridOption = (gridOption + 1) % GRID_OPTIONS.length;
+                button.displayString = gridLabel();
+                page = 1;
+                reload();
                 break;
             case 12:
                 onlyThisVersion = !onlyThisVersion;
@@ -315,7 +329,7 @@ public class GuiModels extends GuiScreen {
         }
         int idx = cardAt(mouseX, mouseY);
         if (idx >= 0 && idx < cards.size()) {
-            mc.displayGuiScreen(new GuiWorkDetail(cards.get(idx), this));
+            mc.displayGuiScreen(new GuiWorkDetail(cards.get(idx), this, GRID_OPTIONS[gridOption] == 0 ? null : GRID_OPTIONS[gridOption]));
         }
     }
 

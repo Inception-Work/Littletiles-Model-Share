@@ -96,17 +96,8 @@ public class GuiAuthorHome extends GuiScreen {
                 GuiNavigation.footerY(height), followW, 20, followLabel()));
         loadFollowState();
 
-        if (!ModConfig.get().loggedIn()) {
-            ++requestId; // 让旧会话的异步响应失效
-            loading = false;
-            needLogin = true;
-            cards.clear();
-            status = tr("ltsmodelshare.author.login_required");
-            buttonList.add(new LocalizedButton(6, x - 45, (listTop + listBottom) / 2 + 8, 90, 20, tr("ltsmodelshare.author.login")));
-        } else {
-            needLogin = false;
-            load();
-        }
+        needLogin = false;
+        load();
     }
 
     private int maxPage() {
@@ -186,25 +177,19 @@ public class GuiAuthorHome extends GuiScreen {
         }
     }
 
+    private int passiveFollowRequest;
+
     private void loadFollowState() {
         if (!ModConfig.get().loggedIn()) return;
-        ApiClient.resolveUserId(new ApiClient.Callback<Long>() {
-            @Override public void ok(Long myId) {
+        final int requested = ++passiveFollowRequest;
+        ownProfile = author != null && author.username != null && author.username.equals(ModConfig.get().username);
+        refreshFollowButton();
+        if (ownProfile) return;
+        ApiClient.followingState(userId, new ApiClient.Callback<Boolean>() {
+            @Override public void ok(Boolean value) {
                 ApiClient.post(() -> {
-                    if (myId != null && myId == userId) {
-                        ownProfile = true;
-                        removeButton(7);
-                        return;
-                    }
-                    ApiClient.followingState(userId, new ApiClient.Callback<Boolean>() {
-                        @Override public void ok(Boolean value) {
-                            ApiClient.post(() -> {
-                                following = Boolean.TRUE.equals(value);
-                                refreshFollowButton();
-                            });
-                        }
-                        @Override public void fail(String message) { }
-                    });
+                    if (requested != passiveFollowRequest) return;
+                    following = Boolean.TRUE.equals(value); refreshFollowButton();
                 });
             }
             @Override public void fail(String message) { }
