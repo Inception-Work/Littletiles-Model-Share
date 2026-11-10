@@ -12,7 +12,7 @@ public final class V2Checks {
     static void check(boolean v,String message){count++;if(!v)throw new AssertionError(message);}
     public static void main(String[] args)throws Exception{
         SessionChecks.run();
-        check(work.inception.ltsmodelshare.client.ImageUrls.thumb("https://www.inception.work/api/v2/resources/8/content").endsWith("/content"),"API image URL unchanged");
+        check(work.inception.ltsmodelshare.client.ImageUrls.thumb("https://www.inception.work/api/v2/resources/8/content").endsWith("/thumb?w=480"),"API images use the authorized thumbnail endpoint");
         JsonObject a=V2Api.decode(200,"{\"success\":true,\"payload\":[{\"code\":\"building\",\"name\":\"Building\"}]}");
         check(a.getAsJsonArray("items").size()==1,"Array payload retained");
         var method=V2Api.class.getDeclaredMethod("card",JsonObject.class);method.setAccessible(true);

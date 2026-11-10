@@ -36,6 +36,12 @@ public final class BlueprintClient {
      * A progress modal is a different Screen, so instanceof GuiWorkDetail loses every response.
      */
     public static void request(String snbt, String title, BiConsumer<Boolean, String> onResult) {
+        try { work.inception.ltsmodelshare.server.BlueprintValidation.requireSupported(snbt); }
+        catch(Exception invalid) {
+            if(onResult!=null)onResult.accept(false,tr("ltsmodelshare.blueprint.invalid_grid"));
+            return;
+        }
+
         if (waiting) {
             if (onResult != null) onResult.accept(false, tr("ltsmodelshare.blueprint.processing"));
             return;

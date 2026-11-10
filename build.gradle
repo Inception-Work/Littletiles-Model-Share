@@ -3,7 +3,7 @@ plugins {
     id 'net.neoforged.gradle.userdev' version '7.0.145'
 }
 
-version = '0.1.9'
+version = '1.0.0'
 group = 'work.inception'
 base { archivesName = 'LittletilesModelShare' }
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
@@ -86,3 +86,44 @@ tasks.register('reobfJar', JavaExec) {
     }
 }
 tasks.named('build') { dependsOn tasks.named('reobfJar') }
+
+// The release channel belongs to the build: stable checks stable, test checks test.
+processResources {
+    def updateChannel = project.findProperty('modChannel') ?: 'test'
+    if (!(updateChannel in ['test', 'stable'])) throw new GradleException('modChannel must be test or stable')
+    inputs.property 'updateChannel', updateChannel
+    inputs.property 'updateVersion', project.version
+    filesMatching('lts-update.properties') {
+        expand version: project.version, updateChannel: updateChannel
+    }
+}
+
+task updateChannelChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath
+    main = 'work.inception.ltsmodelshare.api.UpdateCheckTest'
+}
+check.dependsOn updateChannelChecks
+
+task modernGridChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.server.ModernGridChecks'
+}
+check.dependsOn modernGridChecks
+
+task gridQueryChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.api.GridQueryChecks'
+}
+check.dependsOn gridQueryChecks
+
+task collectionGridChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.gui.CollectionGridChecks'
+}
+check.dependsOn collectionGridChecks
+
+task imageUrlChecks(type: JavaExec, dependsOn: testClasses) {
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.compileClasspath
+    main = 'work.inception.ltsmodelshare.client.ImageUrlChecks'
+}
+check.dependsOn imageUrlChecks
