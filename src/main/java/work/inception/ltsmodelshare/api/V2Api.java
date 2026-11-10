@@ -526,7 +526,10 @@ final class V2Api {
     // ---------------------------------------------------------------- endpoints
 
     static String cardsPath(Dtos.CardQuery query) {
-        boolean byAuthor=query.authorId!=null && query.grid==null;
+        boolean byAuthor = query.authorId != null && query.grid == null
+                && (query.tagCodes == null || query.tagCodes.isEmpty())
+                && (query.sourceLoader == null || query.sourceLoader.trim().isEmpty())
+                && (query.sourceGameVersions == null || query.sourceGameVersions.isEmpty());
         StringBuilder path = new StringBuilder(byAuthor
                 ? "/authors/" + query.authorId + "/works" : "/works");
         path.append("?q=").append(encode(query.q))

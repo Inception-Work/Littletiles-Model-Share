@@ -16,7 +16,12 @@ public final class GridQueryChecks {
         check(path.startsWith("/works?"));check(path.contains("&grid=32"));check(path.contains("&authorId=9"));
         check(path.contains("&tagCodes=building"));check(path.contains("&sourceLoader=forge"));
         check(path.contains("&sourceGameVersions=1.20.1"));check(path.contains("&page=2"));
-        query.grid=null;check(V2Api.cardsPath(query).startsWith("/authors/9/works?"));
+        query.grid=null;
+        path=V2Api.cardsPath(query);
+        check(path.startsWith("/works?"));check(path.contains("&authorId=9"));check(path.contains("&tagCodes=building"));
+        query.sourceLoader=null;query.sourceGameVersions=null;
+        check(V2Api.cardsPath(query).contains("&tagCodes=building"));
+        query.tagCodes=null;check(V2Api.cardsPath(query).startsWith("/authors/9/works?"));
         Gson gson=new Gson();ModConfig preferences=gson.fromJson("{}",ModConfig.class);
         check(!preferences.updateNever);preferences.updateNever=true;
         check(gson.fromJson(gson.toJson(preferences),ModConfig.class).updateNever);
