@@ -14,8 +14,10 @@ public final class ModernGridChecks {
     public static void main(String[] args) throws Exception {
         LittleGrid.configure(128);
         BlueprintValidation.requireSupported("{grid:128,c:[{grid:64}]}");checks++;
+        check(java.util.Arrays.stream(GridLimits.filterOptions()).max().getAsInt()==128);
         LittleGrid.configure(32);
         check(GridSupport.maxGrid()==32);
+        check(java.util.Arrays.stream(GridLimits.filterOptions()).max().getAsInt()==32);
         check(GridSupport.supports(32));check(!GridSupport.supports(64));check(!GridSupport.supports(24));
         check(GridLimits.exceeds(64));check(!GridLimits.exceeds(32));
         reject("{grid:64}");reject("{grid:16,c:[{grid:64}]}");reject("{grid:16,c:[{grid:16,c:[{grid:128}]}]}");
